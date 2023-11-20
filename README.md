@@ -40,7 +40,7 @@ I have been playing with ideas 'on the side' for a while now and several show pr
 Unified Embeddings provide a better way to train embeddings with no additional inference costs or model structure changes however there is a training memory penalty.
 The basic idea is to take a very large embedding and run it through a ff layer to generate the output embedding during training. 
 For production inference all vocab embeddings can be generated and stored and the embedding training weights can be tossed.
-In the testing I have done so for it look quite promising:
+The testing I have done so far looks quite promising:
 
 ![](results/ue_log_loss.png)
 This graph shows a 6 layer UE model beating a 12 layer model, at least in initial training. The long term benefits are still unknown but these results are promising. The 6l UE model here has exactly the same prod inference costs/structure/weights/etc as the normal 6l model. Only during training does it have extra logic/parameters needed for training.
