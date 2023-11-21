@@ -6,8 +6,8 @@ import os
 def main():
   from argparse import ArgumentParser
   args = ArgumentParser('Removes all but the weights from a model.')
-  args.add_argument('model', help="Model name to load from. Default is gpt_model.mcp", default="gpt_model.mcp")
-  args.add_argument('--model-out', help="Model name to save to. Default is gpt_model_clean.mcp", default="gpt_model_clean.mcp")
+  args.add_argument('model', help="Model name to load from. Default is gpt_model.lmp", default="gpt_model.lmp")
+  args.add_argument('--model-out', help="Model name to save to. Default is gpt_model_clean.lmp", default="gpt_model_clean.lmp")
   args.add_argument('--exp', help="Use exp model runner. Changes regularly.", action="store_true")
   args = args.parse_args()
 
