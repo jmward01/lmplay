@@ -34,6 +34,16 @@ It is all about the graphs right? This will take outputs from different runs and
 For each of these there are two different kinds of graphs, a regular log plot and a 'norm' plot where the longest run is used as the baseline for the other runs. This norm view makes it much easier to compare the performance of different models/runs.
 The code is implemented in `lmplay.stats.__main__`.
 
+## Usage
+```
+#To train the baseline 6L GPT2ish model
+lmp_trainer
+
+#To train whatever the current experiment is
+lmp_traininer --exp
+```
+That's it! it will download datasets and start training. Check `--help` for other options like device, mini-batch-size, etc etc.
+
 ## The experiments
 I have been playing with ideas 'on the side' for a while now and several show promise. The first one is something I call 'Unified Embeddings'.
 ### Unified Embeddings
