@@ -5,7 +5,7 @@ from typing import Optional, Any, List
 from lmplay.base.encoder.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
-from .modules import UnifiedEmbed
+from .modules import UnifiedEmbed, ConvertableEmbedding
 
 class GPT2(LMBase):
   def __init__(self,
@@ -16,7 +16,9 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
-               front_embed_mul=8.0):
+               front_embed_mul=8.0,
+               for_train=True,
+               **ignore):
     super().__init__(f"ue_v1.0_{front_embed_mul}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
@@ -30,7 +32,11 @@ class GPT2(LMBase):
     vocab_size = self.tokenizer.n_vocab
 
     self.max_len = max_len
-    self.tok_embed = UnifiedEmbed(vocab_size, embed_dim, front_embed_mul)
+    if not for_train:
+      #this will convert any UE into a normal embedding. After this, if the model is saved, it can be re-loaded by the baseline model.
+      self.tok_embed = ConvertableEmbedding(vocab_size, embed_dim, front_embed_mul)
+    else:
+      self.tok_embed = UnifiedEmbed(vocab_size, embed_dim, front_embed_mul)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
     self.blocks = nn.Sequential(*[Block(max_len,
@@ -79,7 +85,7 @@ class ModelRunner(LMRunnerBase):
                        strict=False,
                        **parameters) -> (LMBase, Any):
     model_args = model_args if model_args else dict()
-    model = GPT2(**model_args)
+    model = GPT2(for_train=self.for_train, **model_args)
     if model_weights is not None:
       missing, unexpected = model.load_state_dict(model_weights, strict=strict)
       model.to(device)

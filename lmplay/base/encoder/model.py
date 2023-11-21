@@ -15,7 +15,8 @@ class GPT2(LMBase):
                embed_dim=768,
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
-               embed_dropout: Optional[float] = 0.1):
+               embed_dropout: Optional[float] = 0.1,
+               **ignore):
     super().__init__(f"GPT2ish_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,

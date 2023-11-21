@@ -3,6 +3,29 @@ from torch import nn
 import torch.nn.functional as F
 
 
+class ConvertableEmbedding(nn.Embedding):
+  """This acts like a normal embedding but when it sees a UE loaded with its name it converts it to a normal embedding and deletes the UE weights.
+
+  """
+  def __init__(self, num_embeddings: int, embedding_dim: int, front_embed_mul: float):
+    super().__init__(num_embeddings, embedding_dim)
+    self.num_embeddings = num_embeddings
+    self.embedding_dim = embedding_dim
+    self.front_embed_mul = front_embed_mul
+    self._register_load_state_dict_pre_hook(self.check_initialize)
+
+  def check_initialize(self, state_dict:dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+    if f'{prefix}integration1.weight' in state_dict:
+      with torch.no_grad():
+        me = UnifiedEmbed(self.num_embeddings, self.embedding_dim, self.front_embed_mul)
+        new_state_dict = {k[len(prefix):]:v for k, v in state_dict.items()}
+        me.load_state_dict(new_state_dict)
+        all_embedding_idxs = torch.arange(0, self.num_embeddings, dtype=torch.long)
+        all_embeddings = me(all_embedding_idxs, allow_reorder=False)
+        state_dict.clear()
+        state_dict[f'{prefix}weight'] = all_embeddings
+
+
 class UnifiedEmbed(nn.Module):
   def __init__(self, vocab_size: int, embed_dim: int, front_embed_mul: float, keep_embed_on_cpu=False):
     super().__init__()
@@ -31,10 +54,10 @@ class UnifiedEmbed(nn.Module):
     self.integration1 = nn.Linear(front_embed_dim, embed_dim)
     self.integration2 = nn.Linear(embed_dim, embed_dim)
 
-  def forward(self, idxs: torch.Tensor) -> torch.Tensor:
+  def forward(self, idxs: torch.Tensor, allow_reorder=True) -> torch.Tensor:
     tok_embed_device = self.tok_embed.weight.device
     output_device = idxs.device
-    if idxs.size(1) > 1:
+    if allow_reorder and idxs.size(1) > 1:
 
       batch, sequence = idxs.size()
       local_idxs = idxs.reshape(-1)

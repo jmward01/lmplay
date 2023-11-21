@@ -226,6 +226,7 @@ class LMRunnerBase(ABC):
                  amp=False,
                  no_grad_scale=False,
                  **parameters):
+    self.for_train = for_train
     self.device = device
     if 'cuda' in self.device:
       self.device_type = "cuda"
@@ -318,14 +319,20 @@ class LMRunnerBase(ABC):
   def get_optimizer_args(self):
     return self._optimizer_args
 
-  def save(self, location: str):
+  def save(self, location: str, prod_save=False):
     assert self.is_initialzed(), "Runner not initialized"
-    assert self.is_trainable(), "Runner not trainable"
-    checkpoint = {'model': self._raw_model.state_dict(),
-                  'model_args': self.get_model_args(),
-                  'optimizer_args': self.get_optimizer_args(),
-                  'optimizer': self._optimizer.state_dict(),
-                  'stats': self.model_stats.dump_dict()}
+    assert self.is_trainable() or prod_save, "Runner not trainable"
+    if prod_save:
+
+      checkpoint = {'model': self._raw_model.state_dict(),
+                    'model_args': self.get_model_args()}
+    else:
+
+      checkpoint = {'model': self._raw_model.state_dict(),
+                    'model_args': self.get_model_args(),
+                    'optimizer_args': self.get_optimizer_args(),
+                    'optimizer': self._optimizer.state_dict(),
+                    'stats': self.model_stats.dump_dict()}
     if os.path.exists(location):
       copyfile(location, f"{location}.bak")
     torch.save(checkpoint, location)
