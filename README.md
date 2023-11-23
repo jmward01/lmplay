@@ -7,6 +7,25 @@ That being said, the training has been designed to be simple. No multi-gpu, mult
 
 A note of caution here, because this is a playground it really isn't designed to be usable as a library. That means that while you can import this in and use the classes, there is basically no guarantee that updates to this codebase won't badly break your code. Backward compatability is a very low priority compared to creating and comparing experiments. 
 
+## The experiments
+I have been playing with ideas 'on the side' for a while now and several show promise. The first one is something I call 'Unified Embeddings'.
+### Unified Embeddings
+Unified Embeddings provide a better way to train embeddings with no additional inference costs or model structure changes however there is a training memory penalty.
+The basic idea is to take a very large embedding and run it through a ff layer to generate the output embedding during training. 
+For production inference all vocab embeddings can be generated and stored and the embedding training weights can be tossed.
+The limited testing I have done so far looks quite promising:
+
+![](results/ue_log_loss.jpg)
+This graph shows a 6 layer UE model beating a 12 layer baseline model, at least in initial training. The long term benefits are still unknown but these results are promising. The 6 layer UE model here has exactly the same prod inference costs/structure/weights/etc as a baseline 6 layer GPTish model. Only during training does it need extra logic/parameters. Additionally, you can see that the larger the UE the better (so far) with the 16x UE outperforming the 8x one.
+The norm plot shows performance better:
+![](results/ue_log_norm_loss.jpg)
+Here you can clearly see how much better the 6 layer UE models are over the 6 and 12 layer baseline models. It is still gaining ground on the 6 while the 12 is slowly catching back up. Clearly, longer runs are needed. I will update this plot as the runs continue.
+
+## Future experiments
+I am slowly 'cleaning up' many projects that I have been working on and intend to release them as I have longer training runs on them. I am currently limited to my one 3070 so even these limited runs take several days each. In fact, one epoch on the dataset in use will take roughly 10 days per model to complete. I expect that the current testing will take at least another 20 days to finish one epoch for all models.
+
+I picked UEs first since they are very easy to understand and implement. I will likely iterate on them a little more before releasing the next experiment. I hope to release a version of UEs that can be a drop-in replacement to an existing well trained model to allow 'bolting' on this enhanced training. I have done some internal experiments in this direction already but nothing ready to be released.
+
 ## GPT2ish
 The baseline encoder I am using as the reference model is based on GPT2. Any flaws in it are my own and you shouldn't take this as reference code for a GPT2 implementation.
 
@@ -43,25 +62,6 @@ lmp_trainer
 lmp_traininer --exp
 ```
 That's it! it will download datasets and start training. Check `--help` for other options like device, mini-batch-size, etc etc.
-
-## The experiments
-I have been playing with ideas 'on the side' for a while now and several show promise. The first one is something I call 'Unified Embeddings'.
-### Unified Embeddings
-Unified Embeddings provide a better way to train embeddings with no additional inference costs or model structure changes however there is a training memory penalty.
-The basic idea is to take a very large embedding and run it through a ff layer to generate the output embedding during training. 
-For production inference all vocab embeddings can be generated and stored and the embedding training weights can be tossed.
-The limited testing I have done so far looks quite promising:
-
-![](results/ue_log_loss.png)
-This graph shows a 6 layer UE model beating a 12 layer baseline model, at least in initial training. The long term benefits are still unknown but these results are promising. The 6 layer UE model here has exactly the same prod inference costs/structure/weights/etc as a baseline 6 layer GPTish model. Only during training does it need extra logic/parameters. Additionally, you can see that the larger the UE the better (so far) with the 16x UE outperforming the 8x one.
-The norm plot shows performance better:
-![](results/ue_log_norm_loss.png)
-Here you can clearly see how much better the 6 layer UE models are over the 6 and 12 layer baseline models. It is still gaining ground on the 6 while the 12 is slowly catching back up. Clearly, longer runs are needed. I will update this plot as the runs continue.
-
-## Future experiments
-I am slowly 'cleaning up' many projects that I have been working on and intend to release them as I have longer training runs on them. I am currently limited to my one 3070 so even these limited runs take several days each. In fact, one epoch on the dataset in use will take roughly 10 days per model to complete. I expect that the current testing will take at least another 20 days to finish one epoch for all models.
-
-I picked UEs first since they are very easy to understand and implement. I will likely iterate on them a little more before releasing the next experiment. I hope to release a version of UEs that can be a drop-in replacement to an existing well trained model to allow 'bolting' on this enhanced training. I have done some internal experiments in this direction already but nothing ready to be released.
 
 ## Contribution
 At the moment I am doing this mainly for myself but I am open to considering outside contributions.
