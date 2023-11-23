@@ -1,5 +1,5 @@
 from lmplay.base.encoder.model import ModelRunner as BaseModelRunner
-from lmplay.exp.embeddings.unified_embeddings_v1_0.model import ModelRunner
+from lmplay import CurrentExpModelRunner as ModelRunner
 import os
 
 

@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from typing import Optional, Any, List
+from typing import Optional, Any
 
 from lmplay.base.encoder.modules import Block
 import tiktoken
@@ -18,8 +18,10 @@ class GPT2(LMBase):
                embed_dropout: Optional[float] = 0.1,
                front_embed_mul=8.0,
                for_train=True,
+               keep_embed_on_cpu=False,
+               version="1.0",
                **ignore):
-    super().__init__(f"ue_v1.0_{front_embed_mul}_{num_blocks}L_{max_len}",
+    super().__init__(f"ue_v{version}_{front_embed_mul}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -28,6 +30,7 @@ class GPT2(LMBase):
                      ff_dropout=ff_dropout,
                      embed_dropout=embed_dropout,
                      front_embed_mul=front_embed_mul)
+    keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -36,7 +39,7 @@ class GPT2(LMBase):
       #this will convert any UE into a normal embedding. After this, if the model is saved, it can be re-loaded by the baseline model.
       self.tok_embed = ConvertableEmbedding(vocab_size, embed_dim, front_embed_mul)
     else:
-      self.tok_embed = UnifiedEmbed(vocab_size, embed_dim, front_embed_mul)
+      self.tok_embed = UnifiedEmbed(vocab_size, embed_dim, front_embed_mul, keep_embed_on_cpu=keep_embed_on_cpu)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
     self.blocks = nn.Sequential(*[Block(max_len,
@@ -47,7 +50,7 @@ class GPT2(LMBase):
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 
-  def forward(self, x:torch.Tensor, cache:Optional[List] = None):
+  def forward(self, x:torch.Tensor, cache:Optional[list] = None):
     seq_len = x.size(1)
     x_start = 0
     if cache is not None and len(cache) > 0:

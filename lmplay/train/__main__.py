@@ -6,7 +6,7 @@ import traceback
 from typing import Optional
 from tqdm import tqdm
 from lmplay.base.encoder.model import ModelRunner as BaseModelRunner
-from lmplay.exp.embeddings.unified_embeddings_v1_0.model import ModelRunner
+from lmplay import CurrentExpModelRunner as ModelRunner
 
 
 def render_pbar(ms: ModelStats) -> str:

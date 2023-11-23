@@ -192,7 +192,7 @@ class LMRunnerBase(ABC):
     self.max_batch_size = max_batch_size
     self._model: Optional[LMBase] = None
     self._raw_model: Optional[LMBase] = None
-    self._optimizer: Optional[Optimizer] = None
+    self._optimizers: Optional[List[Optimizer]] = None
     self.model_stats: Optional[modelstats.ModelStats] = None
     self._model_args = None
     self._optimizer_args = None
@@ -204,7 +204,7 @@ class LMRunnerBase(ABC):
     self.max_len:Optional[int] = None
 
   def is_trainable(self) -> bool:
-    return self._optimizer is not None
+    return self._optimizers is not None
 
   def is_initialzed(self) -> bool:
     return self._model is not None
@@ -273,7 +273,7 @@ class LMRunnerBase(ABC):
           self._model.requires_grad_(False)
         detect_freeze(self._model)
         # Only load the other stuff if they are going to train
-        self._optimizer, self._optimizer_args, self._lr_scheduler = self.construct_optimizer(device,
+        self._optimizers, self._optimizer_args, self._lr_scheduler = self.construct_optimizer(device,
                                                                                              self._model,
                                                                                              missing=missing,
                                                                                              unexpected=unexpected,
@@ -287,6 +287,9 @@ class LMRunnerBase(ABC):
                                                                                              optimizer_warmup_steps=optimizer_warmup_steps,
                                                                                              optimizer_warmup_fraction=optimizer_warmup_fraction,
                                                                                              **parameters)
+        if not isinstance(self._optimizers, list):
+          self._optimizers = [self._optimizers]
+
     else:
       self._model, self._model_args = self._construct_model(device, **parameters)
       self.model_stats = modelstats.ModelStats(model_name=f"{self._model.name}{self.run_name}", basedir=self._stats_dir)
@@ -294,9 +297,12 @@ class LMRunnerBase(ABC):
         if default_freeze:
           self._model.requires_grad_(False)
         detect_freeze(self._model)
-        self._optimizer, self._optimizer_args, self._lr_scheduler = self.construct_optimizer(device,
+        self._optimizers, self._optimizer_args, self._lr_scheduler = self.construct_optimizer(device,
                                                                                              self._model,
                                                                                              **parameters)
+        if not isinstance(self._optimizers, list):
+          self._optimizers = [self._optimizers]
+
     self._raw_model = self._model
     if compile_model:
       #['cudagraphs', 'inductor', 'onnxrt', 'openxla', 'openxla_eval', 'tvm']
@@ -327,11 +333,15 @@ class LMRunnerBase(ABC):
       checkpoint = {'model': self._raw_model.state_dict(),
                     'model_args': self.get_model_args()}
     else:
+      if len(self._optimizers) > 1:
+        optimizer_save = [optimizer.state_dict() for optimizer in self._optimizers]
+      else:
+        optimizer_save = self._optimizers[0].state_dict()
 
       checkpoint = {'model': self._raw_model.state_dict(),
                     'model_args': self.get_model_args(),
                     'optimizer_args': self.get_optimizer_args(),
-                    'optimizer': self._optimizer.state_dict(),
+                    'optimizer': optimizer_save,
                     'stats': self.model_stats.dump_dict()}
     if os.path.exists(location):
       copyfile(location, f"{location}.bak")
@@ -424,13 +434,18 @@ class LMRunnerBase(ABC):
     # So we will break it into mini batches and do gradient accumulation.
     if not actual_samples_read:
       actual_samples_read = len(prompts)
-    self._optimizer.zero_grad()
+    for optimizer in self._optimizers:
+      optimizer.zero_grad()
+
     results, current_loss = self._run_with_truth(prompts, True, actual_samples_read)
     if self.scaler is not None:
-      self.scaler.step(self._optimizer)
+      #Scaling only applies to the primary optimizer.
+      self.scaler.step(self._optimizers[0])
       self.scaler.update()
     else:
-      self._optimizer.step()
+      self._optimizers[0].step()
+    for optimizer in self._optimizers[1:]:
+      optimizer.step()
     if self._lr_scheduler:
       self._lr_scheduler.step()
     return results, current_loss
@@ -480,37 +495,70 @@ class LMRunnerBase(ABC):
                           optimizer_warmup_steps: Optional[int] = None,
                           disable_optimizer_warmup=False,
                           **parameters) -> (Optimizer, Any, Optional[LRScheduler]):
+    """Construct one or more optimizers to manage the model. The first optimier is the 'primary' and will have scaling and lr scheduling applied if availale.
+    secondary optimizers are needed if training on different types of devices (CPU + GPU) with amp. Multiple optimizers is rarely needed.
+    To fix parameters to a secondary optizer just tag them with 'blah.actual_parameter.secondary_optimizer = True' when they are constructed.
+
+    :param device:
+    :param model:
+    :param missing:
+    :param unexpected:
+    :param load_optimizer:
+    :param optimizer_weights:
+    :param optimizer_args:
+    :param optimizer_warmup_fraction:
+    :param optimizer_warmup_steps:
+    :param disable_optimizer_warmup:
+    :param parameters:
+    :return:
+    """
+
     if optimizer_args is None:
       optimizer_args = dict()
     lr = parameters.get('lr', optimizer_args.get('lr', DEFAULT_LR))
     weight_decay = parameters.get('weight_decay', optimizer_args.get('weight_decay', DEFAULT_WEIGHT_DECAY))
-    optimizer = torch.optim.Adagrad(model.parameters(), lr=lr, weight_decay=weight_decay)
-    # optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
+    primary_weights = []
+    secondary_weights = []
+    #Detect primary and secondary optimizer targets.
+    for parameter in model.parameters():
+      if hasattr(parameter, "secondary_optimizer") and parameter.secondary_optimizer:
+        secondary_weights.append(parameter)
+      else:
+        primary_weights.append(parameter)
+    optimizers = [torch.optim.Adagrad(primary_weights, lr=lr, weight_decay=weight_decay)]
+    if len(secondary_weights) > 0:
+      optimizers.append(torch.optim.Adagrad(secondary_weights, lr=lr, weight_decay=weight_decay))
     lr_scheduler = None
-    create_warmup_scheduler = not disable_optimizer_warmup and optimizer_weights is not None
-    if optimizer_weights is not None and load_optimizer and len(unexpected) == 0 and len(missing) == 0:
+    if optimizer_weights is not None and not isinstance(optimizer_weights, list):
+      optimizer_weights = [optimizer_weights]
+    if optimizer_weights is not None and load_optimizer and len(unexpected) == 0 and len(missing) == 0 and len(optimizer_weights) == len(optimizers):
+      # if optimizer_weights is not None and load_optimizer and len(missing) == 0 and len(unexpected) == 0:
       # only load old optimizers if the model parameters haven't changed.
-      for pg in optimizer_weights['param_groups']:
-        if 'lr' in pg:
-          pg['lr'] = lr
-        if 'weight_decay' in pg:
-          pg['weight_decay'] = weight_decay
-      if load_optimizer:
-        try:
-          optimizer.load_state_dict(optimizer_weights)
-          #Optimizer loaded fine. No warmup needed!
-          create_warmup_scheduler = False
-        except ValueError:
-          print(
-            "Unable to load optimizer. Probably a new parameter that is throwing things off. (This optimizer doesn't belong to this model)")
-          if not disable_optimizer_warmup:
-            #Looks like the optimizer had issues loading. Let's use a lr scheduler to minimize model shock on the cold optimizer.
-            create_warmup_scheduler = True
+      optimizer_loaded = True
+      for optimizer, weights in zip(optimizers, optimizer_weights):
+        for pg in weights['param_groups']:
+          if 'lr' in pg:
+            pg['lr'] = lr
+          if 'weight_decay' in pg:
+            pg['weight_decay'] = weight_decay
+        if load_optimizer:
+          try:
+            optimizer.load_state_dict(weights)
+          except ValueError:
+            optimizer_loaded = False
+            print("Unable to load optimizer. Probably a new parameter that is throwing things off. (This optimizer doesn't belong to this model)")
+        else:
+          optimizer_loaded = False
+    else:
+      optimizer_loaded = False
+    create_warmup_scheduler = not disable_optimizer_warmup and optimizer_weights is not None and not optimizer_loaded and len(optimizers) == 1
     if create_warmup_scheduler:
       print("Using warmup scheduler.")
-      lr_scheduler = OptimizerWarmupLRScheduler(optimizer,
+      lr_scheduler = OptimizerWarmupLRScheduler(optimizers[0],
                                                 steps=optimizer_warmup_steps,
                                                 initial_fraction=optimizer_warmup_fraction)
     optimizer_args['lr'] = lr
     optimizer_args['weight_decay'] = weight_decay
-    return optimizer, optimizer_args, lr_scheduler
+    if len(optimizers) > 1:
+      return optimizers, optimizer_args, lr_scheduler
+    return optimizers[0], optimizer_args, lr_scheduler

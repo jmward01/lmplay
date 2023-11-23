@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-
-
+import random
+from tqdm import tqdm
 class ConvertableEmbedding(nn.Embedding):
   """This acts like a normal embedding but when it sees a UE loaded with its name it converts it to a normal embedding and deletes the UE weights.
 
@@ -50,15 +50,68 @@ class UnifiedEmbed(nn.Module):
     #This only works if the main model has overridden the 'to' call to check for it. See LMBase.
     if keep_embed_on_cpu:
       self.tok_embed.weight.force_device = "cpu"
+      #the secondary_optimizer is needed to allow AMP to work on CUDA. Without it AMP gets confused with the mix of CPU and GPU parameters.
+      self.tok_embed.weight.secondary_optimizer = True
 
     self.integration1 = nn.Linear(front_embed_dim, embed_dim)
     self.integration2 = nn.Linear(embed_dim, embed_dim)
+    self._register_load_state_dict_pre_hook(self.check_initialize)
+    self.initialized_from_small_embed = False
+
+  def initialize(self, embedding_w: torch.Tensor):
+    print("Initializing UEs from an existing embedding layer.")
+    # The embedding is our source of 'truth' we are trying to learn to predict.
+    device = embedding_w.device
+    with torch.no_grad():
+      # Gives a huge hint to speed up learning
+      self.tok_embed.weight[:, :embedding_w.size(1)] = embedding_w
+
+    # These hyper parameters still need fine-tuning. It works reasonably well though.
+    lr = 5e-3
+    weight_decay = 0.00
+    # more epochs seem to hurt which is odd. More testing needed here.
+    epochs = 50
+    batch_size = 1024 * 8
+    final_batch_size = 1024 * 8
+    optimizer = torch.optim.Adagrad(self.parameters(), lr=lr, weight_decay=weight_decay)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
+    training_set = list(range(self.vocab_size))
+    embedding = nn.Embedding(self.vocab_size, self.embedding_size, _weight=embedding_w)
+    with torch.enable_grad():
+      with tqdm(total=self.vocab_size * epochs) as pbar:
+        for epoch in range(epochs):
+          random.shuffle(training_set)
+          last = 0
+          batch_size = min(batch_size + 128, final_batch_size)
+          while last < len(training_set):
+            optimizer.zero_grad()
+            batch = training_set[last:last + batch_size]
+            batch = torch.tensor(batch, dtype=torch.long, device=device)
+            last = last + len(batch)
+            truth = embedding(batch)
+            prediction = self(batch, allow_reorder=False)
+            loss = F.mse_loss(prediction, truth, reduction="mean")
+            loss.backward()
+            loss = float(loss)
+            optimizer.step()
+            pbar.set_description(f"loss: {loss:0.3f}, epoch:{epoch}, lr:{scheduler.get_last_lr()[0]}")
+            pbar.update(len(batch))
+          if epoch > 0 and epoch % 10 == 0:
+            scheduler.step()
+    self.initialized_from_small_embed = True
+
+  def check_initialize(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+    if f'{prefix}weight' in state_dict:
+      self.initialize(state_dict[f'{prefix}weight'])
 
   def forward(self, idxs: torch.Tensor, allow_reorder=True) -> torch.Tensor:
     tok_embed_device = self.tok_embed.weight.device
     output_device = idxs.device
     if allow_reorder and idxs.size(1) > 1:
-
+      #This greatly saves computation/CPU transfer costs but clearly adds a little complexity.
+      #It doesn't appear to hurt training (it shouldn't but quick tests were done and showed similar training curves)
+      #Basically, we find all the unique idxs used, look just those up then do the integration layers and re-scatter the results.
+      #This way common tokens only get a single cost of transfer and calculation.
       batch, sequence = idxs.size()
       local_idxs = idxs.reshape(-1)
       local_idxs = local_idxs.tolist()
