@@ -47,13 +47,20 @@ class UnifiedEmbed(nn.Module):
     #Anyway, Prod could lose the integration weights and big tok_embed.weight so the weight structure would go back to normal and have no prod costs.
     front_embed_dim = int(embed_dim * front_embed_mul)
     self.tok_embed = nn.Embedding(vocab_size, front_embed_dim)
+    self.integration1 = nn.Linear(front_embed_dim, embed_dim)
+
     #This only works if the main model has overridden the 'to' call to check for it. See LMBase.
     if keep_embed_on_cpu:
-      self.tok_embed.weight.force_device = "cpu"
-      #the secondary_optimizer is needed to allow AMP to work on CUDA. Without it AMP gets confused with the mix of CPU and GPU parameters.
-      self.tok_embed.weight.secondary_optimizer = True
+      #We are keeping both the embedding and the first integration on the CPU to save memory and reduce the memory transfer.
+      #by doing the first integration we transfer much less information from the cpu to the gpu
+      #The tradeoff generally becomes worth it when sequence*batch_size > 2k. At that point the transfer saving cover the linear layer costs.
+      #Of course this is totally dependent on cpu->gpu bandwidth, how fast your CPU is, CPU memory bandwidth, etc etc so milage will vary.
+      for p in (self.tok_embed.weight, self.integration1.weight, self.integration1.bias):
+        p.force_device = "cpu"
+        #the secondary_optimizer is needed to allow AMP to work on CUDA. Without it AMP gets confused with the mix of CPU and GPU parameters.
+        p.secondary_optimizer = True
 
-    self.integration1 = nn.Linear(front_embed_dim, embed_dim)
+
     self.integration2 = nn.Linear(embed_dim, embed_dim)
     self._register_load_state_dict_pre_hook(self.check_initialize)
     self.initialized_from_small_embed = False
@@ -125,12 +132,13 @@ class UnifiedEmbed(nn.Module):
         with torch.amp.autocast(enabled=False, device_type=tok_embed_device.type):
           ordered_idxs = torch.tensor(ordered_idxs, dtype=torch.long, device=tok_embed_device)
           x = self.tok_embed(ordered_idxs)
+          #x = self.integration1(x)
           x = x.to(output_device)
       else:
         ordered_idxs = torch.tensor(ordered_idxs, dtype=torch.long, device=tok_embed_device)
         x = self.tok_embed(ordered_idxs)
-      # Minimize the lookup/liner layer costs
       x = self.integration1(x)
+      # Minimize the lookup/liner layer costs
       x = F.gelu(x)
       x = self.integration2(x)
       # Now we can re-lookup the result
@@ -142,6 +150,7 @@ class UnifiedEmbed(nn.Module):
         #Autocast doesn't like mixed devices
         with torch.amp.autocast(enabled=False, device_type=tok_embed_device.type):
           x = self.tok_embed(idxs)
+          #x = self.integration1(x)
           x = x.to(output_device)
       else:
         x = self.tok_embed(idxs)
