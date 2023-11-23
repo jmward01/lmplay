@@ -53,10 +53,10 @@ For production inference all vocab embeddings can be generated and stored and th
 The limited testing I have done so far looks quite promising:
 
 ![](results/ue_log_loss.png)
-This graph shows a 6 layer UE model beating a 12 layer baseline model, at least in initial training. The long term benefits are still unknown but these results are promising. The 6 layer UE model here has exactly the same prod inference costs/structure/weights/etc as a baseline 6 layer GPTish model. Only during training does it need extra logic/parameters.
+This graph shows a 6 layer UE model beating a 12 layer baseline model, at least in initial training. The long term benefits are still unknown but these results are promising. The 6 layer UE model here has exactly the same prod inference costs/structure/weights/etc as a baseline 6 layer GPTish model. Only during training does it need extra logic/parameters. Additionally, you can see that the larger the UE the better (so far) with the 16x UE outperforming the 8x one.
 The norm plot shows performance better:
 ![](results/ue_log_norm_loss.png)
-Here you can clearly see how much better the 6 layer UE model is over the 6 layer baseline model. It is still gaining ground on it in fact. The 12 layer baseline is also losing to the 6 layer UE model, but that gap is slowly shrinking. Clearly, longer runs are needed. I will update this plot as the runs continue.
+Here you can clearly see how much better the 6 layer UE models are over the 6 and 12 layer baseline models. It is still gaining ground on the 6 while the 12 is slowly catching back up. Clearly, longer runs are needed. I will update this plot as the runs continue.
 
 ## Future experiments
 I am slowly 'cleaning up' many projects that I have been working on and intend to release them as I have longer training runs on them. I am currently limited to my one 3070 so even these limited runs take several days each. In fact, one epoch on the dataset in use will take roughly 10 days per model to complete. I expect that the current testing will take at least another 20 days to finish one epoch for all models.
