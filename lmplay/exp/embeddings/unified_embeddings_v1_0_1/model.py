@@ -15,6 +15,9 @@ class ModelRunner(LMRunnerBase):
                        strict=False,
                        **parameters) -> (LMBase, Any):
     model_args = model_args if model_args else dict(front_embed_mul=16.0)
+    for k,v in parameters.items():
+      if k not in model_args:
+        model_args[k] = v
     model = GPT2(for_train=self.for_train, keep_embed_on_cpu=True, **model_args)
     if model_weights is not None:
       missing, unexpected = model.load_state_dict(model_weights, strict=strict)
