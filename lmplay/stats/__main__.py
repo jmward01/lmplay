@@ -1,4 +1,4 @@
-from .plot import plot, find_stat_files
+from .plot import plot, find_stat_files, get_file_data
 from argparse import ArgumentParser
 
 def main():
@@ -50,10 +50,11 @@ def main():
   print(f"Igrnoring: \n" + '\n'.join(ignored_files))
   print(f"Displaying: \n" + '\n'.join(found_files))
 
+  file_data = get_file_data(*found_files)
   outfile_log_loss = f"./log_loss.{file_type}"
   outfile_log_acc = f"./log_accuracy.{file_type}"
-  plot(outfile_log_loss, *found_files, min_show=min_show, log_plot=True, scale=True, use_process=False, average_count=average_count)
-  plot(outfile_log_acc, *found_files, min_show=min_show, log_plot=True, scale=True, use_process=False, plot_targets=('accuracy',), average_count=average_count)
+  plot(outfile_log_loss, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, average_count=average_count)
+  plot(outfile_log_acc, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, plot_targets=('accuracy',), average_count=average_count)
 
   #outfile_loss = f"./loss.{file_type}"
   #outfile_acc = f"./accuracy.{file_type}"
@@ -62,8 +63,8 @@ def main():
 
   outfile_log_norm_loss = f"./log_norm_loss.{file_type}"
   outfile_log_norm_acc = f"./log_norm_accuracy.{file_type}"
-  plot(outfile_log_norm_loss, *found_files, min_show=min_show, log_plot=True, scale=True, use_process=False, norm_to_mean=True, average_count=average_count)
-  plot(outfile_log_norm_acc, *found_files, min_show=min_show, log_plot=True, scale=True, use_process=False, plot_targets=('accuracy',), norm_to_mean=True, average_count=average_count)
+  plot(outfile_log_norm_loss, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, norm_to_mean=True, average_count=average_count)
+  plot(outfile_log_norm_acc, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, plot_targets=('accuracy',), norm_to_mean=True, average_count=average_count)
 
 
 

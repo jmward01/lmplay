@@ -209,7 +209,7 @@ def _get_iters(files_data:dict) -> (list, str, str):
       shortest_len = data['iter'][-1]
   iters = list(found_iters)
   iters.sort()
-  return iters, longest, shortest
+  return dict(iters=iters, longest=longest, shortest=shortest)
 def _norm_to_mean(files_data:dict, longest:str, plot_targets:tuple) -> dict:
   longest = files_data[longest]
   result_files = dict()
@@ -224,21 +224,8 @@ def _norm_to_mean(files_data:dict, longest:str, plot_targets:tuple) -> dict:
         target_values.append(data[pt][i] - longest[pt][i])
   return result_files
 
-def plot(out_file,
-         *files,
-         min_show=.1,
-         log_plot=True,
-         show=False,
-         plot_targets=('loss',),
-         scale=True,
-         average_count:Optional[int] = 100,
-         norm_to_mean=False,
-         use_process=True):
-  out_file = os.path.expanduser(out_file)
+def get_file_data(*files, plot_targets=('loss', 'accuracy')) -> (dict, dict):
   file_data = dict()
-  # We want to center the graph on the interesting areas so we need to track the overall min/max and the worst min value
-  # across all datasets we are plotting. Then we will show from the absolute min to abve the worst min but below the abs max.
-
   for file in files:
     file = os.path.expanduser(file)
     with open(file) as infile:
@@ -266,16 +253,32 @@ def plot(out_file,
           data['iter'].append(iter_val)
       if len(data['iter']) > 0:
         file_data[name] = data
+  return file_data, _get_iters(file_data)
 
-  iters, longest, shortest = _get_iters(file_data)
+def plot(out_file,
+         file_data:(dict, dict),
+         min_show=.1,
+         log_plot=True,
+         show=False,
+         plot_targets=('loss',),
+         scale=True,
+         average_count:Optional[int] = 100,
+         norm_to_mean=False,
+         use_process=True):
+  out_file = os.path.expanduser(out_file)
+  # We want to center the graph on the interesting areas so we need to track the overall min/max and the worst min value
+  # across all datasets we are plotting. Then we will show from the absolute min to abve the worst min but below the abs max.
+
+  file_data, file_meta = file_data
+  #iters, longest, shortest = _get_iters(file_data)
   #now we have a spot for every iter. Let's get normalized value for every point by going through them all.
   #First we make sure that they all have values for every iter
-  file_data = {name:unify_points(fd, iters, plot_targets) for name, fd in file_data.items()}
-  min_iter = int(file_data[shortest]['iter'][-1]*(1.0 - min_show))
+  file_data = {name:unify_points(fd, file_meta['iters'], plot_targets) for name, fd in file_data.items()}
+  min_iter = int(file_data[file_meta['shortest']]['iter'][-1]*(1.0 - min_show))
   #min_iter = iters[0]
-  max_iter = iters[-1]
+  max_iter = file_meta['iters'][-1]
   if norm_to_mean:
-    file_data = _norm_to_mean(file_data, longest, plot_targets)
+    file_data = _norm_to_mean(file_data, file_meta['longest'], plot_targets)
   abs_min_value, abs_max_value, max_min_value, min_max_value = get_stats(file_data, plot_targets, min_iter)
   if len(file_data) > 0:
     if use_process:
