@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import csv
 import multiprocessing as mp
 
+import numpy
+import numpy as np
 
 def find_stat_files(path: str) -> (tuple, tuple):
   path = os.path.expanduser(path)
@@ -43,53 +45,36 @@ def _plot_worker(out_file,
                  min_show:float,
                  average_count:Optional[int]):
   #with plt.xkcd():
-
+  ac = []
+  center = int(average_count/2)
+  for i in range(average_count*2 + 1):
+    weight = (1.0 - abs(i - center) / average_count) ** 2
+    ac.append(weight)
+  ac = numpy.array(ac)
+  #ac = ac/np.sum(ac)
   addtl_lines = []
   for name, data in file_data.items():
     for data_name in plot_targets:
-      d = data[data_name]
+      d = numpy.array(data[data_name])
       if average_count is None:
         plt.plot(data['iter'], d, label=f"{name}_{data_name}", linewidth=1)
       else:
         l = plt.plot(data['iter'], d, linewidth=.2, alpha=.3)
-        avgs = [0]*len(d)
+        avgs = [0.0]*len(d)
         for i in range(len(d)):
-          ac = average_count
-          #ac = min(average_count, len(d) - i)
-          #if i - ac < 0:
-          #  start = 0
-          #  ac = i
-          #else:
-          #  start = i - ac
-          start = max(0, i - ac)
-          end = min(i + ac + 1, len(d))
-          ac = min(i - start, end - i - 1)
-          start = i - ac
-          end = i + ac + 1
-          #length = end - start
-          #total = sum(d[start:end])
-          #avg1 = total / length
-          #avgs[i] = avg
-
-          if ac > 0:
-            total = 0
-            total_weight = 0
-            for j in range(start, end):
-              #weight = (1.0 - abs(j - i)/ac)**2
-              weight = (1.0 - abs(j - i) / average_count) ** 2
-              total_weight += weight
-              total += d[j]*weight
-            if total_weight == 0:
-              bad = "here"
-            #total = sum(d[start:end])
-            avg = total/total_weight
-            #avgv = d[i]
-            avgs[i] = avg
-          else:
-            if i > 0:
-              avgs[i] = avgs[i - 1]
-            else:
-              avgs[i] = d[i]
+          d_start = max(0, i - average_count)
+          d_end = min(i + average_count, len(d))
+          count = min(i - d_start, d_end - i - 1)
+          d_start = i - count
+          d_end = i + count + 1
+          ac_start = average_count -count
+          ac_end = average_count + count + 1
+          d_sect = d[d_start:d_end]
+          ac_sect = ac[ac_start:ac_end]
+          ac_sect = ac_sect/np.sum(ac_sect)
+          avg = d_sect*ac_sect
+          avg = np.sum(avg)
+          avgs[i] = avg
         addtl_lines.append({'iter':data['iter'], 'data':avgs, 'color':l[0].get_color(), "label": f"{name}_{data_name}"})
   for line_info in addtl_lines:
     #do these last so the show on top of the other line data
@@ -262,7 +247,7 @@ def plot(out_file,
          show=False,
          plot_targets=('loss',),
          scale=True,
-         average_count:Optional[int] = 100,
+         average_count:Optional[int] = 10,
          norm_to_mean=False,
          use_process=True):
   out_file = os.path.expanduser(out_file)
