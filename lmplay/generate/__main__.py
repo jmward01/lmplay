@@ -29,6 +29,9 @@ def main():
                 for_train=False)
   if args.max_len is None:
     args.max_len = mr._model.max_len
+  total_parameters = mr._model.parameter_count()
+  print(f"\nGenerating {mr._model.name} with {total_parameters}({total_parameters/10e9:0.3f}b) parameters.\n")
+
   results = mr.generate([args.prompt], max_len=args.max_len)[0]
   print(results)
 

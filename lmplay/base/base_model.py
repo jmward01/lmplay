@@ -167,6 +167,15 @@ class LMBase(nn.Module):
 
     return results
 
+  def parameter_count(self) -> int:
+    pc = 0
+    for p in self.parameters():
+      p_count = 1
+      for s in p.shape:
+        p_count *= s
+      pc += p_count
+    return pc
+
 
 def detect_freeze(module: nn.Module):
   for m in module.modules():

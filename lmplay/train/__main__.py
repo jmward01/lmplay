@@ -201,7 +201,8 @@ def main():
                                row_reader=to_row,
                                row_continuation=continue_row,
                                fast_forward=mr.model_stats.total_validate_samples)
-  print(f"\nTraining {mr._model.name}\n")
+  total_parameters = mr._model.parameter_count()
+  print(f"\nTraining {mr._model.name} with {total_parameters}({total_parameters/10e9:0.3f}b) parameters.\n")
   try:
     for batch, new_train_samples_read in train_batcher:
       # Hack because hugging face doesn't have a way to restart where you left off.
