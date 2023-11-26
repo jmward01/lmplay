@@ -81,7 +81,7 @@ def main():
   #That being said, AMP and mac = not great.
   #
   args.add_argument('--amp', help="Use Automatic Mixed Precision (AMP) training.", action="store_true")
-  args.add_argument('--model', help="Model name to load/save to. Default is <exp>_<num_blocks>_model.lmp", default=None)
+  args.add_argument('--model', help="Model name to load/save to. Default is <exp>_<num_blocks>L_model.lmp", default=None)
   args.add_argument('--initial-model', help="Model file to look for if the 'model' isn't found. This model will only ever be read, not writen over. Default is gpt_initial_model.lmp", default="gpt_initial_model.lmp")
   args.add_argument('--exp', help="Use exp model runner. Changes regularly. 'list' to show available models. default is gpt2ish", default="gpt2ish")
   args.add_argument('--no-grad-scale', help="only used with amp on cuda devices. Don't scale the grads. Only useful if using mixed devices (cpu and gpu)", action="store_true")
@@ -93,7 +93,7 @@ def main():
 
 
   if args.model is None:
-    args.model = f"{args.exp}_{args.num_blocks}_model.lmp"
+    args.model = f"{args.exp}_{args.num_blocks}L_model.lmp"
 
   initial_locations = [args.model, args.initial_model]
   save_location = args.model
