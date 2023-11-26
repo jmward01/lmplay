@@ -6,8 +6,7 @@ import traceback
 from typing import Optional
 from tqdm import tqdm
 from lmplay.base.encoder.model import ModelRunner as BaseModelRunner
-from lmplay import CurrentExpModelRunner as ModelRunner
-
+from lmplay import MODEL_RUNNERS
 
 def render_pbar(ms: ModelStats) -> str:
   if ms.total_train_samples > 0:
@@ -82,9 +81,9 @@ def main():
   #That being said, AMP and mac = not great.
   #
   args.add_argument('--amp', help="Use Automatic Mixed Precision (AMP) training.", action="store_true")
-  args.add_argument('--model', help="Model name to load/save to. Default is gpt_model.lmp", default="gpt_model.lmp")
+  args.add_argument('--model', help="Model name to load/save to. Default is <exp>_<num_blocks>_model.lmp", default=None)
   args.add_argument('--initial-model', help="Model file to look for if the 'model' isn't found. This model will only ever be read, not writen over. Default is gpt_initial_model.lmp", default="gpt_initial_model.lmp")
-  args.add_argument('--exp', help="Use exp model runner. Changes regularly.", action="store_true")
+  args.add_argument('--exp', help="Use exp model runner. Changes regularly. 'list' to show available models. default is gpt2ish", default="gpt2ish")
   args.add_argument('--no-grad-scale', help="only used with amp on cuda devices. Don't scale the grads. Only useful if using mixed devices (cpu and gpu)", action="store_true")
   args = args.parse_args()
   if args.amp and args.compile_model:
@@ -92,6 +91,9 @@ def main():
     # Leaving it in for possible future runs.
     print("WARNING: AMP is being used with a compiled model. This generally has issues and could be very slow. You have been warned!")
 
+
+  if args.model is None:
+    args.model = f"{args.exp}_{args.num_blocks}_model.lmp"
 
   initial_locations = [args.model, args.initial_model]
   save_location = args.model
@@ -108,11 +110,15 @@ def main():
 
 
 
-
-  if args.exp:
-    mr = ModelRunner(max_batch_size=mini_batch_size)
-  else:
-    mr = BaseModelRunner(max_batch_size=mini_batch_size)
+  if args.exp not in MODEL_RUNNERS:
+    all_exps = ', '.join(MODEL_RUNNERS)
+    if args.exp == 'list':
+      print(f"Choose from {all_exps}")
+      exit(0)
+    else:
+      print(f"{args.exp} not found. Choose from {all_exps}")
+      exit(1)
+  mr = MODEL_RUNNERS[args.exp](max_batch_size=mini_batch_size)
   mr.initialize(device,
                 locations=initial_locations,
                 run_name=args.run_name,
