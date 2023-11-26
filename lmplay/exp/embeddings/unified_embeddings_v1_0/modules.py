@@ -132,12 +132,13 @@ class UnifiedEmbedding(nn.Module):
         with torch.amp.autocast(enabled=False, device_type=tok_embed_device.type):
           ordered_idxs = torch.tensor(ordered_idxs, dtype=torch.long, device=tok_embed_device)
           x = self.tok_embed(ordered_idxs)
-          #x = self.integration1(x)
+          x = self.integration1(x)
           x = x.to(output_device)
       else:
         ordered_idxs = torch.tensor(ordered_idxs, dtype=torch.long, device=tok_embed_device)
         x = self.tok_embed(ordered_idxs)
-      x = self.integration1(x)
+        x = self.integration1(x)
+      #x = self.integration1(x)
       # Minimize the lookup/liner layer costs
       x = F.gelu(x)
       x = self.integration2(x)
@@ -150,11 +151,12 @@ class UnifiedEmbedding(nn.Module):
         #Autocast doesn't like mixed devices
         with torch.amp.autocast(enabled=False, device_type=tok_embed_device.type):
           x = self.tok_embed(idxs)
-          #x = self.integration1(x)
+          x = self.integration1(x)
           x = x.to(output_device)
       else:
         x = self.tok_embed(idxs)
-      x = self.integration1(x)
+        x = self.integration1(x)
+      #x = self.integration1(x)
       x = F.gelu(x)
       x = self.integration2(x)
 
