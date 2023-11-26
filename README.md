@@ -1,7 +1,7 @@
 # lmplay
 This is intended to be a playground to make it easy to try crazy things. It is rough, it is unfinished and, like the best things in life, it is messy.
 I have tried to create a structure in this library that makes it easy to try things and compare results.
-Everything here is targeted at quick testing and turnaround on commodity hardware. The two primary targets are mac M2 and a NVIDIA 3070 with 12GB ram.
+Everything here is targeted at quick testing and turnaround on commodity hardware. The two primary targets are mac M2 and a NVIDIA 3060 with 12GB ram.
 The structure of the project is designed for copy/paste/change, not to provide a stable prod library. Most of the training code has been extracted but the model has been left wide open.
 That being said, the training has been designed to be simple. No multi-gpu, multi-process, etc, so hopefully it is a very accessible project for other to try things in.
 
@@ -22,7 +22,7 @@ The norm plot shows performance better:
 Here you can clearly see how much better the 6 layer UE models are over the 6 and 12 layer baseline models. It is still gaining ground on the 6 while the 12 is slowly catching back up. Clearly, longer runs are needed. I will update this plot as the runs continue.
 
 ## Future experiments
-I am slowly 'cleaning up' many projects that I have been working on and intend to release them as I have longer training runs on them. I am currently limited to my one 3070 so even these limited runs take several days each. In fact, one epoch on the dataset in use will take roughly 10 days per model to complete. I expect that the current testing will take at least another 20 days to finish one epoch for all models.
+I am slowly 'cleaning up' many projects that I have been working on and intend to release them as I have longer training runs on them. I am currently limited to my one 3060 so even these limited runs take several days each. In fact, one epoch on the dataset in use will take roughly 10 days per model to complete. I expect that the current testing will take at least another 20 days to finish one epoch for all models.
 
 I picked UEs first since they are very easy to understand and implement. I will likely iterate on them a little more before releasing the next experiment. I hope to release a version of UEs that can be a drop-in replacement to an existing well trained model to allow 'bolting' on this enhanced training. I have done some internal experiments in this direction already but nothing ready to be released.
 
