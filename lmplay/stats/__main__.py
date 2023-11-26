@@ -61,10 +61,10 @@ def main():
   #plot(outfile_loss, *found_files, min_show=.3, log_plot=False, scale=True, use_process=False)
   #plot(outfile_acc, *found_files, min_show=.9, log_plot=False, scale=False, use_process=False, plot_targets=('accuracy',))
 
-  outfile_log_norm_loss = f"./log_norm_loss.{file_type}"
-  outfile_log_norm_acc = f"./log_norm_accuracy.{file_type}"
-  plot(outfile_log_norm_loss, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, norm_to_mean=True, average_count=average_count)
-  plot(outfile_log_norm_acc, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, plot_targets=('accuracy',), norm_to_mean=True, average_count=average_count)
+  outfile_log_norm_loss = f"./log_diff_loss.{file_type}"
+  outfile_log_norm_acc = f"./log_diff_accuracy.{file_type}"
+  plot(outfile_log_norm_loss, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, diff_to_longest=True, average_count=average_count)
+  plot(outfile_log_norm_acc, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, plot_targets=('accuracy',), diff_to_longest=True, average_count=average_count)
 
 
 
