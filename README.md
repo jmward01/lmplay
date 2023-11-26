@@ -9,18 +9,24 @@ A note of caution here, because this is a playground it really isn't designed to
 
 ## The experiments
 I have been playing with ideas 'on the side' for a while now and several show promise. The first one is something I call 'Unified Embeddings'.
-### Unified Embeddings
+### Experiment 1: Unified Embeddings
 Unified Embeddings provide a better way to train embeddings with no additional inference costs or model structure changes however there is a training memory penalty.
 The basic idea is to take a very large embedding and run it through a ff layer to generate the output embedding during training. 
 For production inference all vocab embeddings can be generated and stored and the embedding training weights can be tossed.
 The limited testing I have done so far looks quite promising:
 
 ![](results/ue_log_loss.jpg)
-This graph shows a 6 layer UE model beating a 12 layer baseline model, at least in initial training. The long term benefits are still unknown but these results are promising. The 6 layer UE model here has exactly the same prod inference costs/structure/weights/etc as a baseline 6 layer GPTish model. Only during training does it need extra logic/parameters. Additionally, you can see that the larger the UE the better (so far) with the 16x UE outperforming the 8x one.
-The norm plot shows performance better:
-![](results/ue_log_norm_loss.jpg)
-Here you can clearly see how much better the 6 layer UE models are over the 6 and 12 layer baseline models. It is still gaining ground on the 6 while the 12 is slowly catching back up. Clearly, longer runs are needed. I will update this plot as the runs continue.
+This graph shows a 6 layer UE model beating a 12 layer baseline model, at least in initial training. The long term benefits are still unknown but these results are promising. The 6 layer UE model here has exactly the same prod inference costs/structure/weights/etc as a baseline 6 layer GPTish model. Only during training does it need extra logic/parameters. Additionally, the larger the UE the better. A 16x UE significantly outperforms an 8x one. Those results will be shown eventually (based on GPU availability).
+The diff plot shows performance better:
+![](results/ue_log_diff_loss.jpg)
+Here you can clearly see how much better the 6 layer UE models are over the 6 and 12 layer baseline models. It is still gaining ground on the 6 while the 12 was slowly catching back up but looks like it has stalled. Clearly, longer runs are needed, but the results appear to be getting better as time goes on. I will update this plot as runs continue.
 
+### Experiment 2: Value Norm
+Attn is amazing. But it may have a simple improvement to make it even better. The value projection applies to all elements of a sequence and softmax sums them all together depending on how k&q rank them. 
+The value projection has a hard job, it not only needs to create a useful value, but it needs to avoid making uninteresting values accidentally large which would negate the ranking that the k&q came up with. There is a simple way to take this side-job away from the v projection, use LayerNorm. Now the v projection can focus on emphasizing the important value aspects of the sequence and not accidentally destroy the ranking.
+
+At least that is the theory/idea that led me to test it. The results are pretty clear though. While not as large an impact as UEs, adding a simple layer norm is an almost no cost change to multi-head attn and it looks like it provides solid value, at least in early training. Adding layer norm to k or q however appears to have a negative impact (not shown) but more testing may find ways to improve those too.
+![](results/nv_log_diff_loss.jpg)
 ## Future experiments
 I am slowly 'cleaning up' many projects that I have been working on and intend to release them as I have longer training runs on them. I am currently limited to my one 3060 so even these limited runs take several days each. In fact, one epoch on the dataset in use will take roughly 10 days per model to complete. I expect that the current testing will take at least another 20 days to finish one epoch for all models.
 
@@ -50,7 +56,7 @@ The code is implemented in `lmplay.generate.__main__`
 
 ### lmp_plotstats
 It is all about the graphs right? This will take outputs from different runs and put them all in the same plot files. Two basic stats are plotted, accuracy and loss.
-For each of these there are two different kinds of graphs, a regular log plot and a 'norm' plot where the longest run is used as the baseline for the other runs. This norm view makes it much easier to compare the performance of different models/runs.
+For each of these there are two different kinds of graphs, a regular log plot and a 'diff' plot where the longest run is used as the baseline for the other runs. This diff view makes it much easier to compare the performance of different models/runs.
 The code is implemented in `lmplay.stats.__main__`.
 
 ## Usage

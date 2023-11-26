@@ -195,7 +195,7 @@ def _get_iters(files_data:dict) -> (list, str, str):
   iters = list(found_iters)
   iters.sort()
   return dict(iters=iters, longest=longest, shortest=shortest)
-def _norm_to_mean(files_data:dict, longest:str, plot_targets:tuple) -> dict:
+def _diff_to_mean(files_data:dict, longest:str, plot_targets:tuple) -> dict:
   longest = files_data[longest]
   result_files = dict()
   #Then we subtract the longest one's value from their values to normalize against it.
@@ -248,7 +248,7 @@ def plot(out_file,
          plot_targets=('loss',),
          scale=True,
          average_count:Optional[int] = 10,
-         norm_to_mean=False,
+         diff_to_longest=False,
          use_process=True):
   out_file = os.path.expanduser(out_file)
   # We want to center the graph on the interesting areas so we need to track the overall min/max and the worst min value
@@ -262,8 +262,8 @@ def plot(out_file,
   min_iter = int(file_data[file_meta['shortest']]['iter'][-1]*(1.0 - min_show))
   #min_iter = iters[0]
   max_iter = file_meta['iters'][-1]
-  if norm_to_mean:
-    file_data = _norm_to_mean(file_data, file_meta['longest'], plot_targets)
+  if diff_to_longest:
+    file_data = _diff_to_mean(file_data, file_meta['longest'], plot_targets)
   abs_min_value, abs_max_value, max_min_value, min_max_value = get_stats(file_data, plot_targets, min_iter)
   if len(file_data) > 0:
     if use_process:
