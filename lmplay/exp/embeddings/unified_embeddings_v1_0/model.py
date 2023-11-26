@@ -2,10 +2,10 @@ import torch
 from torch import nn
 from typing import Optional, Any
 
-from lmplay.base.encoder.modules import Block
+from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
-from .modules import UnifiedEmbed, ConvertableEmbedding
+from .modules import UnifiedEmbedding, ConvertableEmbedding
 
 class GPT2(LMBase):
   def __init__(self,
@@ -39,7 +39,7 @@ class GPT2(LMBase):
       #this will convert any UE into a normal embedding. After this, if the model is saved, it can be re-loaded by the baseline model.
       self.tok_embed = ConvertableEmbedding(vocab_size, embed_dim, front_embed_mul)
     else:
-      self.tok_embed = UnifiedEmbed(vocab_size, embed_dim, front_embed_mul, keep_embed_on_cpu=keep_embed_on_cpu)
+      self.tok_embed = UnifiedEmbedding(vocab_size, embed_dim, front_embed_mul, keep_embed_on_cpu=keep_embed_on_cpu)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
     self.blocks = nn.Sequential(*[Block(max_len,

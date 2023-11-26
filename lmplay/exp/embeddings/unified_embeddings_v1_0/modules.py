@@ -17,7 +17,7 @@ class ConvertableEmbedding(nn.Embedding):
   def check_initialize(self, state_dict:dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
     if f'{prefix}integration1.weight' in state_dict:
       with torch.no_grad():
-        me = UnifiedEmbed(self.num_embeddings, self.embedding_dim, self.front_embed_mul)
+        me = UnifiedEmbedding(self.num_embeddings, self.embedding_dim, self.front_embed_mul)
         new_state_dict = {k[len(prefix):]:v for k, v in state_dict.items()}
         me.load_state_dict(new_state_dict)
         all_embedding_idxs = torch.arange(0, self.num_embeddings, dtype=torch.long)
@@ -26,7 +26,7 @@ class ConvertableEmbedding(nn.Embedding):
         state_dict[f'{prefix}weight'] = all_embeddings
 
 
-class UnifiedEmbed(nn.Module):
+class UnifiedEmbedding(nn.Module):
   def __init__(self, vocab_size: int, embed_dim: int, front_embed_mul: float, keep_embed_on_cpu=False):
     super().__init__()
     # The larger the 'front_embed_mul' is the better this works. 16 makes a big diff but eats a lot of mem.
