@@ -28,9 +28,9 @@ The value projection has a hard job, it not only needs to create a useful value,
 At least that is the theory/idea that led me to test it. The results are pretty clear though. While not as large an impact as UEs, adding a simple layer norm is an almost no cost change to multi-head attn and it looks like it provides solid value, at least in early training. Adding layer norm to k or q however appears to have a negative impact (not shown) but more testing may find ways to improve those too.
 ![](results/nv_log_diff_loss.jpg)
 ## Future experiments
-I am slowly 'cleaning up' many projects that I have been working on and intend to release them as I have longer training runs on them. I am currently limited to my one 3060 so even these limited runs take several days each. In fact, one epoch on the dataset in use will take roughly 10 days per model to complete. I expect that the current testing will take at least another 20 days to finish one epoch for all models.
+I am slowly 'cleaning up' many projects that I have been working on and intend to release them as I have longer training runs on them. I am currently limited to my one 3060 so even these limited runs take several days each. In fact, one epoch on the dataset in use will take roughly 10 days per model to complete. 
 
-I picked UEs first since they are very easy to understand and implement. I will likely iterate on them a little more before releasing the next experiment. I hope to release a version of UEs that can be a drop-in replacement to an existing well trained model to allow 'bolting' on this enhanced training. I have done some internal experiments in this direction already but nothing ready to be released.
+I picked UEs and value norm first since they are very easy to understand and implement. I am planning on releasing one every couple weeks for the next couple months.
 
 ## GPT2ish
 The baseline encoder I am using as the reference model is based on GPT2. Any flaws in it are my own and you shouldn't take this as reference code for a GPT2 implementation.
@@ -38,7 +38,7 @@ The baseline encoder I am using as the reference model is based on GPT2. Any fla
 ## Baseline transformer code
 The basic transformer encoder block is a very simple implementation that makes testing new ideas easy, but shouldn't be considered prod ready or appropriate code. It is however simple enough to make it easy to see what goes on inside of a basic transformer block. 
 
-## Model weights
+## Model weights / repeatability
 I currently don't have plans to release trained model weights. The models here aren't well trained enough to really matter and the weights can all be re-created by running the experiments for a few days on a commodity GPU. If someone -really- wants the weights then please contact me and I will consider releasing the weights of a given experiment.
 
 ## Code/idea attribution
