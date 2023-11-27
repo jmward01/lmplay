@@ -65,13 +65,13 @@ The code is implemented in `lmplay.stats.__main__`. It is messy and does some ba
 ```
 #All reported experiments had --amp turned on for speed. If you aren't on NVIDA leave it off. Results will be nearly the same.
 #To train the baseline 6L GPT2ish model
-lmp_trainer --amp
+lmp_trainer --amp --device cuda
 
 #To train one of the experiments
-lmp_trainer --amp --exp <exp name>
+lmp_trainer --amp --device cuda --exp <exp name>
 
 #To list the experiments
-lmp_trainer --amp --exp list
+lmp_trainer --amp --device cuda --exp list
 ```
 That's it! it will download datasets and start training. Check `--help` for other options like device, mini-batch-size, etc etc.
 
