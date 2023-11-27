@@ -1,5 +1,7 @@
-# lmplay
-This is intended to be a playground to make it easy to try crazy things. It is rough, it is unfinished and, like the best things in life, it is messy.
+# LMPlay
+tldr - Check out the Unified Embeddings experiment.
+
+LMPlay is intended to be a playground to make it easy to try crazy things. It is rough, it is unfinished and, like the best things in life, it is messy.
 I have tried to create a structure in this library that makes it easy to try things and compare results.
 Everything here is targeted at quick testing and turnaround on commodity hardware. The two primary targets are mac M2 and a NVIDIA 3060 with 12GB ram.
 The structure of the project is designed for copy/paste/change, not to provide a stable prod library. Most of the training code has been extracted but the model has been left wide open.
@@ -9,21 +11,21 @@ A note of caution here, because this is a playground it the code here likely wil
 
 ## The experiments
 I have been playing with ideas 'on the side' for a while now and several show promise. The first one is something I call 'Unified Embeddings'.
-### Experiment 1: Unified Embeddings
+### Experiment 1: (8x) Unified Embeddings (lmp_trainer --exp ue8x)
 Unified Embeddings provide a better way to train embeddings with no additional inference costs or model structure changes however there is a training memory penalty.
-The basic idea is to take a very large embedding and run it through a ff layer to generate the output embedding during training. 
-For production inference all vocab embeddings can be generated and stored and the embedding training weights can be tossed.
-The limited testing I have done so far looks quite promising:
-
+The basic idea is to use a very large training embedding and run it through a ff layer to generate the output embedding during training. 
+For production inference all vocab embeddings should be pre-generated and stored and the embedding training weights can be tossed. The model will do this with the 'for_prod=True' parameter set. Similarly, if an existing well trained model is modified to replace normal embeddings with a unified embedding class then on weigth load it will train a set of training embeddings to then learn from. In testing, with the right control of learning rate, a model can switch to unfied embeddings quickly and start getting gains but in general it is best to start training with them instead of 'bolting them on' after. 
+The limited testing I have done so far looks quite promising
+### Experiment 1.1: Large (16x) Unified Embeddings with mixed CPU/GPU training (lmp_trainer --exp ue16x)
+This is the same basic code as the first UE experiment but the training embeddings are twice as large at 16x the hidden size. This increase in size makes training a challenge if embeddings are left on the GPU. To overcome this the training embeddings are left on the CPU along with the first integration layer. This allows a minimum memory transfer on each training sample. With larger mini-batch sizes the performance hit is about 50%, which isn't great, but is acceptable. If you have the GPU memory to spare just keep them in memory. The lesson from this test is that larger is better. I haven't found the upper bound yet.
 ![](results/ue_log_loss.jpg)
-This graph shows a 6 layer UE model beating a 12 layer baseline model, at least in initial training. The long term benefits are still unknown but these results are promising. The 6 layer UE model here has exactly the same prod inference costs/structure/weights/etc as a baseline 6 layer GPTish model. Only during training does it need extra logic/parameters. Additionally, the larger the UE the better. A 16x UE significantly outperforms an 8x one. Those results will be shown eventually (based on GPU availability).
+This graph shows a 6 layer UE model beating a 12 layer baseline model, at least in initial training. The long term benefits are still unknown but these results are promising. The 6 layer UE model here has exactly the same prod inference costs/structure/weights/etc as a baseline 6 layer GPTish model. Only during training does it need extra logic/parameters. Additionally, the larger the UE the better. UE at 16x 1_1 is clearly beating UE 1_0 at 8x.
 The diff plot shows performance better:
 ![](results/ue_log_diff_loss.jpg)
-Here you can clearly see how much better the 6 layer UE models are over the 6 and 12 layer baseline models. It is still gaining ground on the 6 while the 12 was slowly catching back up but looks like it has stalled. Clearly, longer runs are needed, but the results appear to be getting better as time goes on. I will update this plot as runs continue.
-
-### Experiment 2: Value Norm
-Attn is amazing. But it may have a simple improvement to make it even better. The value projection applies to all elements of a sequence and softmax sums them all together depending on how k&q rank them. 
-The value projection has a hard job, it not only needs to create a useful value, but it needs to avoid making uninteresting values accidentally large which would negate the ranking that the k&q came up with. There is a simple way to take this side-job away from the v projection, use LayerNorm. Now the v projection can focus on emphasizing the important value aspects of the sequence and not accidentally destroy the ranking.
+Here you can clearly see how much better the 6 layer UE models are over the 6 and 12 layer baseline models. It is still gaining ground on the 6 and even the 12 layer looks like the gap may be widening. Additionally, it is easy to see how much better the UE 1_1 is. Clearly, longer runs are needed, but the results appear to be getting better as time goes on. I will update this plot as runs continue.
+### Experiment 2: Value Norm (lmp_trainer --exp normv)
+Attn is amazing, but there may be simple improvements that can make it even better. One area to consider is the value projection. The value projection applies to all elements of a sequence and softmax sums them all together depending on how k&q rank them in order to get the final value. 
+The value projection has a hard job, it not only needs to create a useful value but it needs to avoid making uninteresting values accidentally large which would negate the ranking that the k&q came up with. There is a simple way to take this side-job away from the v projection, use LayerNorm. Now the v projection can focus on emphasizing important value aspects of the sequence and not accidentally destroy the ranking.
 
 At least that is the theory/idea that led me to test it. The results are pretty clear though. While not as large an impact as UEs, adding a simple layer norm is an almost no cost change to multi-head attn and it looks like it provides solid value, at least in early training. Adding layer norm to k or q however appears to have a negative impact (not shown) but more testing may find ways to improve those too.
 ![](results/nv_log_diff_loss.jpg)
@@ -32,7 +34,7 @@ I am slowly 'cleaning up' many projects that I have been working on and intend t
 
 I picked UEs and value norm first since they are very easy to understand and implement. I am planning on releasing one every couple weeks for the next couple months.
 
-## GPT2ish
+## GPT2ish (lmp_trainer --exp gpt2ish)
 The baseline encoder I am using as the reference model is based on GPT2. Any flaws in it are my own and you shouldn't take this as reference code for a GPT2 implementation.
 
 ## Baseline transformer code
@@ -55,9 +57,9 @@ This is a very basic inference engine with the absolute minimum code needed to t
 The code is implemented in `lmplay.generate.__main__`
 
 ### lmp_plotstats
-It is all about the graphs right? This will take outputs from different runs and put them all in the same plot files. Two basic stats are plotted, accuracy and loss.
+It is all about the graphs right? This will take outputs from different runs and put them all in the same plot files. Two basic stats are plotted, accuracy and loss. 
 For each of these there are two different kinds of graphs, a regular log plot and a 'diff' plot where the longest run is used as the baseline for the other runs. This diff view makes it much easier to compare the performance of different models/runs.
-The code is implemented in `lmplay.stats.__main__`.
+The code is implemented in `lmplay.stats.__main__`. It is messy and does some bad math to make things look prettier so this is likely to change a bit in the future.
 
 ## Usage
 ```
