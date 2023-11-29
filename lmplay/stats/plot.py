@@ -195,18 +195,23 @@ def _get_iters(files_data:dict) -> (list, str, str):
   iters = list(found_iters)
   iters.sort()
   return dict(iters=iters, longest=longest, shortest=shortest)
-def _diff_to_mean(files_data:dict, longest:str, plot_targets:tuple) -> dict:
-  longest = files_data[longest]
+def _diff_to_target(files_data:dict, target:str, plot_targets:tuple) -> dict:
+  target = files_data[target]
   result_files = dict()
   #Then we subtract the longest one's value from their values to normalize against it.
   for file_name, data in files_data.items():
-    result_file = {'iter':data['iter']}
+    result_file = {'iter':data['iter'].copy()}
     result_files[file_name] = result_file
     for pt in plot_targets:
       target_values = []
       result_file[pt] = target_values
       for i in range(len(data['iter'])):
-        target_values.append(data[pt][i] - longest[pt][i])
+        if len(target[pt]) > i:
+          target_values.append(data[pt][i] - target[pt][i])
+        else:
+          #Looks like the target is shorter than this run. We should trim it and not display the rest.
+          result_file['iter'] = result_file['iter'][:i]
+          break
   return result_files
 
 def get_file_data(*files, plot_targets=('loss', 'accuracy')) -> (dict, dict):
@@ -248,8 +253,9 @@ def plot(out_file,
          plot_targets=('loss',),
          scale=True,
          average_count:Optional[int] = 10,
-         diff_to_longest=False,
-         use_process=True):
+         diff_to_target=False,
+         use_process=True,
+         target=None):
   out_file = os.path.expanduser(out_file)
   # We want to center the graph on the interesting areas so we need to track the overall min/max and the worst min value
   # across all datasets we are plotting. Then we will show from the absolute min to abve the worst min but below the abs max.
@@ -262,8 +268,18 @@ def plot(out_file,
   min_iter = int(file_data[file_meta['shortest']]['iter'][-1]*(1.0 - min_show))
   #min_iter = iters[0]
   max_iter = file_meta['iters'][-1]
-  if diff_to_longest:
-    file_data = _diff_to_mean(file_data, file_meta['longest'], plot_targets)
+  if diff_to_target:
+    if not target is None:
+      for run_name in file_data:
+        if run_name.startswith(target):
+          target = run_name
+          break
+      else:
+        print(f"Couldn't find {target}. Using longest.")
+        target = None
+    if target is None:
+      target = file_meta['longest']
+    file_data = _diff_to_target(file_data, target, plot_targets)
   abs_min_value, abs_max_value, max_min_value, min_max_value = get_stats(file_data, plot_targets, min_iter)
   if len(file_data) > 0:
     if use_process:
