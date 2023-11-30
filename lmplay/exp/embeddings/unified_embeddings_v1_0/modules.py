@@ -27,10 +27,11 @@ class ConvertableEmbedding(nn.Embedding):
 
 
 class UnifiedEmbedding(nn.Module):
-  def __init__(self, vocab_size: int, embed_dim: int, front_embed_mul: float, keep_embed_on_cpu=False):
+  def __init__(self, vocab_size: int, embed_dim: int, front_embed_mul: float, keep_embed_on_cpu=False, emb_training_epochs=50):
     super().__init__()
     self.vocab_size = vocab_size
     self.embedding_size = embed_dim
+    self.emb_training_epochs = emb_training_epochs
     # The larger the 'front_embed_mul' is the better this works. 16 makes a big diff but eats a lot of mem.
     # If you use really large multiples consider training with keep_embed_on_cpu. It is slower but you save all that GPU memory.
     #
@@ -79,7 +80,7 @@ class UnifiedEmbedding(nn.Module):
     lr = 5e-3
     weight_decay = 0.00
     # more epochs seem to hurt which is odd. More testing needed here.
-    epochs = 50
+    epochs = self.emb_training_epochs
     batch_size = 1024 * 8
     final_batch_size = 1024 * 8
     optimizer = torch.optim.Adagrad(self.parameters(), lr=lr, weight_decay=weight_decay)
