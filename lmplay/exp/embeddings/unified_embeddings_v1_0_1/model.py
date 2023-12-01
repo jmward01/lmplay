@@ -58,7 +58,6 @@ class GPT2(LMBase):
       x_start = cache[0][0].size(1)
       seq_len += x_start
     assert seq_len <= self.max_len, "sequence longer than model capacity"
-    # This only works for training, not production inference.
     tok_embedding = self.tok_embed(x)
     # tok_embedding.shape == (batch_size, seq_len, embed_dim)
     pos_embedding = self.pos_embed[:, x_start:seq_len, :]

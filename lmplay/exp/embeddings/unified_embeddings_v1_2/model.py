@@ -1,35 +1,46 @@
 import torch
 from torch import nn
-from typing import Optional, Any, List
+from typing import Optional, Any
 
-from .modules import Block
+from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
-
+from .modules import UnifiedEmbedding, ConvertableEmbedding
 
 class GPT2(LMBase):
   def __init__(self,
                max_len=1024,
                num_heads=12,
-               num_blocks=6, #12 is the real default here
+               num_blocks=6,
                embed_dim=768,
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
+               front_embed_mul=8.0,
+               for_train=True,
+               keep_embed_on_cpu=False,
+               version="1.2",
                **ignore):
-    super().__init__(f"GPT2ish_{num_blocks}L_{max_len}",
+    super().__init__(f"ue_v{version}_{front_embed_mul}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
                      embed_dim=embed_dim,
                      attn_dropout=attn_dropout,
                      ff_dropout=ff_dropout,
-                     embed_dropout=embed_dropout)
+                     embed_dropout=embed_dropout,
+                     front_embed_mul=front_embed_mul)
+    #same as 1.0 but ln=True
+    keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
     self.max_len = max_len
-    self.tok_embed = nn.Embedding(vocab_size, embed_dim)
+    if not for_train:
+      #this will convert any UE into a normal embedding. After this, if the model is saved, it can be re-loaded by the baseline model.
+      self.tok_embed = ConvertableEmbedding(vocab_size, embed_dim, front_embed_mul)
+    else:
+      self.tok_embed = UnifiedEmbedding(vocab_size, embed_dim, front_embed_mul, keep_embed_on_cpu=keep_embed_on_cpu, ln=True)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
     self.blocks = nn.Sequential(*[Block(max_len,
@@ -40,7 +51,7 @@ class GPT2(LMBase):
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 
-  def forward(self, x:torch.Tensor, cache:Optional[List] = None):
+  def forward(self, x:torch.Tensor, cache:Optional[list] = None):
     seq_len = x.size(1)
     x_start = 0
     if cache is not None and len(cache) > 0:
@@ -80,7 +91,7 @@ class ModelRunner(LMRunnerBase):
     for k,v in parameters.items():
       if k not in model_args:
         model_args[k] = v
-    model = GPT2(**model_args)
+    model = GPT2(for_train=self.for_train, **model_args)
     if model_weights is not None:
       missing, unexpected = model.load_state_dict(model_weights, strict=strict)
       model.to(device)
