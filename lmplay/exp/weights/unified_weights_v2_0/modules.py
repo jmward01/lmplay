@@ -21,7 +21,7 @@ class ULinear(nn.Module):
     self.in_features = in_features
     self.out_features = out_features
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
-    expansion = int(out_features*.25)
+    expansion = int(out_features)
     self.expansion_data = nn.Parameter(torch.empty(expansion))
     self.bias = nn.Linear(expansion, out_features)
     self.reset_parameters()
