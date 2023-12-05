@@ -22,9 +22,11 @@ class ULinear(nn.Module):
     self.in_features = in_features
     self.out_features = out_features
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
-    expansion = int(min(in_features, out_features)*ef)
-    self.expansion_data = nn.Parameter(torch.empty(expansion))
-    self.bias = nn.Linear(expansion, out_features)
+    emb_size = int(min(in_features, out_features)*ef)
+    mid_size = min(in_features, out_features)
+    self.expansion_data = nn.Parameter(torch.empty(emb_size))
+    self.bias1 = nn.Linear(emb_size, mid_size)
+    self.bias2 = nn.Linear(mid_size, out_features)
     self.reset_parameters()
 
   def reset_parameters(self) -> None:
@@ -39,7 +41,9 @@ class ULinear(nn.Module):
 
   def forward(self, input: torch.Tensor) -> torch.Tensor:
     result = F.linear(input, self.weight, None)
-    result = result + self.bias(self.expansion_data)
+    bias = self.bias1(self.expansion_data)
+    bias = self.bias2(F.gelu(bias))
+    result = result + bias
     return result
 
   def extra_repr(self) -> str:
