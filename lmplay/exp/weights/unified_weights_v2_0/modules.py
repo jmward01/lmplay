@@ -15,13 +15,14 @@ class ULinear(nn.Module):
                in_features: int,
                out_features: int,
                device=None,
-               dtype=None) -> None:
+               dtype=None,
+               ef=4.0) -> None:
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
     self.in_features = in_features
     self.out_features = out_features
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
-    expansion = int(out_features)
+    expansion = int(min(in_features, out_features)*ef)
     self.expansion_data = nn.Parameter(torch.empty(expansion))
     self.bias = nn.Linear(expansion, out_features)
     self.reset_parameters()
@@ -73,8 +74,8 @@ class MultiheadAttention(nn.Module):
     assert embed_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
     self.num_heads = num_heads
     # k&v are what are 'attended' to and will be cached for generation.
-    self.key = ULinear(embed_dim, embed_dim)
-    self.value = ULinear(embed_dim, embed_dim)
+    self.key = nn.Linear(embed_dim, embed_dim)
+    self.value = nn.Linear(embed_dim, embed_dim)
     if norm_v:
       self.value_norm = nn.LayerNorm(int(embed_dim / num_heads))
     else:
@@ -91,10 +92,10 @@ class MultiheadAttention(nn.Module):
       self.query_norm = lambda x:x
 
 
-    self.query = ULinear(embed_dim, embed_dim)
+    self.query = nn.Linear(embed_dim, embed_dim)
 
     # proj to clean things up after
-    self.proj = ULinear(embed_dim, embed_dim)
+    self.proj = nn.Linear(embed_dim, embed_dim)
 
     # I had implementation issues with this dropout so I just... dropped it out.
     # It isn't critical to the concept of MHA so this is the easy route.
