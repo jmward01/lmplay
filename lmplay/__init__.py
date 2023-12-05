@@ -6,7 +6,8 @@ from lmplay.exp.embeddings.unified_embeddings_v2_0.model import ModelRunner as U
 from lmplay.exp.attn_norm.normv.model import ModelRunner as NormVModelRunner
 from lmplay.base.encoder.model import ModelRunner as GPT2ishModelRunner
 from lmplay.base.base_model import LMRunnerBase
-
+from lmplay.exp.weights.unified_weights_v1_0.model import ModelRunner as UW1_0ModelRunner
+from lmplay.exp.weights.unified_weights_v2_0.model import ModelRunner as UW2_0ModelRunner
 
 MODEL_RUNNERS = dict(gpt2ish=GPT2ishModelRunner,
                      normv=NormVModelRunner,
@@ -14,5 +15,7 @@ MODEL_RUNNERS = dict(gpt2ish=GPT2ishModelRunner,
                      ue8x1_2=UE8x1_2ModelRunner,
                      ue8x1=UE8x1ModelRunner,
                      ue8x2_0=UE8x2_0ModelRunner,
-                     ue16x=UE16xModelRunner)
+                     ue16x=UE16xModelRunner,
+                     uw1_0=UW1_0ModelRunner,
+                     uw2_0=UW2_0ModelRunner)
 
