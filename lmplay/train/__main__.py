@@ -5,7 +5,6 @@ from lmplay.stats.modelstats import ModelStats
 import traceback
 from typing import Optional
 from tqdm import tqdm
-from lmplay.base.encoder.model import ModelRunner as BaseModelRunner
 from lmplay import MODEL_RUNNERS
 
 def render_pbar(ms: ModelStats) -> str:
