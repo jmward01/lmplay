@@ -45,7 +45,7 @@ The value projection has a hard job, it not only needs to create a useful value 
 At least that is the theory/idea that led me to test it. The results are pretty clear though. While not as large an impact as UEs, adding a simple layer norm is an almost no cost change to multi-head attn and it looks like it provides solid value, at least in early training. Adding layer norm to k or q however appears to have a negative impact (not shown).
 
 ### Experiment 3: Unified Weights
-#### TL/DR sme norm v results
+#### TL/DR sme UW results
 ![](results/uw_log_diff_loss.jpg)
 This graph shows the impact of UWs. While not as large a gain as UEs, it is clearly significant. 
 #### UW overview
