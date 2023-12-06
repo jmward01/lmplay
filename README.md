@@ -27,6 +27,21 @@ The limited testing I have done so far looks quite promising. So far all trainin
 - Larger is better but more layers can use larger embeddings more than small ones - I tested 8x and 16x sizes and the 16x UEs were superior in the test 6L model at all times however, as training progressed it appeared that the gap between 8x and 16x closed. When the same tests were done with 12 layer modes the gap did not close. 
 - 'bolt on' logic appears to be effective but overfit happens exceptionally quick - In limited testing with a modified TinyLlama checkpoint, the v1.0 'bolt on' logic allowed the model to train with UEs quickly and to catch up to an unmodified model with just a few thousand examples. However, when multiple training epochs were used the UE modified model overfit immediately on the second epoch and started to quickly loose any advantage. This was an extremely limited test and I haven't published the results so take this with a grain of salt but it is promising that there may be a path to adding UEs to existing models to get a training boost. Of course just training with them from the start is clearly the best option. I hope to further test with TinyLlama and show a version trained against a larger dataset that clearly outperforms the baseline. When that happens I will post the results.
 
+#### Try it!
+```
+#Replace your boring regular embeddings with unified ones!
+#Other than construction, it is a drop-in replacement
+
+#Sad old embeddings version:
+from torch import nn
+self.tok_embed = nn.Embedding(vocab_size, embed_dim)
+
+#Exciting Unified Embeddings version!
+from lmplay.modules import UnifiedEmbedding
+#8.0 is a good place to start. Larger is better! See lmplay.exp.unified_embeddings_v1_0.model for more
+self.tok_embed = UnifiedEmbedding(vocab_size, embed_dim, 8.0)
+```
+
 #### UE 1.1
 UE 1.1 is identical to 1.0 but maintains the training embeddings and first integration linear on CPU to save memory. This allows for exceptionally large training embeddings with a reasonable performance hit. Performance impacts are mitigated by pooling the embedding lookup for the entire batch then doing the first integration on it and only then tranferring the result to the GPU so it can scatter them back to re-create the full batch sequence. This significantly reduces the memory transfer and compute costs especially as batch size grows. Other performance approaches could be taken like embedding caching on the GPU but for the purposes of these initial tests this CPU offload is sufficient to allow testing larger training embeddings. In testing with a batch size of 25 the performance hit was about 40% on a 16x embedding which isn't great, but for the memory saved it was totally worth it.
 
@@ -43,6 +58,10 @@ Attn is amazing, but there may be simple improvements that can make it even bett
 The value projection has a hard job, it not only needs to create a useful value but it needs to avoid making uninteresting values accidentally large which would negate the ranking that the k&q came up with. There is a simple way to take this side-job away from the v projection, use LayerNorm. Now the v projection can focus on emphasizing important value aspects of the sequence and not accidentally destroy the ranking.
 
 At least that is the theory/idea that led me to test it. The results are pretty clear though. While not as large an impact as UEs, adding a simple layer norm is an almost no cost change to multi-head attn and it looks like it provides solid value, at least in early training. Adding layer norm to k or q however appears to have a negative impact (not shown).
+
+#### Try it!
+Check out `lmplay.modules.MultiheadAttn` and `lmplay.exp.normv.modules.Block`!
+
 
 ### Experiment 3: Unified Weights
 #### TL/DR sme UW results
@@ -67,6 +86,21 @@ So, what is the idea behind them? When thinking about a linear layer I realized 
     result = result * (self.mbias + self.mbias_bias) + (self.bias + self.bias_bias)
 ```
 Clearly this is equivalent to a standard linear layer right? Yes, technically, but now we have some simple parameters for gradients to easily act on that unifi all parameters in the linear layer. The main weights now can completely focus on deviations from 0 since the mbias weights allow them to normalize. Taking the idea slightly further I aded the 'mbias_bias' and 'bias_bias' to allow the bias and mbias to also focus on just the deviations from zero. In the end the only weights that may need to go to extremes here are the mbias_bias and the bias_bias. All other weight should be able to stay close to 0 with little effort. I haven't tried it yet but this new Linear formulation should be especially well suited to weight decay so long as the mbias_bias and the bias_bias are excluded from that. 
+
+#### Try it!
+```
+#Replace your boring regular nn.Linear with unified ones!
+#Other than construction, it is a drop-in replacement
+
+#Sad old standard version:
+from torch import nn
+l1 = nn.Linear(in_size, out_size)
+
+#Exciting unified version!
+from lmplay.modules import ULinear
+l1 = ULinear(in_size, out_size)
+```
+
 
 #### UW 2.0
 I built a 2.0 version. It takes the meta idea further and predicts the bias instead of adding the mbias. It works but is very expensive. I suspect there is a lot that can be done here to improve on this idea but for now I don't intend to pursue it further.  
