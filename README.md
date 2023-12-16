@@ -12,7 +12,7 @@ A note of caution here, because this is a playground the code here will likely c
 ## The experiments
 I have been playing with ideas 'on the side' for a while now and several show promise. The first one is something I call 'Unified Embeddings'.
 ### Experiment 1: Unified Embeddings (lmp_trainer --amp --device cuda --exp ue8x/ lmp_trainer  --amp --device cuda --exp ue16x)
-#### TL/DR some UE results
+#### Some UE results
 ![](results/ue_log_loss.jpg)
 This graph shows a 6 layer UE model beating a 12 layer baseline model, at least in initial training. The long term benefits are still unknown but these results are promising. The 6 layer UE model here has exactly the same prod inference costs/structure/weights/etc as a baseline 6 layer GPTish model. Only during training does it need extra logic/parameters. Additionally, the larger the UE the better. UE at 16x 1_1 is clearly beating UE 1_0 at 8x. and UEs with more layers maintain solid gains as well.
 The diff plot shows performance better:
@@ -49,7 +49,7 @@ UE 1.1 is identical to 1.0 but maintains the training embeddings and first integ
 I built a 2.0, it isn't as good. It is in there to remind me of my failures. Take a look! When you run it you will initially think it is great, but then very quickly it starts to lag behind v1.0.
 
 ### Experiment 2: Value Norm (lmp_trainer --amp --device cuda --exp normv)
-#### TL/DR sme norm v results
+#### Some norm v results
 ![](results/nv_log_diff_loss.jpg)
 This clearly shows a reasonable gain that adding layernorm to the value projection provides. The 12 layer baseline is shown to give an idea of the scale of the improvement. It isn't huge, but it is nearly free in compute/memory cost.
 
@@ -64,7 +64,7 @@ Check out `lmplay.modules.MultiheadAttn` and `lmplay.exp.normv.modules.Block`!
 
 
 ### Experiment 3: Unified Weights
-#### TL/DR sme UW results
+#### Some UW results
 ![](results/uw_log_diff_loss.jpg)
 This graph shows the impact of UWs. While not as large a gain as UEs, it is clearly significant. 
 #### UW overview
