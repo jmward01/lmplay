@@ -98,8 +98,8 @@ def main():
   save_location = args.model
   device = args.device
   seed = 0
-  full_datasets = [get_wikipedia(lang, seed=seed) for lang in languages]
   print(f"Loading datasets for {', '.join(languages)}")
+  full_datasets = [get_wikipedia(lang, seed=seed) for lang in languages]
   train = concatenate_datasets([dataset['train'] for dataset in full_datasets])
   validation = interleave_datasets([dataset['validation'] for dataset in full_datasets])
   print(f"Loaded")
