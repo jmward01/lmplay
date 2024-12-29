@@ -1,5 +1,5 @@
 from datasets import concatenate_datasets, interleave_datasets
-from lmplay.train.lmpdatasets import get_wikipedia_en, get_wikipedia_simple
+from lmplay.train.lmpdatasets import get_wikipedia
 from lmplay.train.utils import batcher
 from lmplay.stats.modelstats import ModelStats
 import traceback
@@ -51,7 +51,8 @@ def main():
   args.add_argument('--default-freeze', help="Freeze all weights by default unless '.freeze=False' on them or a module they are a part of.", action='store_true')
   args.add_argument('--ignore-optimizer', help="don't load optimizer weights if found.", action='store_true')
   args.add_argument('--lr', help="Learning rate. Default is left up to the model. 0.0006 is normally ok.", default=None, type=float)
-  args.add_argument('--run-name', help="Run name to add to model stats. Useful for distinguishing runs with different datasets. default = 'simple_full_wiki'", default='simple_full_wiki')
+  args.add_argument('--languages', help="Languages to use when training. Default is just en.", default=['en'], type=str, nargs='*')
+  args.add_argument('--run-name', help="Run name to add to model stats. Useful for distinguishing runs with different datasets. default = 'wiki_<languages>'", default=None)
 
 
   #What is 'optimizer warmup' you wonder?
@@ -80,29 +81,28 @@ def main():
   #That being said, AMP and mac = not great.
   #
   args.add_argument('--amp', help="Use Automatic Mixed Precision (AMP) training.", action="store_true")
-  args.add_argument('--model', help="Model name to load/save to. Default is <exp>_<num_blocks>L_model.lmp", default=None)
+  args.add_argument('--model', help="Model name to load/save to. Default is <exp>_<num_blocks>_<run_name>_model.lmp", default=None)
   args.add_argument('--initial-model', help="Model file to look for if the 'model' isn't found. This model will only ever be read, not writen over. Default is gpt_initial_model.lmp", default="gpt_initial_model.lmp")
   args.add_argument('--exp', help="Use exp model runner. Changes regularly. 'list' to show available models. default is gpt2ish", default="gpt2ish")
   args.add_argument('--no-grad-scale', help="only used with amp on cuda devices. Don't scale the grads. Only useful if using mixed devices (cpu and gpu)", action="store_true")
   args = args.parse_args()
-  if args.amp and args.compile_model:
-    #I haven't really gotten this to work and haven't really spent a lot of time trying.
-    # Leaving it in for possible future runs.
-    print("WARNING: AMP is being used with a compiled model. This generally has issues and could be very slow. You have been warned!")
 
+  languages = sorted(args.languages)
+  if args.run_name is None:
+    args.run_name = f"wiki_{'_'.join(languages)}"
 
   if args.model is None:
-    args.model = f"{args.exp}_{args.num_blocks}L_model.lmp"
+    args.model = f"{args.exp}_{args.num_blocks}_{args.run_name}_model.lmp"
 
   initial_locations = [args.model, args.initial_model]
   save_location = args.model
   device = args.device
-  #datasets = get_wikipedia_simple(seed=seed)
   seed = 0
-  full_datasets = get_wikipedia_en(seed=seed)
-  simple_datasets = get_wikipedia_simple(seed=seed)
-  train = concatenate_datasets([simple_datasets['train'], full_datasets['train']])
-  validation = interleave_datasets([simple_datasets['validation'], full_datasets['validation']])
+  full_datasets = [get_wikipedia(lang, seed=seed) for lang in languages]
+  print(f"Loading datasets for {', '.join(languages)}")
+  train = concatenate_datasets([dataset['train'] for dataset in full_datasets])
+  validation = interleave_datasets([dataset['validation'] for dataset in full_datasets])
+  print(f"Loaded")
   batch_size = args.batch_size
   validation_batch_size = args.validation_batch_size
   mini_batch_size = min(batch_size, args.mini_batch_size)

@@ -321,7 +321,7 @@ class LMRunnerBase(ABC):
     self.amp = NopWith
     if amp:
       if "cuda" in device and not no_grad_scale:
-        self.scaler = torch.cuda.amp.GradScaler()
+        self.scaler = torch.amp.GradScaler('cuda')
       self.amp = torch.amp.autocast
     self._model.train(for_train)
     self.max_len = self._model.max_len
