@@ -144,6 +144,8 @@ The code is implemented in `lmplay.stats.__main__`. It is messy and does some ba
 ## Usage
 ```
 #All reported experiments had --amp turned on for speed. If you aren't on NVIDA leave it off. Results will be nearly the same.
+lmp_trainer --help
+
 #To train the baseline 6L GPT2ish model
 lmp_trainer --amp --device cuda
 
@@ -152,6 +154,9 @@ lmp_trainer --amp --device cuda --exp <exp name>
 
 #To list the experiments
 lmp_trainer --amp --device cuda --exp list
+
+#To create plots (assuming all results are in the default gpt_out directory): 
+lmp_plotstats
 ```
 That's it! it will download datasets and start training. Check `--help` for other options like device, mini-batch-size, etc etc.
 
