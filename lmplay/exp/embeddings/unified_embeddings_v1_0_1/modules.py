@@ -47,15 +47,11 @@ class UnifiedEmbedding(nn.Module):
     #
     # I have several theories why this works and some evidence. First, using this for positional embeddings doesn't get you far.
     # Also, a front_embed_mul of 1 does help a little. (I think. Been a while since I tested it)
-    # That makes me think this could be helping low run embeddings learn from high run ones via the weights.
-    # The second idea is just the information content allows the generated embedding to stay exactly on the verge of utility for a lot of situations.
-    # This means it is able to optimize against all data a lot better.
-    # No idea how to test that idea. Probably would show up in the distribution of the generated weights.
+    # Bascially, I think this helps the main network not get disrupted by low-run tokens dragging it back to an eralier state.
+    # It also allows the tokens to not shift due to a changing network so they can just keep storing more and more information without disruption.
     #
     #Finally, clearly for real prod weights you would just generate a tensor and save it in the out state dict with the 'weight' name so normal embedding code could use it.
-    #hmmm... actually, the 'norm' on embeddings isn't trained on these.
-    # Is that just for backprop? Doing more than a lookup is a waste so I imagine they are saved as normed so this may work.
-    # gotta test.
+    #Testing shows that the performance of frozen saved embeddings is exactly the same as using the UE training weight versions, without the overhead ofcourse.
     #
     #Anyway, Prod could lose the integration weights and big tok_embed.weight so the weight structure would go back to normal and have no prod costs.
     self.front_embed_dim = int(self.embed_dim * front_embed_mul)
