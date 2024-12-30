@@ -27,7 +27,22 @@ class ConvertableEmbedding(nn.Embedding):
 
 
 class UnifiedEmbedding(nn.Module):
-  def __init__(self, vocab_size: int, embed_dim: int, front_embed_mul: float, keep_embed_on_cpu=False, emb_training_epochs=50, ln=False):
+  def __init__(self,
+               vocab_size: int,
+               embed_dim: int,
+               front_embed_mul: float,
+               keep_embed_on_cpu=False,
+               emb_training_epochs=50,
+               ln=False):
+    """UEs are a better way to train embeddings. This is a drop in replacement for nn.Embedding
+
+    :param vocab_size:
+    :param embed_dim: This is the output size that your network will see.
+    :param front_embed_mul: Bigger is better. This is the hidden embedding size used just for training.
+    :param keep_embed_on_cpu: Big front embeddings take a lot of memory. Storing them on the CPU has a performance hit but as the batch size grows the hit is minimized. Basically, do things on the CPU to be able to train larger networks.
+    :param emb_training_epochs: This is only used for converting a normal embedding into a UE. This allows you to 'bolt on' a UE to an existing well-trained network that doesn't have the sacrificial UE network. It works but there is still a bit of model shock when UEs first start training.
+    :param ln: LN the value before returning. Just trying different approaches here.
+    """
     super().__init__()
     self.vocab_size = vocab_size
     self.embedding_size = embed_dim
@@ -37,7 +52,7 @@ class UnifiedEmbedding(nn.Module):
     #
     # I have several theories why this works and some evidence. First, using this for positional embeddings doesn't get you far.
     # Also, a front_embed_mul of 1 does help a little. (I think. Been a while since I tested it)
-    # Bascially, I think this helps the main network not get disrupted by low-run tokens dragging it back to an eralier state.
+    # Basically, I think this helps the main network not get disrupted by low-run tokens dragging it back to an eralier state.
     # It also allows the tokens to not shift due to a changing network so they can just keep storing more and more information without disruption.
     #
     #Finally, clearly for real prod weights you would just generate a tensor and save it in the out state dict with the 'weight' name so normal embedding code could use it.
