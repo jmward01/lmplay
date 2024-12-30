@@ -1,4 +1,4 @@
-from datasets import concatenate_datasets, interleave_datasets
+from datasets import interleave_datasets
 from lmplay.train.lmpdatasets import get_wikipedia
 from lmplay.train.utils import batcher
 from lmplay.stats.modelstats import ModelStats
@@ -100,7 +100,7 @@ def main():
   seed = 0
   print(f"Loading datasets for {', '.join(languages)}")
   full_datasets = [get_wikipedia(lang, seed=seed) for lang in languages]
-  train = concatenate_datasets([dataset['train'] for dataset in full_datasets])
+  train = interleave_datasets([dataset['train'] for dataset in full_datasets])
   validation = interleave_datasets([dataset['validation'] for dataset in full_datasets])
   print(f"Loaded")
   batch_size = args.batch_size
