@@ -2,11 +2,12 @@ import torch
 from torch import nn
 from typing import Optional, Any, List
 
-from .modules import Block, ULinear
+from .modules import ULinear
+from lmplay.base.encoder.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
 
-
+#See the ULinear in the modules for more info on how this works.
 
 class GPT2(LMBase):
   def __init__(self,
@@ -38,11 +39,13 @@ class GPT2(LMBase):
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
+    #add in the ULinear to the block definition
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
                                         attn_dropout=attn_dropout,
-                                        ff_dropout=ff_dropout) for _ in range(num_blocks)])
+                                        ff_dropout=ff_dropout,
+                                        linear=ULinear) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = ULinear(embed_dim, vocab_size)
 

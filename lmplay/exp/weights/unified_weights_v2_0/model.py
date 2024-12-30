@@ -2,12 +2,14 @@ import torch
 from torch import nn
 from typing import Optional, Any, List
 
-from .modules import Block, ULinear
+from .modules import ULinear
+from lmplay.base.encoder.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
 
 
-
+#This version predicts mbias information.
+# Unfortunately this is pretty expensive in this implementation so it is only used on the vocab.
 class GPT2(LMBase):
   def __init__(self,
                max_len=1024,
