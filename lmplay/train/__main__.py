@@ -51,7 +51,7 @@ def main():
   args.add_argument('--default-freeze', help="Freeze all weights by default unless '.freeze=False' on them or a module they are a part of.", action='store_true')
   args.add_argument('--ignore-optimizer', help="don't load optimizer weights if found.", action='store_true')
   args.add_argument('--lr', help="Learning rate. Default is left up to the model. 0.0006 is normally ok.", default=None, type=float)
-  args.add_argument('--languages', help="Languages to use when training. Default is just en.", default=['en'], type=str, nargs='*')
+  args.add_argument('--languages', help="Languages to use when training. Default is en and es.", default=['en', 'es'], type=str, nargs='*')
   args.add_argument('--run-name', help="Run name to add to model stats. Useful for distinguishing runs with different datasets. default = 'wiki_<languages>'", default=None)
 
 
