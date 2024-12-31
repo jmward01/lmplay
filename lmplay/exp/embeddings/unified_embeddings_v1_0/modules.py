@@ -33,7 +33,8 @@ class UnifiedEmbedding(nn.Module):
                front_embed_mul: float,
                keep_embed_on_cpu=False,
                emb_training_epochs=50,
-               ln=False):
+               ln=False,
+               linear=nn.Linear):
     """UEs are a better way to train embeddings. This is a drop in replacement for nn.Embedding
 
     :param vocab_size:
@@ -61,7 +62,7 @@ class UnifiedEmbedding(nn.Module):
     #Anyway, Prod could lose the integration weights and big tok_embed.weight so the weight structure would go back to normal and have no prod costs.
     front_embed_dim = int(embed_dim * front_embed_mul)
     self.tok_embed = nn.Embedding(vocab_size, front_embed_dim)
-    self.integration1 = nn.Linear(front_embed_dim, embed_dim)
+    self.integration1 = linear(front_embed_dim, embed_dim)
 
     #This only works if the main model has overridden the 'to' call to check for it. See LMBase.
     if keep_embed_on_cpu:
@@ -75,7 +76,7 @@ class UnifiedEmbedding(nn.Module):
         p.secondary_optimizer = True
 
 
-    self.integration2 = nn.Linear(embed_dim, embed_dim)
+    self.integration2 = linear(embed_dim, embed_dim)
     if ln:
       self.ln = nn.LayerNorm(embed_dim)
     else:
