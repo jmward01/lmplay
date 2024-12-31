@@ -52,6 +52,7 @@ def main():
   args.add_argument('--ignore-optimizer', help="don't load optimizer weights if found.", action='store_true')
   args.add_argument('--lr', help="Learning rate. Default is left up to the model. 0.0006 is normally ok.", default=None, type=float)
   args.add_argument('--languages', help="Languages to use when training. Default is en and es.", default=['en', 'es'], type=str, nargs='*')
+  args.add_argument('--save-dataset', help="Save the dataset to disk in the LMP_DATASETS directory or out_gpt/datasets if that env var isn't set. This makes it easy to copy the data to another machine.", action="store_true")
   args.add_argument('--run-name', help="Run name to add to model stats. Useful for distinguishing runs with different datasets. default = 'wiki_<languages>'", default=None)
 
 
@@ -99,7 +100,7 @@ def main():
   device = args.device
   seed = 0
   print(f"Loading datasets for {', '.join(languages)}")
-  full_datasets = [get_wikipedia(lang, seed=seed) for lang in languages]
+  full_datasets = [get_wikipedia(lang, seed=seed, save_local=args.save_dataset) for lang in languages]
   train = interleave_datasets([dataset['train'] for dataset in full_datasets])
   validation = interleave_datasets([dataset['validation'] for dataset in full_datasets])
   print(f"Loaded")
