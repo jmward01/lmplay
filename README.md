@@ -14,13 +14,16 @@ That being said, the training has been designed to be simple. No multi-gpu, mult
 A note of caution here, because this is a playground the code here will likely change. That means that while you can import this in and use the classes, there is basically no guarantee that updates to this codebase won't badly break your code. Backward compatability is a very low priority compared to creating and comparing experiments. That being said, as results are posted I am trying to make `lmplay.modules` a one stop location to import useful, partially stable, classes. 
 
 ## The experiments
-I have been playing with ideas 'on the side' for a while now and several show promise. The first one is something I call 'Unified Embeddings'.
-### Experiment 1: [Unified Embeddings](https://github.com/jmward01/lmplay/wiki/Unified-Embeddings) 
+I have been playing with ideas 'on the side' for a while now and several show promise.
+### [Sacrificial Training](https://github.com/jmward01/lmplay/wiki/Sacrificial-Training) experiments
+These experiments fall into something I call 'Sacrificial Training'. These experiments add additional parameters during training time that can be removed for prod so the weights require no changes to code and have the same parameter counts as regularly trained weights. I am just starting to scratch the surface of these techniques but the results are very promising.
+#### Experiment 1: [Unified Embeddings](https://github.com/jmward01/lmplay/wiki/Unified-Embeddings) 
 If you look at only one thing in this repo UEs should be it. They enable a 6 layer model to beat a 12 layer model by a wide margin. The method is a training only technique meaning it can be used on existing LLM architectures without requiring changes to inference code (just training code).
-### Experiment 2: [Value Norm](https://github.com/jmward01/lmplay/wiki/Value-Norm) 
+#### Experiment 3: [Unified Weights](https://github.com/jmward01/lmplay/wiki/Unified-Weights)
+This continues the idea of predicting weights to enable better training with some respectable performance improvements.
+### Other experiments
+#### Experiment 2: [Value Norm](https://github.com/jmward01/lmplay/wiki/Value-Norm) 
 This gives a respectible boost to the 'standard' transformer block by applying a simple layer norm to the value projection.
-### Experiment 3: [Unified Weights](https://github.com/jmward01/lmplay/wiki/Unified-Weights)
-This continues the idea of predicting weights to enable better training with some respectable performance improvements. 
 
 ## Experiment details
 Unless otherwise stated experiments are run using the Adagrad optimizer with a batch size of 50, fixed lr of 0.0006 and no weight decay. Training is all done single GPU with --amp enabled. Mini-batch sizes are generally either 4, 10 or 25 depending on the GPU available and the test being run but quick tests show no significant deviation in results with different mini-batch sizes. --amp does have a minor, but noticable, impact but the performance gains make it a requirement and the impacts are much smaller than the gap between experiment results and baseline results.    
