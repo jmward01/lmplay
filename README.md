@@ -1,5 +1,5 @@
 # LMPlay
-tldr - Check out the [Unified Embeddings experiments](https://github.com/jmward01/lmplay/wiki/Unified-Embeddings).
+tldr - Check out the [Unified Embeddings experiments](https://github.com/jmward01/lmplay/wiki/Unified-Embeddings) and [Sacrificial Training](https://github.com/jmward01/lmplay/wiki/Sacrificial-Training) stuff on the wiki. These techniques allow a 6 layer model to train faster, and possibly deeper, than a 20 layer model.
 
 This repo contains two things:
 - The 'LMPlay' training/plotting/dataloading/runner harness - This is designed to be relatively simple with the goal being to make it easy to try new experiments and compare the results against a baseline.  
