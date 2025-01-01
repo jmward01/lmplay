@@ -17,14 +17,15 @@ class ULinear(nn.Module):
                out_features: int,
                device=None,
                dtype=None,
-               ef=4.0) -> None:
+               ef=0.1,
+               efm=0.2) -> None:
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
     self.in_features = in_features
     self.out_features = out_features
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
     emb_size = int(min(in_features, out_features) * ef)
-    mid_size = min(in_features, out_features)
+    mid_size = int(min(in_features, out_features) * efm)
     self.expansion_data = nn.Parameter(torch.empty(emb_size))
     self.bias1 = nn.Linear(emb_size, mid_size)
     self.bias2 = nn.Linear(mid_size, out_features)

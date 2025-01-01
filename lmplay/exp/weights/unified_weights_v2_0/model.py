@@ -44,7 +44,8 @@ class GPT2(LMBase):
                                         num_heads,
                                         embed_dim,
                                         attn_dropout=attn_dropout,
-                                        ff_dropout=ff_dropout) for _ in range(num_blocks)])
+                                        ff_dropout=ff_dropout,
+                                        linear=ULinear) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = ULinear(embed_dim, vocab_size)
 
