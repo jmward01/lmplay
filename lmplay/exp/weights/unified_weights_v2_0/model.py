@@ -6,6 +6,7 @@ from .modules import ULinear
 from lmplay.base.encoder.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
+from functools import partial
 
 
 #This version predicts mbias information.
@@ -40,14 +41,19 @@ class GPT2(LMBase):
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
+
+    self.shared_mid_weights = nn.Linear(embed_dim, embed_dim)
+    #This shares the first weights of the sacrificial layer that generates the bias for each ULinear.
+    # The goal is to get shared knowledge and have gradients take into account all the linear layers at once possibly giving training advantages.
+    shared_mid_linear = partial(ULinear, self.shared_mid_weights)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
                                         attn_dropout=attn_dropout,
                                         ff_dropout=ff_dropout,
-                                        linear=ULinear) for _ in range(num_blocks)])
+                                        linear=shared_mid_linear) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
-    self.fc = ULinear(embed_dim, vocab_size)
+    self.fc = shared_mid_linear(embed_dim, vocab_size)
 
   def forward(self, x: torch.Tensor, cache: Optional[List] = None):
     seq_len = x.size(1)
