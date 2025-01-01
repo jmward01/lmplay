@@ -13,21 +13,20 @@ def gen_mask(max_len: int) -> torch.Tensor:
 class ULinear(nn.Module):
   # Modified from pytorch source
   def __init__(self,
+               shared_mid_weights: nn.Linear,
                in_features: int,
                out_features: int,
                device=None,
-               dtype=None,
-               ef=4.0) -> None:
+               dtype=None) -> None:
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
     self.in_features = in_features
     self.out_features = out_features
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
-    emb_size = int(min(in_features, out_features) * ef)
-    mid_size = min(in_features, out_features)
-    self.expansion_data = nn.Parameter(torch.empty(emb_size))
-    self.bias1 = nn.Linear(emb_size, mid_size)
-    self.bias2 = nn.Linear(mid_size, out_features)
+
+    self.shared_mid_weights = shared_mid_weights
+    self.expansion_data = nn.Parameter(torch.empty(shared_mid_weights.in_features))
+    self.bias_weights = nn.Linear(shared_mid_weights.out_features, out_features)
     self.reset_parameters()
 
   def reset_parameters(self) -> None:
@@ -42,8 +41,8 @@ class ULinear(nn.Module):
 
   def forward(self, input: torch.Tensor) -> torch.Tensor:
     result = F.linear(input, self.weight, None)
-    bias = self.bias1(self.expansion_data)
-    bias = self.bias2(F.gelu(bias))
+    bias = self.shared_mid_weights(self.expansion_data)
+    bias = self.bias_weights(F.gelu(bias))
     result = result + bias
     return result
 
