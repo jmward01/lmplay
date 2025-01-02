@@ -21,6 +21,8 @@ These experiments fall into something I call 'Sacrificial Training'. These exper
 If you look at only one thing in this repo UEs should be it. They enable a 6 layer model to beat a 12 layer model by a wide margin. The method is a training only technique meaning it can be used on existing LLM architectures without requiring changes to inference code (just training code).
 #### Experiment 3: [Unified Weights](https://github.com/jmward01/lmplay/wiki/Unified-Weights)
 This continues the idea of predicting weights to enable better training with some respectable performance improvements.
+#### [Combined Sacrificial](https://github.com/jmward01/lmplay/wiki/Combined-Sacrificial) experiments:
+This series combines the sucessful sacraficial techniques into one model to see how well they stack.
 ### Other experiments
 #### Experiment 2: [Value Norm](https://github.com/jmward01/lmplay/wiki/Value-Norm) 
 This gives a respectible boost to the 'standard' transformer block by applying a simple layer norm to the value projection.
