@@ -24,7 +24,8 @@ class ULinear(nn.Module):
     self.out_features = out_features
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
 
-    self.shared_mid_weights = shared_mid_weights
+    #Hack to avoid saving copies of the shared mid weights everywhere
+    self.shared_mid_weights = [shared_mid_weights]
     self.expansion_data = nn.Parameter(torch.empty(shared_mid_weights.in_features))
     self.bias_weights = nn.Linear(shared_mid_weights.out_features, out_features)
     self.reset_parameters()
@@ -41,7 +42,7 @@ class ULinear(nn.Module):
 
   def forward(self, input: torch.Tensor) -> torch.Tensor:
     result = F.linear(input, self.weight, None)
-    bias = self.shared_mid_weights(self.expansion_data)
+    bias = self.shared_mid_weights[0](self.expansion_data)
     bias = self.bias_weights(F.gelu(bias))
     result = result + bias
     return result
