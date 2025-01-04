@@ -19,7 +19,7 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
-               version="2.2.1",
+               version="2.2",
 
                **ignore):
     super().__init__(f"uw_v{version}_{num_blocks}L_{max_len}",
