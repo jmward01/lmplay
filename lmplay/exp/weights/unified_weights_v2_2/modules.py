@@ -4,17 +4,17 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.nn import init
-
+from lmplay.exp.weights.unified_weights_v1_0.modules import ULinear
 
 def gen_mask(max_len: int) -> torch.Tensor:
   return torch.tril(torch.ones(max_len, max_len)).unsqueeze(0).unsqueeze(0)
 
 
-class ULinear(nn.Module):
+class SULinear(nn.Module):
   # Modified from pytorch source
   #This combines UW 1.0 and shared sacrificial generation of bias and mbias
   def __init__(self,
-               shared_mid_weights: nn.Linear,
+               shared_mid_weights: list[ULinear],
                in_features: int,
                out_features: int,
                bias=True,
@@ -27,14 +27,14 @@ class ULinear(nn.Module):
     self.out_features = out_features
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
     #Hack to avoid storing copies of the mid weights everywhere
-    self.shared_mid_weights = [shared_mid_weights]
-    self.expansion_data = nn.Parameter(torch.empty(shared_mid_weights.in_features))
-    self.mbias_weights_1 = nn.Linear(shared_mid_weights.out_features, shared_mid_weights.out_features)
-    self.mbias_weights_2 = nn.Linear(shared_mid_weights.out_features, out_features)
+    self.shared_mid_weights = shared_mid_weights
+    self.expansion_data = nn.Parameter(torch.empty(shared_mid_weights[0].in_features))
+    self.mbias_weights_1 = ULinear(shared_mid_weights[-1].out_features, shared_mid_weights[-1].out_features)
+    self.mbias_weights_2 = ULinear(shared_mid_weights[-1].out_features, out_features)
     self.mbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     if self.has_bias:
-      self.bias_weights_1 = nn.Linear(shared_mid_weights.out_features, shared_mid_weights.out_features)
-      self.bias_weights_2 = nn.Linear(shared_mid_weights.out_features, out_features)
+      self.bias_weights_1 = ULinear(shared_mid_weights[-1].out_features, shared_mid_weights[-1].out_features)
+      self.bias_weights_2 = ULinear(shared_mid_weights[-1].out_features, out_features)
       self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     self.reset_parameters()
 
@@ -50,7 +50,9 @@ class ULinear(nn.Module):
       init.uniform_(self.expansion_data, -bound, bound)
 
   def forward(self, input: torch.Tensor) -> torch.Tensor:
-    mid = F.gelu(self.shared_mid_weights[0](self.expansion_data))
+    mid = self.expansion_data
+    for w in self.shared_mid_weights:
+      mid = F.gelu(w(mid))
     if self.has_bias:
       bias = F.gelu(self.bias_weights_1(mid))
       bias = self.bias_weights_2(bias) + self.bias_bias

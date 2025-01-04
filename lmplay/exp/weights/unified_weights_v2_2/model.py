@@ -2,7 +2,8 @@ import torch
 from torch import nn
 from typing import Optional, Any, List
 
-from .modules import ULinear
+from .modules import SULinear
+from lmplay.exp.weights.unified_weights_v1_0.modules import ULinear
 from lmplay.base.encoder.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
@@ -18,7 +19,7 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
-               version="2.2",
+               version="2.2.1",
 
                **ignore):
     super().__init__(f"uw_v{version}_{num_blocks}L_{max_len}",
@@ -40,9 +41,10 @@ class GPT2(LMBase):
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
 
-    self.shared_mid_weights = nn.Linear(embed_dim, embed_dim)
+    self.shared_mid_weights_1 = ULinear(embed_dim, embed_dim)
+    self.shared_mid_weights_2 = ULinear(embed_dim, embed_dim)
     #This version predicts both mbias and bias instead of just the bias
-    shared_mid_linear = partial(ULinear, self.shared_mid_weights)
+    shared_mid_linear = partial(SULinear, [self.shared_mid_weights_1, self.shared_mid_weights_2])
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
