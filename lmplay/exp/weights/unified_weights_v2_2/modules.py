@@ -14,7 +14,7 @@ class SULinear(nn.Module):
   # Modified from pytorch source
   #This combines UW 1.0 and shared sacrificial generation of bias and mbias
   def __init__(self,
-               shared_mid_weights: list[ULinear],
+               shared_mid_weights: list,
                in_features: int,
                out_features: int,
                bias=True,
