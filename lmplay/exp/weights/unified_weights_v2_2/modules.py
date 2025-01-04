@@ -36,7 +36,7 @@ class SULinear(nn.Module):
     if self.has_bias:
       self.bias_weights_1 = ULinear(shared_mid_weights[-1].out_features, shared_mid_weights[-1].out_features)
       self.bias_weights_2 = ULinear(shared_mid_weights[-1].out_features, out_features)
-      self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+      #self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     self.reset_parameters()
 
   def reset_parameters(self) -> None:
@@ -56,7 +56,8 @@ class SULinear(nn.Module):
       mid = F.gelu(w(mid))
     if self.has_bias:
       bias = F.gelu(self.bias_weights_1(mid))
-      bias = self.bias_weights_2(bias) + self.bias_bias
+      #bias = self.bias_weights_2(bias) + self.bias_bias
+      bias = self.bias_weights_2(bias)
     else:
       bias = None
 
