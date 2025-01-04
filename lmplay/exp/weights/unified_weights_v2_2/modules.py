@@ -29,8 +29,9 @@ class SULinear(nn.Module):
     #Hack to avoid storing copies of the mid weights everywhere
     self.shared_mid_weights = shared_mid_weights
     self.expansion_data = nn.Parameter(torch.empty(shared_mid_weights[0].in_features))
-    self.mbias_weights_1 = ULinear(shared_mid_weights[-1].out_features, shared_mid_weights[-1].out_features)
-    self.mbias_weights_2 = ULinear(shared_mid_weights[-1].out_features, out_features)
+    #self.mbias_weights_1 = ULinear(shared_mid_weights[-1].out_features, shared_mid_weights[-1].out_features)
+    #self.mbias_weights_2 = ULinear(shared_mid_weights[-1].out_features, out_features)
+    self.mbias = nn.Parameter(torch.ones(out_features, **factory_kwargs))
     self.mbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     if self.has_bias:
       self.bias_weights_1 = ULinear(shared_mid_weights[-1].out_features, shared_mid_weights[-1].out_features)
@@ -58,8 +59,8 @@ class SULinear(nn.Module):
       bias = self.bias_weights_2(bias) + self.bias_bias
     else:
       bias = None
-    mbias = F.gelu(self.mbias_weights_1(mid))
-    weight = self.weight.t() * (self.mbias_weights_2(mbias) + self.mbias_bias)
+
+    weight = self.weight.t() * (self.mbias + self.mbias_bias)
     result = F.linear(input, weight.t(), bias)
     return result
 
