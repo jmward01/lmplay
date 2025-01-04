@@ -29,10 +29,12 @@ class ULinear(nn.Module):
     #Hack to avoid storing copies of the mid weights everywhere
     self.shared_mid_weights = [shared_mid_weights]
     self.expansion_data = nn.Parameter(torch.empty(shared_mid_weights.in_features))
-    self.mbias_weights = nn.Linear(shared_mid_weights.out_features, out_features)
+    self.mbias_weights_1 = nn.Linear(shared_mid_weights.out_features, shared_mid_weights.out_features)
+    self.mbias_weights_2 = nn.Linear(shared_mid_weights.out_features, out_features)
     self.mbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     if self.has_bias:
-      self.bias_weights = nn.Linear(shared_mid_weights.out_features, out_features)
+      self.bias_weights_1 = nn.Linear(shared_mid_weights.out_features, shared_mid_weights.out_features)
+      self.bias_weights_2 = nn.Linear(shared_mid_weights.out_features, out_features)
       self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     self.reset_parameters()
 
@@ -50,10 +52,12 @@ class ULinear(nn.Module):
   def forward(self, input: torch.Tensor) -> torch.Tensor:
     mid = F.gelu(self.shared_mid_weights[0](self.expansion_data))
     if self.has_bias:
-      bias = self.bias_weights(mid) + self.bias_bias
+      bias = F.gelu(self.bias_weights_1(mid))
+      bias = self.bias_weights_2(bias) + self.bias_bias
     else:
       bias = None
-    weight = self.weight.t() * (self.mbias_weights(mid) + self.mbias_bias)
+    mbias = F.gelu(self.mbias_weights_1(mid))
+    weight = self.weight.t() * (self.mbias_weights_2(mbias) + self.mbias_bias)
     result = F.linear(input, weight.t(), bias)
     return result
 
