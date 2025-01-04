@@ -41,7 +41,7 @@ class GPT2(LMBase):
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
 
-    self.shared_mid_weights_1 = ULinear(embed_dim, embed_dim)
+    self.shared_mid_weights_1 = ULinear(embed_dim*8, embed_dim)
     self.shared_mid_weights_2 = ULinear(embed_dim, embed_dim)
     #This version predicts both mbias and bias instead of just the bias
     shared_mid_linear = partial(SULinear, [self.shared_mid_weights_1, self.shared_mid_weights_2])
