@@ -15,6 +15,7 @@ from lmplay.exp.weights.unified_weights_v1_0.model import ModelRunner as UW1_0Mo
 from lmplay.exp.weights.unified_weights_v2_0.model import ModelRunner as UW2_0ModelRunner
 from lmplay.exp.weights.unified_weights_v2_1.model import ModelRunner as UW2_1ModelRunner
 from lmplay.exp.weights.unified_weights_v2_2.model import ModelRunner as UW2_2ModelRunner
+from lmplay.exp.weights.unified_weights_v2_3.model import ModelRunner as UW2_3ModelRunner
 
 MODEL_RUNNERS = dict(gpt2ish=GPT2ishModelRunner,
                      normv=NormVModelRunner,
@@ -31,5 +32,6 @@ MODEL_RUNNERS = dict(gpt2ish=GPT2ishModelRunner,
                      uw1_0=UW1_0ModelRunner,
                      uw2_0=UW2_0ModelRunner,
                      uw2_1=UW2_1ModelRunner,
-                     uw2_2=UW2_2ModelRunner)
+                     uw2_2=UW2_2ModelRunner,
+                     uw2_3=UW2_3ModelRunner)
 
