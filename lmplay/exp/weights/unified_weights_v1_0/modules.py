@@ -28,6 +28,9 @@ class ULinear(nn.Module):
     if self.has_bias == True:
       self.bias = nn.Parameter(torch.empty(out_features, **factory_kwargs))
       self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+    else:
+      #this is needed because?????? Won't work in some frameworks without it because they are constructing the models and not the model code.
+      self.register_parameter("bias", None)
     self.reset_parameters()
 
   def reset_parameters(self) -> None:
@@ -36,7 +39,7 @@ class ULinear(nn.Module):
     # uniform(-1/sqrt(in_features), 1/sqrt(in_features)). For details, see
     # https://github.com/pytorch/pytorch/issues/57109
     init.kaiming_uniform_(self.weight, a=math.sqrt(5))
-    if self.has_bias:
+    if self.bias is not None:
       fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
       bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
       init.uniform_(self.bias, -bound, bound)
@@ -44,7 +47,7 @@ class ULinear(nn.Module):
   def forward(self, input: torch.Tensor) -> torch.Tensor:
     #calculate don't add the bias yet
     sum_mbias = self.mbias + self.mbias_bias
-    if self.has_bias:
+    if self.bias is not None:
       sum_bias = self.bias + self.bias_bias
     else:
       sum_bias = None
