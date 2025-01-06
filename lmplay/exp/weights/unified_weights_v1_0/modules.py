@@ -53,7 +53,7 @@ class ULinear(nn.Module):
       sum_bias = None
     result = F.linear(input, self.weight, None)
     #We apply this mbias idea to both the weights and the biases. For the weights though this works out as a mul and not an add.
-    if self.has_bias:
+    if self.bias is not None:
       result = result * sum_mbias + sum_bias
     else:
       result = result * sum_mbias
