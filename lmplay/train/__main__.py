@@ -45,7 +45,7 @@ def main():
   args.add_argument('--validation-batch-size', help="Batch size to use for validation. Default is 4", default=4 , type=int)
   #Similar to validation-batch-size, validation-interval allows you to get more fine-grained validation
   args.add_argument('--validation-interval', help="how many train samples before a validation batch. Default is 100.", default=100, type=int)
-  args.add_argument('--save-interval', help="How many train samples until the model is saved. Default is 2000", default=2000, type=int)
+  args.add_argument('--save-interval', help="How many train samples until the model is saved. Default is 10000", default=10000, type=int)
   args.add_argument('--num-blocks', help="Number of layers to initialize a new model with. Default is 6.", default=6, type=int)
   args.add_argument('--epochs', help="Number of times to go over the total train set. Epochs are evil but easy to implement. Default = 1.0", default=1.0, type=float)
   args.add_argument('--default-freeze', help="Freeze all weights by default unless '.freeze=False' on them or a module they are a part of.", action='store_true')
