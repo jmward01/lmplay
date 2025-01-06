@@ -25,7 +25,7 @@ class ULinear(nn.Module):
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
     self.mbias = nn.Parameter(torch.ones(out_features, **factory_kwargs))
     self.mbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
-    if self.has_bias:
+    if self.has_bias == True:
       self.bias = nn.Parameter(torch.empty(out_features, **factory_kwargs))
       self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     self.reset_parameters()
