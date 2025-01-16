@@ -10,7 +10,7 @@ def gen_mask(max_len: int) -> torch.Tensor:
   return torch.tril(torch.ones(max_len, max_len)).unsqueeze(0).unsqueeze(0)
 
 
-class ULinear(nn.Module):
+class SULinear(nn.Module):
   # Modified from pytorch source
   #This combines UW 1.0 and UW 2.0 so shared sacrificial bias gen and mbias
   def __init__(self,

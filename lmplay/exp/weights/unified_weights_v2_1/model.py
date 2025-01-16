@@ -2,15 +2,14 @@ import torch
 from torch import nn
 from typing import Optional, Any, List
 
-from .modules import ULinear
+from .modules import SULinear
 from lmplay.base.encoder.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
 from functools import partial
 
 
-#This version predicts mbias information.
-# Unfortunately this is pretty expensive in this implementation so it is only used on the vocab.
+#This version predicts mbias information using a shared set of weights but unique embedding.
 class GPT2(LMBase):
   def __init__(self,
                max_len=1024,
@@ -44,7 +43,7 @@ class GPT2(LMBase):
 
     self.shared_mid_weights = nn.Linear(embed_dim, embed_dim)
     #This version combines UW 1.0 and UW 2.0
-    shared_mid_linear = partial(ULinear, self.shared_mid_weights)
+    shared_mid_linear = partial(SULinear, self.shared_mid_weights)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
