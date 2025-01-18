@@ -32,7 +32,7 @@ class GPT2(LMBase):
                      embed_dropout=embed_dropout,
                      version=version,
                      **ignore)
-    #This version has a ULinear that predicts bias but has an internal expansion data that is 8x by default.
+    #More exploration of sacrificial network hyper parameters. This is trying a larger exp_mul.
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
