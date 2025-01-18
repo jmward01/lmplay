@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from typing import Optional, Any, List
 
-from .modules import DULinear
+from lmplay.exp.weights.unified_weights_v3_0.modules import DULinear
 from lmplay.base.encoder.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
@@ -18,9 +18,9 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
-               version="3.0",
+               version="3.2",
                exp_mul=8.0,
-               mid_mul=1.0,
+               mid_mul=2.0,
                **ignore):
     super().__init__(f"uw_v{version}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
                      max_len=max_len,
