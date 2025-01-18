@@ -9,22 +9,23 @@ from torch.nn import init
 def gen_mask(max_len:int) -> torch.Tensor:
     return  torch.tril(torch.ones(max_len, max_len)).unsqueeze(0).unsqueeze(0)
 
-class ULinear(nn.Module):
-  #Modified from pytorch source
+class DULinear(nn.Module):
+  #Deep Unified Linear
   def __init__(self,
                in_features: int,
                out_features: int,
                bias = True,
                device=None,
                dtype=None,
-               exp_mul=8) -> None:
+               exp_mul=8,
+               mid_mul=1) -> None:
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
     self.has_bias = bias
     self.in_features = in_features
     self.out_features = out_features
     self.expansion_features = int(in_features*exp_mul)
-    self.bias_weights_hidden = min(in_features, out_features)
+    self.bias_weights_hidden = int(min(in_features, out_features)*mid_mul)
 
 
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
