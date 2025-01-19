@@ -17,7 +17,7 @@ def to_row(row: dict, max_length:int=None) -> (dict, Optional[int]):
   prompt = ""
   #return {'system': system, 'user': user, 'truth': truth}
   if 'prompt' in row and 'truth' in row:
-    return {'prompt':row['prompt'], 'truth':row['truth']}
+    return {'prompt':row['prompt'], 'truth':row['truth']}, None
 
   if 'title' in row:
     prompt = f'Title: {row["title"]}\n'
@@ -103,13 +103,13 @@ def batcher(dataset,
       continuation = -1
       while continuation is not None:
         if continuation == -1:
-          built_row, continuation = row.get('reader', default_to_row)(row)
+          built_row, continuation = row.get('reader', default_to_row)(row, max_length=max_length)
           count += 1
           offset += 1
           new_count += 1
         else:
           #Gives a chance to 'continue' a row that was too long as another example.
-          built_row, continuation = row.get('continuation',default_continue_row)(row, continuation)
+          built_row, continuation = row.get('continuation',default_continue_row)(row, continuation, max_length=max_length)
         batch.append(built_row)
         if epochs is not None and count/len(dataset) >= epochs:
           #Looks like we have see enough examples.
