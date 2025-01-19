@@ -1,7 +1,6 @@
 from datasets import load_dataset, load_from_disk
+from .utils import dataset_path
 import os
-DEFAULT_DATASET_DIR = "out_gpt/datasets"
-LMP_DATASETS_ENV = "LMP_DATASETS"
 
 def _get_wikipedia(seed:int, val_split:float, date="20231101", lang="en", save_local:bool = False):
   """This will look for the dataset in the path indicated by LMP_DATASETS first and then grab it from huggingface if not found.
@@ -14,13 +13,13 @@ def _get_wikipedia(seed:int, val_split:float, date="20231101", lang="en", save_l
   :param save_local: save the dataset to LMP_DATASETS directory
   :return:
   """
-  dataset_path = os.path.expanduser(os.environ.get(LMP_DATASETS_ENV, DEFAULT_DATASET_DIR))
-  save_name = os.path.expanduser(os.path.join(dataset_path, f"wikimedia_wikipedia_{date}_{lang}.hf"))
+
+  save_name = os.path.expanduser(os.path.join(dataset_path(), f"wikimedia_wikipedia_{date}_{lang}.hf"))
   if not os.path.exists(save_name):
     print(f"{save_name} not found locally. Downloading from hf.")
     ds = load_dataset("wikimedia/wikipedia", f"{date}.{lang}")['train']
     if save_local:
-      os.makedirs(dataset_path, exist_ok=True)
+      os.makedirs(dataset_path(), exist_ok=True)
       ds.save_to_disk(save_name)
       print(f"{save_name} saved")
   else:

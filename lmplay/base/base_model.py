@@ -38,7 +38,7 @@ class OptimizerWarmupLRScheduler(LRScheduler):
 
 
 class LMBase(nn.Module):
-  def __init__(self, name:str, *init_args, **init_kwargs):
+  def __init__(self, name: str, *init_args, **init_kwargs):
     super().__init__()
     self.name = name.replace('.', '_')
     self.init_args = init_args
@@ -49,13 +49,12 @@ class LMBase(nn.Module):
     pass
     # self.unified_tok_embed.initialize(self.tok_embed, device)
 
-  def _kv_cache(self, cache:Optional[list], idx):
+  def _kv_cache(self, cache: Optional[list], idx):
     if cache is None:
       return None
     if len(cache) <= idx:
       cache.append([])
     return cache[idx]
-
 
   def _tokenize_str(self, sample: dict, device, trim=True) -> (torch.Tensor, int):
     prompt = sample['prompt']
@@ -93,8 +92,9 @@ class LMBase(nn.Module):
     return x, predictions_starts, predictions_ends
 
   def to(self, *args, **kwargs):
-    #Modified from pytorch 2.1 source
+    # Modified from pytorch 2.1 source
     device, dtype, non_blocking, convert_to_format = torch._C._nn._parse_to(*args, **kwargs)
+
     def convert(t):
       if convert_to_format is not None and t.dim() in (4, 5):
         if hasattr(t, 'force_device'):
@@ -109,56 +109,54 @@ class LMBase(nn.Module):
     return self._apply(convert)
 
   @abstractmethod
-  def forward(self, x:torch.Tensor, cache:Optional[List] = None):
+  def forward(self, x: torch.Tensor, cache: Optional[List] = None):
     pass
-
 
   def train_prompts(self, prompts: Sequence[dict]) -> (Sequence[str], torch.Tensor):
     # We want to pad them together so that the truths will line up with the prompts.
     x, predictions_starts, predictions_ends = self._tokenize_batch(prompts)
-    #Truth doesn't have the first EOT char. It needs to start on prediction start
-    truths = x[:,1:]
-    #x doesn't need the last EOT since it will be predicting that
-    x = x[:,:-1]
+    # Truth doesn't have the first EOT char. It needs to start on prediction start
+    truths = x[:, 1:]
+    # x doesn't need the last EOT since it will be predicting that
+    x = x[:, :-1]
 
     x = self(x)
     results = []
-    #num classes is always second. For, reasons?
+    # num classes is always second. For, reasons?
     target_loss = F.cross_entropy(x.permute(0, 2, 1), truths, reduction="none")
     total_target_loss = 0.0
     for tl, prediction_start, prediction_end in zip(target_loss, predictions_starts, predictions_ends):
       tl = tl[prediction_start:prediction_end]
       tl = tl.sum()
       token_count = max(prediction_end - prediction_start, 1)
-      #norm by number of tokens in the truth
-      total_target_loss = tl/token_count + total_target_loss
+      # norm by number of tokens in the truth
+      total_target_loss = tl / token_count + total_target_loss
     target_loss = total_target_loss
-    #Get the predicted value so we can cut just that out as the result.
+    # Get the predicted value so we can cut just that out as the result.
     predicted_tokens = torch.argmax(x, dim=-1)
-    #for result, prediction_start, prediction_end, truth in zip(predicted_tokens, predictions_starts, predictions_ends, truths):
+    # for result, prediction_start, prediction_end, truth in zip(predicted_tokens, predictions_starts, predictions_ends, truths):
     for result, prediction_start, prediction_end in zip(predicted_tokens, predictions_starts, predictions_ends):
-      #we only care about the prediction.
-      #the last value is end of sentence
+      # we only care about the prediction.
+      # the last value is end of sentence
       results.append(self.tokenizer.decode(result[prediction_start:prediction_end].tolist()))
-    #target loss is normalized by example but not by batch. That will be done by the caller.
+    # target loss is normalized by example but not by batch. That will be done by the caller.
     return results, target_loss
 
-
-  def generate_prompts(self, prompts: Sequence[dict], max_len:Optional[int] == None) -> Sequence[str]:
+  def generate_prompts(self, prompts: Sequence[dict], max_len: Optional[int] == None) -> Sequence[str]:
     results = []
     if not max_len:
       max_len = self.max_len
     with torch.no_grad():
       for prompt in prompts:
         result = []
-        #We only support batch size of 1. This code is just for testing and not meant to be fast/good/etc.
-        #Basically, we want training to be -really- easy to play with so we have the minor concession of a kv cache mechanism.
+        # We only support batch size of 1. This code is just for testing and not meant to be fast/good/etc.
+        # Basically, we want training to be -really- easy to play with so we have the minor concession of a kv cache mechanism.
         x, _, _ = self._tokenize_batch([prompt])
         cache = []
         stop = False
         while not stop:
           x, cache = self(x, cache=cache)
-          #Should only be one token
+          # Should only be one token
           x = torch.argmax(x, dim=-1)
           result.append(x.squeeze().tolist())
           if result[-1] == self.tokenizer.eot_token or len(result) == max_len:
@@ -187,14 +185,17 @@ def detect_freeze(module: nn.Module):
       freeze = p.freeze
       p.requires_grad_(not freeze)
 
+
 class NopWith:
   def __init__(self, *args, **kwargs):
     pass
+
   def __enter__(self):
     return self
 
   def __exit__(self, exc_type, exc_val, exc_tb):
     pass
+
 
 class LMRunnerBase(ABC):
   def __init__(self, max_batch_size: int = 1, stats_dir="./out_gpt"):
@@ -203,20 +204,35 @@ class LMRunnerBase(ABC):
     self._raw_model: Optional[LMBase] = None
     self._optimizers: Optional[List[Optimizer]] = None
     self.model_stats: Optional[modelstats.ModelStats] = None
+    self.step_stats = dict()
+    self.current_step = None
     self._model_args = None
     self._optimizer_args = None
     self._stats_dir = stats_dir
     self._lr_scheduler: Optional[LRScheduler] = None
     self.run_name = ""
-    self.device:Optional[str] = None
-    self.device_type:Optional[str] = None
-    self.max_len:Optional[int] = None
+    self.device: Optional[str] = None
+    self.device_type: Optional[str] = None
+    self.max_len: Optional[int] = None
+
+  def set_current_step(self, step_name:str):
+    if not self.current_step is None and step_name != self.current_step:
+      self.get_step_stats().write_train()
+      self.get_step_stats().write_validate()
+    self.current_step = step_name
 
   def is_trainable(self) -> bool:
     return self._optimizers is not None
 
   def is_initialzed(self) -> bool:
     return self._model is not None
+
+  def get_step_stats(self) -> modelstats.ModelStats:
+    if self.current_step not in self.step_stats:
+      self.step_stats[self.current_step] = modelstats.ModelStats(
+        model_name=f"{self._model.name}{self.run_name}_step_{self.current_step}",
+        basedir=self._stats_dir)
+    return self.step_stats[self.current_step]
 
   def initialize(self,
                  device,
@@ -234,6 +250,8 @@ class LMRunnerBase(ABC):
                  compile_backend='inductor',
                  amp=False,
                  no_grad_scale=False,
+                 reset_history=False,
+                 first_step=None,
                  **parameters):
     self.for_train = for_train
     self.device = device
@@ -245,12 +263,15 @@ class LMRunnerBase(ABC):
       self.device_type = "cpu"
     else:
       self.device_type = device
-    #if torch.cuda.is_available():
+    # if torch.cuda.is_available():
     #  torch.set_float32_matmul_precision('high')
     torch.set_float32_matmul_precision('high')
     for p in ('lr', 'optimizer_warmup_start', 'optimizer_warmup_steps'):
       if p in parameters and parameters[p] is None:
         del parameters[p]
+
+    self.step_stats = dict()
+    self.current_step = first_step
 
     if len(run_name) > 0:
       self.run_name = f"_{run_name}"
@@ -263,6 +284,7 @@ class LMRunnerBase(ABC):
     if locations is not None:
       locations = [os.path.expanduser(location) for location in locations]
       locations = [location for location in locations if os.path.exists(location)]
+
     if len(locations) > 0:
       location = locations[0]
       weight_data = torch.load(location, map_location=device)
@@ -274,28 +296,46 @@ class LMRunnerBase(ABC):
                                                                                    None),
                                                                                  strict=strict,
                                                                                  **parameters)
-      self.model_stats = modelstats.ModelStats(model_name=f"{self._model.name}{self.run_name}",
-                                          **weight_data.get('stats', {}),
-                                          basedir=self._stats_dir)
+      if reset_history:
+        self.model_stats = modelstats.ModelStats(model_name=f"{self._model.name}{self.run_name}",
+                                                 basedir=self._stats_dir)
+
+      else:
+        self.model_stats = modelstats.ModelStats(model_name=f"{self._model.name}{self.run_name}",
+                                                 **weight_data.get('stats', {}),
+                                                 basedir=self._stats_dir)
+        self.current_step = weight_data.get('current_step', first_step)
+        for step_name, data in weight_data.get('step_stats', dict()).items():
+          self.step_stats[step_name] = modelstats.ModelStats(
+            model_name=f"{self._model.name}{self.run_name}_step_{step_name}",
+            **data,
+            basedir=self._stats_dir)
+        if len(self.step_stats) == 0 and 'stats' in weight_data and first_step != None:
+          #looks like we didn't find any step info but there are model stats. We are probably loading an old model.
+          #just load the full model stats as the first step.
+          self.step_stats[first_step] = modelstats.ModelStats(model_name=f"{self._model.name}{self.run_name}_step_{first_step}",
+                                                 **weight_data.get('stats', {}),
+                                                 basedir=self._stats_dir)
+
       if for_train:
         if default_freeze:
           self._model.requires_grad_(False)
         detect_freeze(self._model)
         # Only load the other stuff if they are going to train
         self._optimizers, self._optimizer_args, self._lr_scheduler = self.construct_optimizer(device,
-                                                                                             self._model,
-                                                                                             missing=missing,
-                                                                                             unexpected=unexpected,
-                                                                                             load_optimizer=load_optimizer,
-                                                                                             optimizer_weights=weight_data.get(
-                                                                                               'optimizer',
-                                                                                               None),
-                                                                                             optimizer_args=weight_data.get(
-                                                                                               'optimizer_args', None),
-                                                                                             disable_optimizer_warmup=disable_optimizer_warmup,
-                                                                                             optimizer_warmup_steps=optimizer_warmup_steps,
-                                                                                             optimizer_warmup_fraction=optimizer_warmup_fraction,
-                                                                                             **parameters)
+                                                                                              self._model,
+                                                                                              missing=missing,
+                                                                                              unexpected=unexpected,
+                                                                                              load_optimizer=load_optimizer,
+                                                                                              optimizer_weights=weight_data.get(
+                                                                                                'optimizer',
+                                                                                                None),
+                                                                                              optimizer_args=weight_data.get(
+                                                                                                'optimizer_args', None),
+                                                                                              disable_optimizer_warmup=disable_optimizer_warmup,
+                                                                                              optimizer_warmup_steps=optimizer_warmup_steps,
+                                                                                              optimizer_warmup_fraction=optimizer_warmup_fraction,
+                                                                                              **parameters)
         if not isinstance(self._optimizers, list):
           self._optimizers = [self._optimizers]
 
@@ -307,14 +347,14 @@ class LMRunnerBase(ABC):
           self._model.requires_grad_(False)
         detect_freeze(self._model)
         self._optimizers, self._optimizer_args, self._lr_scheduler = self.construct_optimizer(device,
-                                                                                             self._model,
-                                                                                             **parameters)
+                                                                                              self._model,
+                                                                                              **parameters)
         if not isinstance(self._optimizers, list):
           self._optimizers = [self._optimizers]
 
     self._raw_model = self._model
     if compile_model:
-      #['cudagraphs', 'inductor', 'onnxrt', 'openxla', 'openxla_eval', 'tvm']
+      # ['cudagraphs', 'inductor', 'onnxrt', 'openxla', 'openxla_eval', 'tvm']
       self._model = torch.compile(self._model, backend=compile_backend, mode=compile_mode)
 
     self.scaler = None
@@ -325,8 +365,6 @@ class LMRunnerBase(ABC):
       self.amp = torch.amp.autocast
     self._model.train(for_train)
     self.max_len = self._model.max_len
-
-
 
   def get_model_args(self):
     return self._model_args
@@ -351,7 +389,9 @@ class LMRunnerBase(ABC):
                     'model_args': self.get_model_args(),
                     'optimizer_args': self.get_optimizer_args(),
                     'optimizer': optimizer_save,
-                    'stats': self.model_stats.dump_dict()}
+                    'current_step':self.current_step,
+                    'stats': self.model_stats.dump_dict(),
+                    'step_stats': {stat_name:stat.dump_dict() for stat_name, stat in self.step_stats.items()}}
     if os.path.exists(location):
       copyfile(location, f"{location}.bak")
     torch.save(checkpoint, location)
@@ -365,8 +405,8 @@ class LMRunnerBase(ABC):
       result = result.split()
       truth = truth.split()
       total_words += len(truth)
-      #The wrong library here can make this the most expensive op in the codebase.
-      #This lib is pretty fast though.
+      # The wrong library here can make this the most expensive op in the codebase.
+      # This lib is pretty fast though.
       errors, matches = utils.levenshtein_edit_distance(result, truth)
 
       total_errors += errors
@@ -386,13 +426,13 @@ class LMRunnerBase(ABC):
     batch_results = []
     batch_loss = 0.0
     # Break this into mini-batches that the model can handle
-    #amp warns against enclosing the 'backward' but it appears that doing so provides an advantage at least to the optimizer used.
-    #leaving it here for now. This should be looked at more in the future.
+    # amp warns against enclosing the 'backward' but it appears that doing so provides an advantage at least to the optimizer used.
+    # leaving it here for now. This should be looked at more in the future.
     with self.amp(device_type=self.device_type):
       for prompt in prompts:
         mini_batch.append(prompt)
         if len(mini_batch) >= self.max_batch_size:
-          #with self.amp(device_type=self.device_type):
+          # with self.amp(device_type=self.device_type):
           mini_batch_results, mini_batch_loss = self._model.train_prompts(mini_batch)
           batch_results.extend(mini_batch_results)
           batch_loss = float(mini_batch_loss) + batch_loss
@@ -407,7 +447,7 @@ class LMRunnerBase(ABC):
 
           mini_batch = []
       if len(mini_batch) > 0:
-        #with self.amp(device_type=self.device_type):
+        # with self.amp(device_type=self.device_type):
         mini_batch_results, mini_batch_loss = self._model.train_prompts(mini_batch)
         batch_results.extend(mini_batch_results)
         batch_loss = float(mini_batch_loss) + batch_loss
@@ -433,8 +473,10 @@ class LMRunnerBase(ABC):
       pct_correct = 0
     if train:
       self.model_stats.update_train(len(prompts), pct_correct, float(batch_loss), actual_samples=actual_samples_read)
+      self.get_step_stats().update_train(len(prompts), pct_correct, float(batch_loss), actual_samples=actual_samples_read)
     else:
       self.model_stats.update_validate(len(prompts), pct_correct, float(batch_loss), actual_samples=actual_samples_read)
+      self.get_step_stats().update_validate(len(prompts), pct_correct, float(batch_loss), actual_samples=actual_samples_read)
     return batch_results, batch_loss
 
   def train(self, prompts: Sequence[dict], actual_samples_read: Optional[int] = None) -> (Sequence[str], torch.Tensor):
@@ -448,7 +490,7 @@ class LMRunnerBase(ABC):
 
     results, current_loss = self._run_with_truth(prompts, True, actual_samples_read)
     if self.scaler is not None:
-      #Scaling only applies to the primary optimizer.
+      # Scaling only applies to the primary optimizer.
       self.scaler.step(self._optimizers[0])
       self.scaler.update()
     else:
@@ -467,7 +509,7 @@ class LMRunnerBase(ABC):
       results, current_loss = self._run_with_truth(prompts, False, actual_samples_read)
     return results, current_loss
 
-  def generate(self, prompts: Sequence[str], max_len:Optional[int] = None):
+  def generate(self, prompts: Sequence[str], max_len: Optional[int] = None):
     prompts = [{'prompt': f"{prompt}\n"} for prompt in prompts]
     with self.amp(device_type=self.device_type):
       return self._model.generate_prompts(prompts, max_len)
@@ -528,7 +570,7 @@ class LMRunnerBase(ABC):
     weight_decay = parameters.get('weight_decay', optimizer_args.get('weight_decay', DEFAULT_WEIGHT_DECAY))
     primary_weights = []
     secondary_weights = []
-    #Detect primary and secondary optimizer targets.
+    # Detect primary and secondary optimizer targets.
     for parameter in model.parameters():
       if hasattr(parameter, "secondary_optimizer") and parameter.secondary_optimizer:
         secondary_weights.append(parameter)
@@ -540,7 +582,8 @@ class LMRunnerBase(ABC):
     lr_scheduler = None
     if optimizer_weights is not None and not isinstance(optimizer_weights, list):
       optimizer_weights = [optimizer_weights]
-    if optimizer_weights is not None and load_optimizer and len(unexpected) == 0 and len(missing) == 0 and len(optimizer_weights) == len(optimizers):
+    if optimizer_weights is not None and load_optimizer and len(unexpected) == 0 and len(missing) == 0 and len(
+            optimizer_weights) == len(optimizers):
       # if optimizer_weights is not None and load_optimizer and len(missing) == 0 and len(unexpected) == 0:
       # only load old optimizers if the model parameters haven't changed.
       optimizer_loaded = True
@@ -555,12 +598,14 @@ class LMRunnerBase(ABC):
             optimizer.load_state_dict(weights)
           except ValueError:
             optimizer_loaded = False
-            print("Unable to load optimizer. Probably a new parameter that is throwing things off. (This optimizer doesn't belong to this model)")
+            print(
+              "Unable to load optimizer. Probably a new parameter that is throwing things off. (This optimizer doesn't belong to this model)")
         else:
           optimizer_loaded = False
     else:
       optimizer_loaded = False
-    create_warmup_scheduler = not disable_optimizer_warmup and optimizer_weights is not None and not optimizer_loaded and len(optimizers) == 1
+    create_warmup_scheduler = not disable_optimizer_warmup and optimizer_weights is not None and not optimizer_loaded and len(
+      optimizers) == 1
     if create_warmup_scheduler:
       print("Using warmup scheduler.")
       lr_scheduler = OptimizerWarmupLRScheduler(optimizers[0],
