@@ -16,7 +16,7 @@ def to_row(row: dict, max_length:int=None) -> (dict, Optional[int]):
       return {'prompt':row['prompt'], 'truth':row['truth']}, None
     return {'prompt':"", 'truth':row['truth']}, None
 
-  if 'title' in row:
+  if 'title' in row and row['title'] is not None:
     prompt = f'Title: {row["title"]}\n'
   else:
     prompt = ''
@@ -37,7 +37,7 @@ def to_row(row: dict, max_length:int=None) -> (dict, Optional[int]):
 
 def continue_row(row:dict, continuation:int, max_length:int=None) -> (dict, Optional[int]):
   next_nearest_period = row['text'].find('. ', continuation)
-  if 'title' in row:
+  if 'title' in row and row['title'] is not None:
     prompt = f'Title: {row["title"]}\n...'
   else:
     prompt = '...'
