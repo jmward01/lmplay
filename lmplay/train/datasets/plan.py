@@ -44,7 +44,7 @@ DEFAULT_PLANS = {'default': DEFAULT_PLAN,
                  'tinystories':TINYSTORIES}
 
 
-def get_step_names(step_def: dict) -> tuple[str]:
+def get_step_names(step_def: dict):
   steps = step_def['steps']
   return tuple(step.get('step_name', str(i)) for i, step in enumerate(steps))
 
