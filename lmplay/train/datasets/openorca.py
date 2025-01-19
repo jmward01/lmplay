@@ -13,7 +13,7 @@ def _map(example):
 
 #Open-Orca/OpenOrca
 def _get_openorca(seed:int, val_split:float, save_local:bool = False):
-  save_name = os.path.expanduser(os.path.join(dataset_path(), f"Open_Orca_OpenOrca.hf"))
+  save_name = os.path.expanduser(os.path.join(dataset_path(), f"Open_Orca_OpenOrca"))
   if not os.path.exists(save_name):
     print(f"{save_name} not found locally. Downloading from hf.")
     ds = load_dataset("Open-Orca/OpenOrca")['train']
