@@ -11,15 +11,11 @@ def dataset_path():
 
 
 def to_row(row: dict, max_length:int=None) -> (dict, Optional[int]):
-  #user = f'Write an article with the following title: {row["title"]}'
-  #system = 'You write wikipedia articles.'
-  #truth = f'Title: {row["title"]}. Article: {row["text"]}'
-  prompt = ""
-  #return {'system': system, 'user': user, 'truth': truth}
-  if 'prompt' in row and 'truth' in row:
-    return {'prompt':row['prompt'], 'truth':row['truth']}, None
-  elif 'truth' in row:
+  if 'truth' in row and not row['truth'] is None:
+    if 'prompt' in row and not row['prompt'] is None:
+      return {'prompt':row['prompt'], 'truth':row['truth']}, None
     return {'prompt':"", 'truth':row['truth']}, None
+
   if 'title' in row:
     prompt = f'Title: {row["title"]}\n'
   else:

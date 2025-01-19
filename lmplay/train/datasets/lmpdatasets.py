@@ -1,14 +1,10 @@
 from .wikipedia import get_wikipedia
 from .openorca import get_openorca
-from .orcamathword200 import get_orcamathword200
-from .tinystories import get_tinystories
 from .hf import get_hf
 from .plan_configs import ALL_DATASETS
 
 _DATASET_FUNCS = {'wiki': get_wikipedia,
                   'openorca': get_openorca,
-                  'orcamathword200': get_orcamathword200,
-                  'tinystories': get_tinystories,
                   'hf': get_hf}
 
 def get_dataset(ds_loader: str, *args, seed=0, val_split=0.1, save_local: bool = False, **kwargs):
