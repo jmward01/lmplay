@@ -18,7 +18,8 @@ def to_row(row: dict, max_length:int=None) -> (dict, Optional[int]):
   #return {'system': system, 'user': user, 'truth': truth}
   if 'prompt' in row and 'truth' in row:
     return {'prompt':row['prompt'], 'truth':row['truth']}, None
-
+  elif 'truth' in row:
+    return {'prompt':"", 'truth':row['truth']}, None
   if 'title' in row:
     prompt = f'Title: {row["title"]}\n'
   else:

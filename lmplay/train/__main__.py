@@ -6,7 +6,8 @@ import traceback
 from tqdm import tqdm
 from lmplay import MODEL_RUNNERS
 from lmplay.base.base_model import LMRunnerBase
-from lmplay.train.datasets.plan import steps, get_first_step_name, get_step_names, DEFAULT_PLANS
+from lmplay.train.datasets.plan import steps, get_first_step_name, get_step_names
+from lmplay.train.datasets.plan_configs import DEFAULT_PLANS
 
 def render_pbar(ms: ModelStats, current_step:str) -> str:
   if ms.total_train_samples > 0:

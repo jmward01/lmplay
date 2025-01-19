@@ -1,47 +1,7 @@
 from .lmpdatasets import get_dataset
 from datasets import interleave_datasets, Dataset
 
-_ALL_DATASETS = {'wiki_en': {'name': 'wiki', 'args': ['en']},
-                              'wiki_es': {'name': 'wiki', 'args': ['es']},
-                              'openorca': {'name': 'openorca'},
-                 'tinystories': {'name': 'tinystories'}}
 
-DEFAULT_PLAN = {'datasets': _ALL_DATASETS,
-                'seed': 0,
-                'steps': [{'datasets': ['wiki_en', 'wiki_es'],
-                           'epochs': 1.0,
-                           'step_name': 'wiki_en_es'}, ]}
-
-FULL_V1 = {'datasets': _ALL_DATASETS,
-           'seed': 0,
-           'steps': [{'datasets': ['wiki_en', 'wiki_es'],
-                      'epochs': 1.0,
-                      'step_name': 'wiki_en_es'},
-                     {'datasets': ['tinystories'],
-                      'epochs': 1.0,
-                      'step_name': 'tinystories'},
-                     {'datasets': ['openorca'],
-                      'epochs': 1.0,
-                      'step_name': 'openorca'}]}
-
-OPENORCA = {'datasets': _ALL_DATASETS,
-           'seed': 0,
-           'steps': [{'datasets': ['openorca'],
-                      'epochs': 1.0,
-                      'step_name': 'openorca'}]}
-
-TINYSTORIES = {'datasets': _ALL_DATASETS,
-           'seed': 0,
-           'steps': [{'datasets': ['tinystories'],
-                      'epochs': 1.0,
-                      'step_name': 'tinystories'}]}
-
-
-
-DEFAULT_PLANS = {'default': DEFAULT_PLAN,
-                 'full_v1': FULL_V1,
-                 'openorca':OPENORCA,
-                 'tinystories':TINYSTORIES}
 
 
 def get_step_names(step_def: dict):
@@ -55,7 +15,7 @@ def get_first_step_name(step_def: dict):
 
 # A plan is simple. It defines datasets and training steps.
 # Each step consists of datasets that will be randomized then interleaved and run for a given number/fraction of an epoch.
-def steps(step_def: dict, save_dataset=False, current_step: str = None) -> (str, Dataset, Dataset):
+def steps(step_def: dict, save_dataset=False, current_step: str = None) -> (str, float, Dataset, Dataset):
   seed = step_def.get('seed', 0)
   found_current = current_step is None
   for i, step in enumerate(step_def['steps']):
@@ -70,13 +30,18 @@ def steps(step_def: dict, save_dataset=False, current_step: str = None) -> (str,
       full_datasets = []
       for dataset in step['datasets']:
         dataset_info = step_def['datasets'][dataset]
-        full_datasets.append(get_dataset(dataset_info['name'],
+        full_datasets.append(get_dataset(dataset_info['ds_loader'],
                                          *dataset_info.get('args', ()),
                                          seed=seed,
                                          save_local=save_dataset,
                                          **dataset_info.get('kwargs', dict())))
 
-      train = interleave_datasets([dataset['train'] for dataset in full_datasets])
-      validation = interleave_datasets([dataset['validation'] for dataset in full_datasets])
+      if len(full_datasets) > 1:
+        train = interleave_datasets([dataset['train'] for dataset in full_datasets])
+        validation = interleave_datasets([dataset['validation'] for dataset in full_datasets])
+      else:
+        train = full_datasets[0]['train']
+        validation = full_datasets[0]['validation']
+
       print(f"Loaded")
       yield step_name, step_epochs, train, validation

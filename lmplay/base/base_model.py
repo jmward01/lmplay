@@ -67,7 +67,11 @@ class LMBase(nn.Module):
     # So it we said the prompt ended on 1 then prediction starts on 0
     prediction_starts = len(tokens) - 1
     if 'truth' in sample:
-      tokens.extend(self.tokenizer.encode(sample['truth'] + "<|endoftext|>", allowed_special={"<|endoftext|>"}))
+      truth:str = sample['truth']
+      if not truth.endswith("<|endoftext|>"):
+        tokens.extend(self.tokenizer.encode(sample['truth'] + "<|endoftext|>", allowed_special={"<|endoftext|>"}))
+      else:
+        tokens.extend(self.tokenizer.encode(sample['truth'], allowed_special={"<|endoftext|>"}))
 
     # We can go one more because one is being trimmed off
     if trim and len(tokens) > self.max_len + 1:
