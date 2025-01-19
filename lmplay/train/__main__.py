@@ -177,9 +177,14 @@ def main():
                 reset_history=args.reset_history,
                 first_step=first_step_name)
 
-
+  user_exit = False
   for step_name, epochs, train, validation in steps(training_plan, current_step=mr.current_step):
+    did_training = False
     mr.set_current_step(step_name)
+    if save_location.endswith('.lmp'):
+      step_save_location = f"{save_location[:-4]}.{step_name}.lmp"
+    else:
+      step_save_location = f"{save_location}.{step_name}"
     validate_interval = args.validation_interval
     next_validate = calc_next(validate_interval, mr.get_step_stats().total_train_samples)
 
@@ -201,6 +206,7 @@ def main():
       print(f"\nTraining {mr._model.name} with {total_parameters}({total_parameters / 10e9:0.3f}b) parameters.\n")
       try:
         for batch, new_train_samples_read in train_batcher:
+          did_training = True
           # Hack because hugging face doesn't have a way to restart where you left off.
           # Trying to preserve order to make testing repeatable but still allow interruptions
           # if train_count > mr.model_stats.total_train_samples:
@@ -226,9 +232,15 @@ def main():
           pbar.update(new_train_samples_read)
       except KeyboardInterrupt:
         print(f"User canceled training.")
+        user_exit = True
       except:
         print(f"Unknown error:\n{traceback.format_exc(limit=10)}")
-
+      if user_exit:
+        break
+      if did_training:
+        #if they started on a finished step we likely loaded the data from that step but didn't train on it so don't overwrite those weights.
+        pbar.set_description("Step ended. Saving final step weights...")
+        mr.save(step_save_location)
 
 if __name__ == "__main__":
   main()
