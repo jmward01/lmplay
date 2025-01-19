@@ -177,15 +177,15 @@ def main():
                 reset_history=args.reset_history,
                 first_step=first_step_name)
 
-  validate_interval = args.validation_interval
-  next_validate = calc_next(validate_interval, mr.model_stats.total_train_samples)
-
-  save_interval = args.save_interval
-  next_save = calc_next(save_interval, mr.model_stats.total_train_samples)
 
   for step_name, epochs, train, validation in steps(training_plan, current_step=mr.current_step):
     mr.set_current_step(step_name)
-    with tqdm(total=len(train), initial=mr.model_stats.total_train_samples) as pbar:
+    validate_interval = args.validation_interval
+    next_validate = calc_next(validate_interval, mr.get_step_stats().total_train_samples)
+
+    save_interval = args.save_interval
+    next_save = calc_next(save_interval, mr.get_step_stats().total_train_samples)
+    with tqdm(total=len(train), initial=mr.get_step_stats().total_train_samples) as pbar:
 
       train_batcher = batcher(train,
                               batch_size=batch_size,
@@ -206,7 +206,7 @@ def main():
           # if train_count > mr.model_stats.total_train_samples:
           results, _ = mr.train(batch, new_train_samples_read)
 
-          if mr.model_stats.total_train_samples >= next_validate:
+          if mr.get_step_stats().total_train_samples >= next_validate:
             validation_batch, new_validation_samples_read = next(validation_batcher)
             results, _ = mr.validate(validation_batch, new_validation_samples_read)
             truth_example: str = validation_batch[-1]['truth']
@@ -216,12 +216,12 @@ def main():
             prediction_example = prediction_example.replace('\n', ' ')
             # print(f"\nSystem:{validation_batch[0]['system']}\nUser:{validation_batch[0]['user']}\nTruth/Prediction:\n{truth_example[:200]}\n{prediction_example[:200]}")
             print(f"\nPrompt:\n{prompt}\nTruth/Prediction:\n{truth_example}\n{prediction_example}")
-            next_validate = calc_next(validate_interval, mr.model_stats.total_train_samples)
+            next_validate = calc_next(validate_interval, mr.get_step_stats().total_train_samples)
 
-          if mr.model_stats.total_train_samples >= next_save:
+          if mr.get_step_stats().total_train_samples >= next_save:
             pbar.set_description("Saving weights...")
             mr.save(save_location)
-            next_save = calc_next(save_interval, mr.model_stats.total_train_samples)
+            next_save = calc_next(save_interval, mr.get_step_stats().total_train_samples)
           pbar.set_description(render_pbar(mr.get_step_stats(), mr.current_step))
           pbar.update(new_train_samples_read)
       except KeyboardInterrupt:
