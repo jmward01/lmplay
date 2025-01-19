@@ -177,7 +177,7 @@ def main():
                 reset_history=args.reset_history,
                 first_step=first_step_name)
 
-  user_exit = False
+  early_exit = False
   for step_name, epochs, train, validation in steps(training_plan, current_step=mr.current_step):
     did_training = False
     mr.set_current_step(step_name)
@@ -232,10 +232,11 @@ def main():
           pbar.update(new_train_samples_read)
       except KeyboardInterrupt:
         print(f"User canceled training.")
-        user_exit = True
+        early_exit = True
       except:
         print(f"Unknown error:\n{traceback.format_exc(limit=10)}")
-      if user_exit:
+        early_exit = True
+      if early_exit:
         break
       if did_training:
         #if they started on a finished step we likely loaded the data from that step but didn't train on it so don't overwrite those weights.
