@@ -1,5 +1,5 @@
 # LMPlay
-tldr - Check out the [Unified Embeddings experiments](https://github.com/jmward01/lmplay/wiki/Unified-Embeddings) and [Sacrificial Training](https://github.com/jmward01/lmplay/wiki/Sacrificial-Training) stuff on the wiki. Also look at [Other Explanations](https://github.com/jmward01/lmplay/wiki/Other-Explanations) for what I am testing to show results aren't a fluke. These techniques allow a 6 layer model to train faster, and possibly deeper, than a 20 layer model.
+tldr - Check out the [Unified Embeddings experiments](https://github.com/jmward01/lmplay/wiki/Unified-Embeddings), [Unified Weights experiments](https://github.com/jmward01/lmplay/wiki/Unified-Weights) and [Sacrificial Training](https://github.com/jmward01/lmplay/wiki/Sacrificial-Training) stuff on the wiki. Also look at [Other Explanations](https://github.com/jmward01/lmplay/wiki/Other-Explanations) for what I am testing to show results aren't a fluke. These techniques allow a 6 layer model to train faster, and possibly deeper, than a 20 layer model.
 
 This repo contains two things:
 - The 'LMPlay' training/plotting/dataloading/runner harness - This is designed to be relatively simple with the goal being to make it easy to try new experiments and compare the results against a baseline.  
@@ -61,6 +61,8 @@ For each of these there are two different kinds of graphs, a regular log plot an
 The code is implemented in `lmplay.stats.__main__`. It is messy and does some bad math to make things look prettier so this is likely to change a bit in the future.
 
 ## Usage
+### Run some models on the default training plan
+The `default` training plan will download and prepare the official wikipedia en and es datasets to train against. These are large enough to show real difference between model changes but not so large that it takes a month to train on a reasonable GPU.
 ```
 #All reported experiments had --amp turned on for speed. If you aren't on NVIDA leave it off. Results will be nearly the same.
 lmp_trainer --help
@@ -78,6 +80,10 @@ lmp_trainer --amp --device cuda --exp list
 lmp_plotstats
 ```
 That's it! it will download datasets and start training. Check `--help` for other options like device, mini-batch-size, etc etc.
+### Other training plans
+The training plan stuff is designed to allow training steps so you can progressively train against larger or more targeted data in a series of well defined steps. See --help for the list of available training plans or look in the code. You can even design your own and use a json file to define everything. The `full_v1` and `pretrain` plans take a -lot- of drive space since they have almost 0.3T tokens in them. These will take a long time to train even on a good GPU so only use these if you are really interested. I am using these larger datasets to see if I can get the 6 layer model to saturation and to see how actual large training does on the experiments.
+
+
 
 ## Contribution
 At the moment I am doing this mainly for myself but I am open to considering outside contributions, especially ones with GPU resources!

@@ -62,7 +62,7 @@ def main():
   args.add_argument('--lr', help="Learning rate. Default is left up to the model. 0.0006 is normally ok.", default=None,
                     type=float)
   args.add_argument('--save-datasets',
-                    help="Save the datasets to disk in the LMP_DATASETS directory or out_gpt/datasets if that env var isn't set then exit. This makes it easy to copy the data to another machine.",
+                    help="Save the datasets to disk in the LMP_DATASETS directory or out_gpt/datasets if that env var isn't set then exit. This makes it easy to copy the data to another machine. You probably want to delete the ~/.cache/huggingface/datasets directory after this. Some training plans can take up .5TB or more of space in there.",
                     action="store_true")
   args.add_argument('--run-name',
                     help="Run name to add to model stats. Useful for distinguishing runs with different datasets. default is based on the dataset used for training.'",
