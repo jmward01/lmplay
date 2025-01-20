@@ -28,7 +28,7 @@ PRETRAIN_STEP = {'datasets': ['tinystories'],
                  'epochs': 1.0,
                  'step_name': 'pretrain'}
 BIG_PRETRAIN_STEP = {'datasets': ['tinystories', 'cosmopedia_v2'],
-                 'epochs': 0.1,
+                 'epochs': 0.2,
                  'step_name': 'pretrain'}
 
 INSTRUCTION_FT_STEP = {'datasets': ['openorca', 'orcamathword200', 'smoltalk_all'],
@@ -51,6 +51,10 @@ PRETRAIN = {'datasets': ALL_DATASETS,
             'seed': 0,
             'steps': [PRETRAIN_STEP, ]}
 
+BIG_PRETRAIN = {'datasets': ALL_DATASETS,
+            'seed': 0,
+            'steps': [BIG_PRETRAIN_STEP, ]}
+
 INSTRUCTION_FT = {'datasets': ALL_DATASETS,
                   'seed': 0,
                   'steps': [INSTRUCTION_FT_STEP, ]}
@@ -61,7 +65,7 @@ FULL_V1 = {'datasets': ALL_DATASETS,
                      PRETRAIN_STEP,
                      INSTRUCTION_FT_STEP]}
 
-FULL_V2 = {'datasets': ALL_DATASETS,
+FULL = {'datasets': ALL_DATASETS,
            'seed': 0,
            'steps': [WIKI_EN_ES_STEP,
                      BIG_PRETRAIN_STEP,
@@ -106,6 +110,8 @@ DEFAULT_PLANS = {'default': DEFAULT_PLAN,
                  'cosmopedia_v2': COSMOPEDIA_V2,
                  'wiki_en_es': WIKI_EN_ES,
                  'full_v1': FULL_V1,
+                 'full': FULL,
+                 'bigpretrain': BIG_PRETRAIN,
                  'openorca': OPENORCA,
                  'tinystories': TINYSTORIES,
                  'orcamathword200': ORCAMATHWORD200,
