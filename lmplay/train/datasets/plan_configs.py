@@ -29,7 +29,7 @@ PRETRAIN_STEP = {'datasets': ['tinystories'],
                  'step_name': 'pretrain'}
 BIG_PRETRAIN_STEP = {'datasets': ['tinystories', 'cosmopedia_v2'],
                  'epochs': 0.2,
-                 'step_name': 'pretrain'}
+                 'step_name': 'bigpretrain'}
 
 INSTRUCTION_FT_STEP = {'datasets': ['openorca', 'orcamathword200', 'smoltalk_all'],
                        'epochs': 1.0,
