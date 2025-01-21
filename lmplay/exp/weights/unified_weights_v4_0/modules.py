@@ -49,9 +49,10 @@ class DULinear(nn.Module):
     # uniform(-1/sqrt(in_features), 1/sqrt(in_features)). For details, see
     # https://github.com/pytorch/pytorch/issues/57109
     init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+    fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
+    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+    init.uniform_(self.expansion_data, -bound, bound)
     if self.bias is not None:
-      fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
-      bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
       init.uniform_(self.bias, -bound, bound)
 
   def forward(self, input: torch.Tensor) -> torch.Tensor:
