@@ -55,5 +55,5 @@ MODEL_RUNNERS = dict(gpt2ish=GPT2ishModelRunner,
                      uw3_3=UW3_3ModelRunner,
                      uw4_0=UW4_0ModelRunner,
                      uw4_1=UW4_1ModelRunner,
-                     uw4_2=UW4_1ModelRunner)
+                     uw4_2=UW4_2ModelRunner)
 
