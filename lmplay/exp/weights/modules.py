@@ -97,6 +97,7 @@ class DULinear(nn.Module):
         self.bias_expansion_data = nn.Parameter(torch.empty(bias_expansion_features))
         self.bias_weights_1 = linear(bias_expansion_features, bias_weights_hidden)
         self.bias_weights_2 = linear(bias_weights_hidden, out_features)
+        self.register_parameter("bias", None)
       else:
         self.register_parameter("bias_expansion_data", None)
         self.bias = nn.Parameter(torch.empty(out_features, **factory_kwargs))
