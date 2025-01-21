@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from typing import Optional, Any, List
 
-from lmplay.exp.weights.modules import DULinear
+from lmplay.exp.weights.modules import DULinear, ULinear
 from lmplay.base.encoder.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
@@ -18,7 +18,7 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
-               version="4.1",
+               version="4.2",
                bias_exp_mul=8.0,
                bias_mid_mul=1.0,
                mbias_exp_mul=8.0,
@@ -34,7 +34,7 @@ class GPT2(LMBase):
                      embed_dropout=embed_dropout,
                      version=version,
                      **ignore)
-    #Trying predicting the mbias again. It didn't help before but with a exp_mul and separate sacrificial net it might.
+    #4.1 but with ULinear helping the sacrifical bias/mbias prediction
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -47,7 +47,8 @@ class GPT2(LMBase):
                        bias_mid_mul=bias_mid_mul,
                        bias_exp_mul=bias_exp_mul,
                        mbias_mid_mul=mbias_mid_mul,
-                       mbias_exp_mul=mbias_exp_mul)
+                       mbias_exp_mul=mbias_exp_mul,
+                       linear=ULinear)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,

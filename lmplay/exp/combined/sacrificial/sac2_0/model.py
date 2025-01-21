@@ -1,30 +1,38 @@
 import torch
 from torch import nn
-from typing import Optional, Any, List
+from typing import Optional, Any
 
-from lmplay.exp.weights.modules import DULinear
-from lmplay.base.encoder.modules import Block
+from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
+from lmplay.modules import DULinear, ULinear, UnifiedEmbedding
+from lmplay.exp.embeddings.unified_embeddings_v1_0.modules import UnifiedEmbedding, ConvertableEmbedding
 from functools import partial
-#See the ULinear in the modules for more info on how this works.
+
 
 class GPT2(LMBase):
   def __init__(self,
                max_len=1024,
                num_heads=12,
-               num_blocks=6,  # 12 is the real default here
+               num_blocks=6,
                embed_dim=768,
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
-               version="4.1",
+               front_embed_mul=16.0,
                bias_exp_mul=8.0,
                bias_mid_mul=1.0,
                mbias_exp_mul=8.0,
                mbias_mid_mul=1.0,
+
+               for_train=True,
+               keep_embed_on_cpu=False,
+               version="2.0",
                **ignore):
-    super().__init__(f"uw_v{version}_{mbias_exp_mul}_{mbias_mid_mul}_{bias_exp_mul}_{bias_mid_mul}_{num_blocks}L_{max_len}",
+    #Second in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
+    #This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
+    #This specific version combines the changes from unified embeddings 1.3 (sort of) and unified weights 2.1
+    super().__init__(f"sac_v{version}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -32,22 +40,27 @@ class GPT2(LMBase):
                      attn_dropout=attn_dropout,
                      ff_dropout=ff_dropout,
                      embed_dropout=embed_dropout,
-                     version=version,
-                     **ignore)
-    #Trying predicting the mbias again. It didn't help before but with a exp_mul and separate sacrificial net it might.
+                     front_embed_mul=front_embed_mul)
+
+    keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
     self.max_len = max_len
-    self.tok_embed = nn.Embedding(vocab_size, embed_dim)
-    self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
-    self.dropout = nn.Dropout(embed_dropout)
-    #add in the DULinear to the block definition
     dulinear = partial(DULinear,
                        bias_mid_mul=bias_mid_mul,
                        bias_exp_mul=bias_exp_mul,
                        mbias_mid_mul=mbias_mid_mul,
-                       mbias_exp_mul=mbias_exp_mul)
+                       mbias_exp_mul=mbias_exp_mul,
+                       linear=ULinear)
+
+    self.tok_embed = UnifiedEmbedding(vocab_size,
+                                      embed_dim,
+                                      front_embed_mul,
+                                      keep_embed_on_cpu=keep_embed_on_cpu,
+                                      linear=dulinear)
+    self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
+    self.dropout = nn.Dropout(embed_dropout)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
@@ -57,11 +70,11 @@ class GPT2(LMBase):
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = dulinear(embed_dim, vocab_size)
 
-  def forward(self, x: torch.Tensor, cache: Optional[List] = None):
+  def forward(self, x:torch.Tensor, cache:Optional[list] = None):
     seq_len = x.size(1)
     x_start = 0
     if cache is not None and len(cache) > 0:
-      # the is part of generate
+      #the is part of generate
       x_start = cache[0][0].size(1)
       seq_len += x_start
     assert seq_len <= self.max_len, "sequence longer than model capacity"
@@ -74,15 +87,14 @@ class GPT2(LMBase):
       x = block(x, cache=self._kv_cache(cache, i))
     x = self.ln(x)
     if cache is None:
-      # No cache then this is training and we need to decode the whole thing
+      #No cache then this is training and we need to decode the whole thing
       x = self.fc(x)
     else:
-      # Not training. We only care about the last one
-      x = self.fc(x[:, -1:, :])
+      #Not training. We only care about the last one
+      x = self.fc(x[:,-1:,:])
     if not cache is None:
       return x, cache
     return x
-
 
 class ModelRunner(LMRunnerBase):
   def __init__(self, max_batch_size=25):
@@ -95,10 +107,10 @@ class ModelRunner(LMRunnerBase):
                        strict=False,
                        **parameters) -> (LMBase, Any):
     model_args = model_args if model_args else dict()
-    for k, v in parameters.items():
+    for k,v in parameters.items():
       if k not in model_args:
         model_args[k] = v
-    model = GPT2(**model_args)
+    model = GPT2(for_train=self.for_train, **model_args)
     if model_weights is not None:
       missing, unexpected = model.load_state_dict(model_weights, strict=strict)
       model.to(device)
