@@ -6,7 +6,6 @@ from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
 from lmplay.modules import DULinear, ULinear, UnifiedEmbedding
-from lmplay.exp.embeddings.unified_embeddings_v1_0.modules import UnifiedEmbedding, ConvertableEmbedding
 from functools import partial
 
 

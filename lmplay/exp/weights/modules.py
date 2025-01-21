@@ -78,7 +78,9 @@ class DULinear(nn.Module):
       mbias_weights_hidden = int(min(in_features, out_features) * mbias_mid_mul)
       self.mbias_expansion_data = nn.Parameter(torch.empty(mbias_expansion_features))
       self.mbias_weights_1 = linear(mbias_expansion_features, mbias_weights_hidden)
-      self.mbias_weights_2 = linear(mbias_weights_hidden, out_features)
+      #We are already doing mbias_bias and the like. If they passed in a ULinear things could get bad since these parameters could float to extremes.
+      #ULinear is ok for the firs layer in though of course.
+      self.mbias_weights_2 = nn.Linear(mbias_weights_hidden, out_features)
       self.register_parameter("mbias", None)
     else:
       #no mbias prediction, just make parameters
@@ -96,7 +98,8 @@ class DULinear(nn.Module):
         bias_weights_hidden = int(min(in_features, out_features) * bias_mid_mul)
         self.bias_expansion_data = nn.Parameter(torch.empty(bias_expansion_features))
         self.bias_weights_1 = linear(bias_expansion_features, bias_weights_hidden)
-        self.bias_weights_2 = linear(bias_weights_hidden, out_features)
+        #We are already doing bias_bias and the like. If they passed in a ULinear things could get bad since these parameters could float to extremes.
+        self.bias_weights_2 = nn.Linear(bias_weights_hidden, out_features)
         self.register_parameter("bias", None)
       else:
         self.register_parameter("bias_expansion_data", None)
