@@ -85,7 +85,8 @@ class DULinear(nn.Module):
     else:
       #no mbias prediction, just make parameters
       self.register_parameter("mbias_expansion_data", None)
-      self.mbias = nn.Parameter(torch.zeros(out_features, **factory_kwargs))
+      #self.mbias = nn.Parameter(torch.zeros(out_features, **factory_kwargs))
+      self.mbias = nn.Parameter(torch.zeros(in_features, **factory_kwargs))
     #we always have an mbias_bais
     self.mbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     #Hey, look! Normal weights!
@@ -140,8 +141,8 @@ class DULinear(nn.Module):
       mbias = F.gelu(self.mbias_weights_1(self.mbias_expansion_data))
       mbias = self.mbias_weights_2(mbias)
 
-    weight = self.weight.t() + (mbias + self.mbias_bias)
-    result = F.linear(input, weight.t(), bias)
+    weight = self.weight + (mbias + self.mbias_bias)
+    result = F.linear(input, weight, bias)
     return result
 
 
