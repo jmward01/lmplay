@@ -48,6 +48,7 @@ class GPT2(LMBase):
                        bias_exp_mul=bias_exp_mul,
                        mbias_mid_mul=mbias_mid_mul,
                        mbias_exp_mul=mbias_exp_mul,
+                       mbias2=True,
                        linear=ULinear)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,

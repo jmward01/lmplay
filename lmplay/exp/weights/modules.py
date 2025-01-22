@@ -62,7 +62,7 @@ class DULinear(nn.Module):
                bias = True,
                device=None,
                dtype=None,
-               mbias2 = True,
+               mbias2 = False,
                bias_exp_mul=0.0,
                bias_mid_mul=1.0,
                mbias_exp_mul=8.0,
