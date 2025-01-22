@@ -80,7 +80,7 @@ class DULinear(nn.Module):
       self.mbias_weights_1 = linear(mbias_expansion_features, mbias_weights_hidden)
       #We are already doing mbias_bias and the like. If they passed in a ULinear things could get bad since these parameters could float to extremes.
       #ULinear is ok for the firs layer in though of course.
-      self.mbias_weights_2 = nn.Linear(mbias_weights_hidden, out_features)
+      self.mbias_weights_2 = nn.Linear(mbias_weights_hidden, in_features)
       self.register_parameter("mbias", None)
     else:
       #no mbias prediction, just make parameters
