@@ -22,8 +22,11 @@ class GPT2(LMBase):
                version="5.1",
                exp_mul=16.0,
                mid_mul=1.0,
+               predict_mbias=True,
+               predict_mbias2=False,
+               predict_bias=False,
                **ignore):
-    super().__init__(f"uw_v{version}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
+    super().__init__(f"uw_v{version}_{predict_bias}_{predict_mbias}_{predict_mbias2}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -45,10 +48,10 @@ class GPT2(LMBase):
     dulinear = partial(DULinear,
                        exp_mul=exp_mul,
                        mid_mul=mid_mul,
-                       predict_mbias2=False,
-                       predict_mbias=True,
-                       predict_bias=True,
-                       linear=ULinear)
+                       predict_mbias2=predict_mbias2,
+                       predict_mbias=predict_mbias,
+                       predict_bias=predict_bias,
+                       linear=nn.Linear)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
