@@ -19,9 +19,9 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                version="4.1",
-               bias_exp_mul=8.0,
+               bias_exp_mul=0.0,
                bias_mid_mul=1.0,
-               mbias_exp_mul=8.0,
+               mbias_exp_mul=0.0,
                mbias_mid_mul=1.0,
                **ignore):
     super().__init__(f"uw_v{version}_{mbias_exp_mul}_{mbias_mid_mul}_{bias_exp_mul}_{bias_mid_mul}_{num_blocks}L_{max_len}",
