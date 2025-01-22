@@ -85,7 +85,7 @@ class DULinear(nn.Module):
     else:
       #no mbias prediction, just make parameters
       self.register_parameter("mbias_expansion_data", None)
-      self.mbias = nn.Parameter(torch.ones(out_features, **factory_kwargs))
+      self.mbias = nn.Parameter(torch.zeros(out_features, **factory_kwargs))
     #we always have an mbias_bais
     self.mbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     #Hey, look! Normal weights!
