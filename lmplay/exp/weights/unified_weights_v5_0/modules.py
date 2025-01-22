@@ -13,7 +13,7 @@ class DULinear(nn.Module):
                bias = True,
                device=None,
                dtype=None,
-               predict_mbias2 = True,
+               predict_mbias2 = False,
                predict_mbias = True,
                predict_bias = True,
                exp_mul=16.0,
@@ -75,6 +75,8 @@ class DULinear(nn.Module):
         self.register_parameter('bias_bias', None)
         self.register_parameter('bias_weights', None)
     else:
+      self.register_parameter('bias_bias', None)
+      self.register_parameter('bias_weights', None)
       self.register_parameter("bias", None)
     self.reset_parameters()
 
