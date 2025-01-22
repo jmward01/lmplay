@@ -62,9 +62,9 @@ class DULinear(nn.Module):
                bias = True,
                device=None,
                dtype=None,
-               bias_exp_mul=0.0, #predicting bias and mbias appears to be counterproductive. Pick one or the other. mbias has a much bigger effect (at least in testing so far on limited datasets)
+               bias_exp_mul=8.0, #
                bias_mid_mul=1.0,
-               mbias_exp_mul=8,
+               mbias_exp_mul=0.0, #Predicting the weights appears to be an overall negative, at least with this approach.
                mbias_mid_mul=1.0,
                linear=nn.Linear) -> None:
     factory_kwargs = {'device': device, 'dtype': dtype}
@@ -140,7 +140,7 @@ class DULinear(nn.Module):
       mbias = F.gelu(self.mbias_weights_1(self.mbias_expansion_data))
       mbias = self.mbias_weights_2(mbias)
 
-    weight = self.weight.t() * (mbias + self.mbias_bias)
+    weight = self.weight.t() + (mbias + self.mbias_bias)
     result = F.linear(input, weight.t(), bias)
     return result
 
