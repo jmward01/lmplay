@@ -28,7 +28,7 @@ class DULinear(nn.Module):
 
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
 
-    if predict_mbias or predict_mbias2 or predict_bias:
+    if predict_mbias or predict_mbias2 or (predict_bias and bias):
       self.expansion_data = nn.Parameter(torch.empty(expansion_features))
       self.expansion_weights = linear(expansion_features, weights_hidden)
     else:
