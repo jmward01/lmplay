@@ -62,9 +62,10 @@ class DULinear(nn.Module):
                bias = True,
                device=None,
                dtype=None,
-               bias_exp_mul=8.0, #
+               mbias2 = True,
+               bias_exp_mul=0.0,
                bias_mid_mul=1.0,
-               mbias_exp_mul=0.0, #Predicting the weights appears to be an overall negative, at least with this approach.
+               mbias_exp_mul=8.0,
                mbias_mid_mul=1.0,
                linear=nn.Linear) -> None:
     factory_kwargs = {'device': device, 'dtype': dtype}
@@ -87,6 +88,11 @@ class DULinear(nn.Module):
       self.register_parameter("mbias_expansion_data", None)
       #self.mbias = nn.Parameter(torch.zeros(out_features, **factory_kwargs))
       self.mbias = nn.Parameter(torch.ones(in_features, **factory_kwargs))
+    if mbias2 == True:
+      self.mbias2 = nn.Parameter(torch.ones(out_features, **factory_kwargs))
+      self.mbias2_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+    else:
+      self.register_parameter("mbias2", None)
     #we always have an mbias_bais
     self.mbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     #Hey, look! Normal weights!
@@ -142,7 +148,11 @@ class DULinear(nn.Module):
       mbias = self.mbias_weights_2(mbias)
 
     weight = self.weight * (mbias + self.mbias_bias)
-    result = F.linear(input, weight, bias)
+    if self.mbias2 is not None:
+      weight = weight.t() * (self.mbias2 + self.mbias2_bias)
+      result = F.linear(input, weight.t(), bias)
+    else:
+      result = F.linear(input, weight, bias)
     return result
 
 

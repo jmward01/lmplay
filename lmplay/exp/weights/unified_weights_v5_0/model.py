@@ -2,8 +2,7 @@ import torch
 from torch import nn
 from typing import Optional, Any, List
 
-from lmplay.exp.weights.modules import ULinear
-from .modules import DULinear
+from lmplay.exp.weights.modules import ULinear, DULinear
 from lmplay.base.encoder.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
