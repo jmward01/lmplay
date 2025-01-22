@@ -19,7 +19,7 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
-               version="5.0",
+               version="5.1",
                exp_mul=16.0,
                mid_mul=1.0,
                **ignore):
@@ -33,7 +33,7 @@ class GPT2(LMBase):
                      embed_dropout=embed_dropout,
                      version=version,
                      **ignore)
-    #throwing more parameters! mbias and mbias2 to hit the weights two ways. Totally crazy.
+    #Testing standard DULinear on just the blocks.
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -45,6 +45,9 @@ class GPT2(LMBase):
     dulinear = partial(DULinear,
                        exp_mul=exp_mul,
                        mid_mul=mid_mul,
+                       predict_mbias2=False,
+                       predict_mbias=True,
+                       predict_bias=True,
                        linear=ULinear)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
@@ -53,7 +56,7 @@ class GPT2(LMBase):
                                         ff_dropout=ff_dropout,
                                         linear=dulinear) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
-    self.fc = dulinear(embed_dim, vocab_size)
+    self.fc = nn.Linear(embed_dim, vocab_size)
 
   def forward(self, x: torch.Tensor, cache: Optional[List] = None):
     seq_len = x.size(1)

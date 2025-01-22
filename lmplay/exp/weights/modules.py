@@ -62,57 +62,70 @@ class DULinear(nn.Module):
                bias = True,
                device=None,
                dtype=None,
-               mbias2 = False,
-               bias_exp_mul=0.0,
-               bias_mid_mul=1.0,
-               mbias_exp_mul=8.0,
-               mbias_mid_mul=1.0,
+               predict_mbias2 = False,
+               predict_mbias = True,
+               predict_bias = True,
+               exp_mul=16.0,
+               mid_mul=1.0,
                linear=nn.Linear) -> None:
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
-    self.has_bias = bias
     self.in_features = in_features
     self.out_features = out_features
-    if mbias_exp_mul > 0:
-      #They want to predict the mbias
-      mbias_expansion_features = int(in_features*mbias_exp_mul)
-      mbias_weights_hidden = int(min(in_features, out_features) * mbias_mid_mul)
-      self.mbias_expansion_data = nn.Parameter(torch.empty(mbias_expansion_features))
-      self.mbias_weights_1 = linear(mbias_expansion_features, mbias_weights_hidden)
-      #We are already doing mbias_bias and the like. If they passed in a ULinear things could get bad since these parameters could float to extremes.
-      #ULinear is ok for the firs layer in though of course.
-      self.mbias_weights_2 = nn.Linear(mbias_weights_hidden, in_features)
-      self.register_parameter("mbias", None)
-    else:
-      #no mbias prediction, just make parameters
-      self.register_parameter("mbias_expansion_data", None)
-      #self.mbias = nn.Parameter(torch.zeros(out_features, **factory_kwargs))
-      self.mbias = nn.Parameter(torch.ones(in_features, **factory_kwargs))
-    if mbias2 == True:
-      self.mbias2 = nn.Parameter(torch.ones(out_features, **factory_kwargs))
-      self.mbias2_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
-    else:
-      self.register_parameter("mbias2", None)
-    #we always have an mbias_bais
-    self.mbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
-    #Hey, look! Normal weights!
+    expansion_features = int(in_features*exp_mul)
+    weights_hidden = int(min(in_features, out_features) * mid_mul)
+
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
 
-    if self.has_bias == True:
-      #So they want a bias eh? Do they want to predict it or just use a static bias?
-      if bias_exp_mul > 0:
-        bias_expansion_features = int(in_features*bias_exp_mul)
-        bias_weights_hidden = int(min(in_features, out_features) * bias_mid_mul)
-        self.bias_expansion_data = nn.Parameter(torch.empty(bias_expansion_features))
-        self.bias_weights_1 = linear(bias_expansion_features, bias_weights_hidden)
-        #We are already doing bias_bias and the like. If they passed in a ULinear things could get bad since these parameters could float to extremes.
-        self.bias_weights_2 = nn.Linear(bias_weights_hidden, out_features)
-        self.register_parameter("bias", None)
-      else:
-        self.register_parameter("bias_expansion_data", None)
-        self.bias = nn.Parameter(torch.empty(out_features, **factory_kwargs))
-      self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+    if predict_mbias or predict_mbias2 or (predict_bias and bias):
+      self.expansion_data = nn.Parameter(torch.empty(expansion_features))
+      self.expansion_weights = linear(expansion_features, weights_hidden)
     else:
+      self.register_parameter('expansion_data', None)
+      self.register_parameter('expansion_weights', None)
+
+    if predict_mbias == True:
+      self.mbias_weights = nn.Linear(weights_hidden, in_features)
+      self.mbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+      self.register_parameter('mbias', None)
+    elif predict_mbias == False:
+      self.mbias = nn.Parameter(torch.ones(in_features, **factory_kwargs))
+      self.mbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+      self.register_parameter('mbias_weights', None)
+    else:
+      self.register_parameter('mbias', None)
+      self.register_parameter('mbias_bias', None)
+      self.register_parameter('mbias_weights', None)
+
+    if predict_mbias2 == True:
+      self.mbias2_weights = nn.Linear(weights_hidden, out_features)
+      self.mbias2_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+      self.register_parameter('mbias2', None)
+    elif predict_mbias2 == False:
+      self.mbias2 = nn.Parameter(torch.ones(out_features, **factory_kwargs))
+      self.mbias2_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+      self.register_parameter('mbias2_weights', None)
+    else:
+      self.register_parameter('mbias2', None)
+      self.register_parameter('mbias2_bias', None)
+      self.register_parameter('mbias2_weights', None)
+
+    if bias == True:
+      if predict_bias == True:
+        self.bias_weights = nn.Linear(weights_hidden, out_features)
+        self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+        self.register_parameter('bias', None)
+      elif predict_bias == False:
+        self.bias = nn.Parameter(torch.empty(out_features, **factory_kwargs))
+        self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+        self.register_parameter('bias_weights', None)
+      else:
+        self.bias = nn.Parameter(torch.empty(out_features, **factory_kwargs))
+        self.register_parameter('bias_bias', None)
+        self.register_parameter('bias_weights', None)
+    else:
+      self.register_parameter('bias_bias', None)
+      self.register_parameter('bias_weights', None)
       self.register_parameter("bias", None)
     self.reset_parameters()
 
@@ -126,30 +139,46 @@ class DULinear(nn.Module):
     bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
     if self.bias is not None:
       init.uniform_(self.bias, -bound, bound)
-    if self.bias_expansion_data is not None:
-      init.uniform_(self.bias_expansion_data, -bound, bound)
-    if self.mbias_expansion_data is not None:
-      init.uniform_(self.mbias_expansion_data, -bound, bound)
+    if self.expansion_data is not None:
+      init.uniform_(self.expansion_data, -bound, bound)
 
 
   def forward(self, input: torch.Tensor) -> torch.Tensor:
-    if self.bias is not None:
+    if self.expansion_data is not None:
+      mid = F.gelu(self.expansion_weights(self.expansion_data))
+    else:
+      mid = None
+
+    if not self.bias_weights is None:
+      bias = self.bias_weights(mid) + self.bias_bias
+    elif not self.bias_bias is None:
       bias = self.bias + self.bias_bias
-    elif self.bias_expansion_data is not None:
-      bias = F.gelu(self.bias_weights_1(self.bias_expansion_data))
-      bias = self.bias_weights_2(bias)
+    elif not self.bias is None:
+      bias = self.bias
     else:
       bias = None
 
-    if self.mbias is not None:
-      mbias = self.mbias
+    if not self.mbias_weights is None:
+      mbias = self.mbias_weights(mid) + self.mbias_bias
+    elif not self.mbias is None:
+      mbias = self.mbias + self.mbias_bias
     else:
-      mbias = F.gelu(self.mbias_weights_1(self.mbias_expansion_data))
-      mbias = self.mbias_weights_2(mbias)
+      mbias = None
 
-    weight = self.weight * (mbias + self.mbias_bias)
-    if self.mbias2 is not None:
-      weight = weight.t() * (self.mbias2 + self.mbias2_bias)
+    if not mbias is None:
+      weight = self.weight * mbias
+    else:
+      weight = self.weight
+
+    if not self.mbias2_weights is None:
+      mbias2 = self.mbias2_weights(mid) + self.mbias2_bias
+    elif not self.mbias2 is None:
+      mbias2 = self.mbias2 + self.mbias2_bias
+    else:
+      mbias2 = None
+
+    if not mbias2 is None:
+      weight = weight.t() * mbias2
       result = F.linear(input, weight.t(), bias)
     else:
       result = F.linear(input, weight, bias)
