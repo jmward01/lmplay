@@ -19,11 +19,8 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                front_embed_mul=16.0,
-               bias_exp_mul=8.0,
-               bias_mid_mul=1.0,
-               mbias_exp_mul=0.0,
-               mbias_mid_mul=1.0,
-
+               exp_mul=16.0,
+               mid_mul=1.0,
                for_train=True,
                keep_embed_on_cpu=False,
                version="2.0",
@@ -47,10 +44,8 @@ class GPT2(LMBase):
 
     self.max_len = max_len
     dulinear = partial(DULinear,
-                       bias_mid_mul=bias_mid_mul,
-                       bias_exp_mul=bias_exp_mul,
-                       mbias_mid_mul=mbias_mid_mul,
-                       mbias_exp_mul=mbias_exp_mul,
+                       exp_mul=exp_mul,
+                       mid_mul=mid_mul,
                        linear=ULinear)
 
     self.tok_embed = UnifiedEmbedding(vocab_size,
