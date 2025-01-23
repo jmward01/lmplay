@@ -46,7 +46,7 @@ class GPT2(LMBase):
                                         front_embed_mul,
                                         keep_embed_on_cpu=keep_embed_on_cpu,
                                         linear=nn.Linear,
-                                        gelu=False)
+                                        gelu=True)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
     self.blocks = nn.Sequential(*[Block(max_len,
