@@ -31,7 +31,7 @@ class GPT2(LMBase):
                      ff_dropout=ff_dropout,
                      embed_dropout=embed_dropout,
                      front_embed_mul=front_embed_mul)
-    # same as 1.0 but the adding a gelu to the front embedding lookup.
+    # same as 1.0 but adding another integration layer to the sacrificial network
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
@@ -46,7 +46,8 @@ class GPT2(LMBase):
                                         front_embed_mul,
                                         keep_embed_on_cpu=keep_embed_on_cpu,
                                         linear=nn.Linear,
-                                        gelu=True)
+                                        gelu=False,
+                                        integration1_5=True)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
     self.blocks = nn.Sequential(*[Block(max_len,

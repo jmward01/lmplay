@@ -35,6 +35,7 @@ class UnifiedEmbedding(nn.Module):
                emb_training_epochs=50,
                ln=False,
                gelu=False,
+               integration1_5=False,
                linear=nn.Linear):
     """UEs are a better way to train embeddings. This is a drop in replacement for nn.Embedding
 
@@ -64,7 +65,10 @@ class UnifiedEmbedding(nn.Module):
     front_embed_dim = int(embed_dim * front_embed_mul)
     self.tok_embed = nn.Embedding(vocab_size, front_embed_dim)
     self.integration1 = linear(front_embed_dim, embed_dim)
-
+    if integration1_5:
+      self.integration1_5 = linear(embed_dim, embed_dim)
+    else:
+      self.register_parameter('integration1_5', None)
     #This only works if the main model has overridden the 'to' call to check for it. See LMBase.
     if keep_embed_on_cpu:
       #We are keeping both the embedding and the first integration on the CPU to save memory and reduce the memory transfer.
@@ -75,6 +79,11 @@ class UnifiedEmbedding(nn.Module):
         p.force_device = "cpu"
         #the secondary_optimizer is needed to allow AMP to work on CUDA. Without it AMP gets confused with the mix of CPU and GPU parameters.
         p.secondary_optimizer = True
+      if not self.integration1_5 is None:
+        for p in (self.integration1_5.weight, self.integration1_5.bias):
+          p.force_device = "cpu"
+          #the secondary_optimizer is needed to allow AMP to work on CUDA. Without it AMP gets confused with the mix of CPU and GPU parameters.
+          p.secondary_optimizer = True
 
 
     self.integration2 = linear(embed_dim, embed_dim)
@@ -158,12 +167,16 @@ class UnifiedEmbedding(nn.Module):
           x = self.emb_activation(self.tok_embed(ordered_idxs))
 
           x = self.integration1(x)
+          if not self.integration1_5 is None:
+            x = self.integration1_5(F.gelu(x))
           x = x.to(output_device)
       else:
         ordered_idxs = torch.tensor(ordered_idxs, dtype=torch.long, device=tok_embed_device)
         x = self.emb_activation(self.tok_embed(ordered_idxs))
-
         x = self.integration1(x)
+        if not self.integration1_5 is None:
+          x = self.integration1_5(F.gelu(x))
+
       #x = self.integration1(x)
       # Minimize the lookup/liner layer costs
       x = F.gelu(x)
@@ -179,11 +192,15 @@ class UnifiedEmbedding(nn.Module):
           x = self.emb_activation(self.tok_embed(idxs))
 
           x = self.integration1(x)
+          if not self.integration1_5 is None:
+            x = self.integration1_5(F.gelu(x))
           x = x.to(output_device)
       else:
         x = self.emb_activation(self.tok_embed(idxs))
 
         x = self.integration1(x)
+        if not self.integration1_5 is None:
+          x = self.integration1_5(F.gelu(x))
       #x = self.integration1(x)
       x = F.gelu(x)
       x = self.integration2(x)
