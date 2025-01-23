@@ -70,19 +70,26 @@ class DULinear(nn.Module):
                predict_mbias2_a=None,
                exp_mul=16.0,
                mid_mul=1.0,
+               expansion_weights=True,
                linear=nn.Linear) -> None:
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
     self.in_features = in_features
     self.out_features = out_features
     expansion_features = int(in_features * exp_mul)
-    weights_hidden = int(min(in_features, out_features) * mid_mul)
+    if expansion_weights:
+      weights_hidden = int(min(in_features, out_features) * mid_mul)
+    else:
+      weights_hidden = expansion_features
 
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
 
     if predict_mbias or predict_mbias2 or (predict_bias and bias):
       self.expansion_data = nn.Parameter(torch.empty(expansion_features))
-      self.expansion_weights = linear(expansion_features, weights_hidden)
+      if expansion_weights:
+        self.expansion_weights = linear(expansion_features, weights_hidden)
+      else:
+        self.register_parameter('expansion_weights', None)
     else:
       self.register_parameter('expansion_data', None)
       self.register_parameter('expansion_weights', None)
@@ -168,6 +175,8 @@ class DULinear(nn.Module):
   def forward(self, input: torch.Tensor) -> torch.Tensor:
     if self.expansion_data is not None:
       mid = F.gelu(self.expansion_weights(self.expansion_data))
+    elif self.expansion_weights is not None:
+      mid = self.expansion_data
     else:
       mid = None
 
