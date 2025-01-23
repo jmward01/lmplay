@@ -25,8 +25,8 @@ class GPT2(LMBase):
                predict_bias=None,
                predict_mbias=True,
                predict_mbias2=True,
-               predict_mbias_a=None,
-               predict_mbias2_a=None,
+               predict_mbias_a=False,
+               predict_mbias2_a=False,
                **ignore):
     super().__init__(f"uw_v{version}_{predict_bias}_{predict_mbias}_{predict_mbias2}_{predict_mbias_a}_{predict_mbias2_a}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
                      max_len=max_len,
