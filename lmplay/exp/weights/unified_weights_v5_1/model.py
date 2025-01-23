@@ -37,9 +37,10 @@ class GPT2(LMBase):
                ln_attn=False,
                ln_mlp=False,
                ln_fc=True,
+               dl_fc=False,
                **ignore):
     super().__init__(
-      f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
+      f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}{_p(dl_fc)}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,
@@ -79,7 +80,10 @@ class GPT2(LMBase):
       self.ln = nn.LayerNorm(embed_dim)
     else:
       self.ln = lambda x:x
-    self.fc = nn.Linear(embed_dim, vocab_size)
+    if dl_fc:
+      self.fc = dulinear(embed_dim, vocab_size)
+    else:
+      self.fc = nn.Linear(embed_dim, vocab_size)
 
   def forward(self, x: torch.Tensor, cache: Optional[List] = None):
     seq_len = x.size(1)

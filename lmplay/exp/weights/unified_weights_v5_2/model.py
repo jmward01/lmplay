@@ -3,6 +3,7 @@ from typing import Any
 from lmplay.base.base_model import LMBase, LMRunnerBase
 from ..unified_weights_v5_1.model import GPT2
 
+
 class ModelRunner(LMRunnerBase):
   def __init__(self, max_batch_size=25):
     super().__init__(max_batch_size=max_batch_size)
@@ -26,7 +27,8 @@ class ModelRunner(LMRunnerBase):
                  predict_mbias2_a=False,
                  ln_attn=False,
                  ln_mlp=False,
-                 ln_fc=False, #testing no final FC. If it isn't helping in other places, why would it help here?
+                 ln_fc=False,  # testing no final FC. If it isn't helping in other places, why would it help here?
+                 dl_fc=True,
                  **model_args)
     if model_weights is not None:
       missing, unexpected = model.load_state_dict(model_weights, strict=strict)
