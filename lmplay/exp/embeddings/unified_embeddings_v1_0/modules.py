@@ -34,6 +34,7 @@ class UnifiedEmbedding(nn.Module):
                keep_embed_on_cpu=False,
                emb_training_epochs=50,
                ln=False,
+               gelu=False,
                linear=nn.Linear):
     """UEs are a better way to train embeddings. This is a drop in replacement for nn.Embedding
 
@@ -81,6 +82,10 @@ class UnifiedEmbedding(nn.Module):
       self.ln = nn.LayerNorm(embed_dim)
     else:
       self.ln = lambda x:x
+    if gelu == True:
+      self.emb_activation = F.gelu
+    else:
+      self.emb_activation = lambda x:x
     self._register_load_state_dict_pre_hook(self.check_initialize)
     self.initialized_from_small_embed = False
 
@@ -150,12 +155,14 @@ class UnifiedEmbedding(nn.Module):
         #This means that amp stuff is really just here as a placeholder for the possible future where gradient scaling is figured out.
         with torch.amp.autocast(enabled=False, device_type=tok_embed_device.type):
           ordered_idxs = torch.tensor(ordered_idxs, dtype=torch.long, device=tok_embed_device)
-          x = self.tok_embed(ordered_idxs)
+          x = self.emb_activation(self.tok_embed(ordered_idxs))
+
           x = self.integration1(x)
           x = x.to(output_device)
       else:
         ordered_idxs = torch.tensor(ordered_idxs, dtype=torch.long, device=tok_embed_device)
-        x = self.tok_embed(ordered_idxs)
+        x = self.emb_activation(self.tok_embed(ordered_idxs))
+
         x = self.integration1(x)
       #x = self.integration1(x)
       # Minimize the lookup/liner layer costs
@@ -169,11 +176,13 @@ class UnifiedEmbedding(nn.Module):
         #This probably means the embeddings are on CPU to save memory.
         #Autocast doesn't like mixed devices
         with torch.amp.autocast(enabled=False, device_type=tok_embed_device.type):
-          x = self.tok_embed(idxs)
+          x = self.emb_activation(self.tok_embed(idxs))
+
           x = self.integration1(x)
           x = x.to(output_device)
       else:
-        x = self.tok_embed(idxs)
+        x = self.emb_activation(self.tok_embed(idxs))
+
         x = self.integration1(x)
       #x = self.integration1(x)
       x = F.gelu(x)
