@@ -31,6 +31,7 @@ class GPT2(LMBase):
                predict_mbias2_a=False, #Without a better init for the weights we can't set this to True
                ln_attn=False,
                ln_mlp=False,
+               ln_fc=True,
                **ignore):
     super().__init__(
       f"uw_v{version}_{predict_bias}_{predict_mbias}_{predict_mbias2}_{predict_mbias_a}_{predict_mbias2_a}_{ln_attn}_{ln_mlp}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
@@ -69,7 +70,10 @@ class GPT2(LMBase):
                                         linear=dulinear,
                                         ln_attn=ln_attn,
                                         ln_mlp=ln_mlp) for _ in range(num_blocks)])
-    self.ln = nn.LayerNorm(embed_dim)
+    if ln_fc:
+      self.ln = nn.LayerNorm(embed_dim)
+    else:
+      self.ln = lambda x:x
     self.fc = nn.Linear(embed_dim, vocab_size)
 
   def forward(self, x: torch.Tensor, cache: Optional[List] = None):
