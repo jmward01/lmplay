@@ -39,7 +39,7 @@ class GPT2(LMBase):
                ln_fc=True,
                **ignore):
     super().__init__(
-      f"uw_v{version}_{_p(predict_bias)}_{_p(predict_mbias)}_{_p(predict_mbias2)}_{_p(predict_mbias_a)}_{_p(predict_mbias2_a)}_{_p(ln_attn)}_{_p(ln_mlp)}_{_p(ln_fc)}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
+      f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,
