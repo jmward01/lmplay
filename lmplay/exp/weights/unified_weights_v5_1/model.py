@@ -24,7 +24,7 @@ class GPT2(LMBase):
                mid_mul=1.0,
                predict_bias=None,
                predict_mbias=True,
-               predict_mbias2=None,
+               predict_mbias2=True,
                predict_mbias_a=None,
                predict_mbias2_a=None,
                **ignore):
