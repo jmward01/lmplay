@@ -23,8 +23,8 @@ class GPT2(LMBase):
                exp_mul=16.0,
                mid_mul=1.0,
                predict_bias=None,
-               predict_mbias=True,
-               predict_mbias2=True,
+               predict_mbias=False,
+               predict_mbias2=False,
                predict_mbias_a=False,
                predict_mbias2_a=False,
                **ignore):
