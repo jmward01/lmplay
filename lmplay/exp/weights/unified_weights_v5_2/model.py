@@ -27,7 +27,7 @@ class ModelRunner(LMRunnerBase):
                  predict_mbias2_a=False,
                  ln_attn=False,
                  ln_mlp=False,
-                 ln_fc=False,  # testing no final FC. If it isn't helping in other places, why would it help here?
+                 ln_fc=True,
                  dl_fc=True,
                  **model_args)
     if model_weights is not None:
