@@ -2,13 +2,15 @@ import torch
 from torch import nn
 from typing import Optional, Any, List
 
-from lmplay.exp.weights.modules import ULinear , DULinear
-#from .modules import DULinear
+from lmplay.exp.weights.modules import ULinear, DULinear
+# from .modules import DULinear
 from lmplay.base.encoder.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
 from functools import partial
-#See the ULinear in the modules for more info on how this works.
+
+
+# See the ULinear in the modules for more info on how this works.
 
 class GPT2(LMBase):
   def __init__(self,
@@ -22,23 +24,26 @@ class GPT2(LMBase):
                version="5.1",
                exp_mul=16.0,
                mid_mul=1.0,
-               predict_bias=None,
-               predict_mbias=False,
-               predict_mbias2=False,
-               predict_mbias_a=False,
-               predict_mbias2_a=False,
+               predict_bias=True,
+               predict_mbias=True,
+               predict_mbias2=True,
+               predict_mbias_a=True,
+               predict_mbias2_a=True,
+               ln_attn=False,
+               ln_mlp=False,
                **ignore):
-    super().__init__(f"uw_v{version}_{predict_bias}_{predict_mbias}_{predict_mbias2}_{predict_mbias_a}_{predict_mbias2_a}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
-                     max_len=max_len,
-                     num_heads=num_heads,
-                     num_blocks=num_blocks,
-                     embed_dim=embed_dim,
-                     attn_dropout=attn_dropout,
-                     ff_dropout=ff_dropout,
-                     embed_dropout=embed_dropout,
-                     version=version,
-                     **ignore)
-    #Testing standard DULinear on just the blocks.
+    super().__init__(
+      f"uw_v{version}_{predict_bias}_{predict_mbias}_{predict_mbias2}_{predict_mbias_a}_{predict_mbias2_a}_{ln_attn}_{ln_mlp}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
+      max_len=max_len,
+      num_heads=num_heads,
+      num_blocks=num_blocks,
+      embed_dim=embed_dim,
+      attn_dropout=attn_dropout,
+      ff_dropout=ff_dropout,
+      embed_dropout=embed_dropout,
+      version=version,
+      **ignore)
+    # Testing standard DULinear on just the blocks.
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -46,7 +51,7 @@ class GPT2(LMBase):
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
-    #add in the DULinear to the block definition
+    # add in the DULinear to the block definition
     dulinear = partial(DULinear,
                        exp_mul=exp_mul,
                        mid_mul=mid_mul,
@@ -62,8 +67,8 @@ class GPT2(LMBase):
                                         attn_dropout=attn_dropout,
                                         ff_dropout=ff_dropout,
                                         linear=dulinear,
-                                        ln_attn=False,
-                                        ln_mlp=False) for _ in range(num_blocks)])
+                                        ln_attn=ln_attn,
+                                        ln_mlp=ln_mlp) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 
