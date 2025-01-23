@@ -27,8 +27,8 @@ class GPT2(LMBase):
                predict_bias=True,
                predict_mbias=True,
                predict_mbias2=True,
-               predict_mbias_a=False,
-               predict_mbias2_a=False,
+               predict_mbias_a=False,  #Without a better init for the weights we can't set this to True
+               predict_mbias2_a=False, #Without a better init for the weights we can't set this to True
                ln_attn=False,
                ln_mlp=False,
                **ignore):
