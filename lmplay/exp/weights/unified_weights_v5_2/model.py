@@ -19,14 +19,14 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
-               version="5.1",
+               version="5.2",
                exp_mul=16.0,
                mid_mul=1.0,
-               predict_bias=None,
+               predict_bias=True,
                predict_mbias=True,
-               predict_mbias2=None,
-               predict_mbias_a=None,
-               predict_mbias2_a=None,
+               predict_mbias2=True,
+               predict_mbias_a=True,
+               predict_mbias2_a=True,
                **ignore):
     super().__init__(f"uw_v{version}_{predict_bias}_{predict_mbias}_{predict_mbias2}_{predict_mbias_a}_{predict_mbias2_a}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
                      max_len=max_len,
@@ -61,7 +61,9 @@ class GPT2(LMBase):
                                         embed_dim,
                                         attn_dropout=attn_dropout,
                                         ff_dropout=ff_dropout,
-                                        linear=dulinear) for _ in range(num_blocks)])
+                                        linear=dulinear,
+                                        ln_attn=False,
+                                        ln_mlp=False) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 

@@ -160,10 +160,18 @@ class Block(nn.Module):
                embed_dim: int,
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
-               linear=nn.Linear): #Passing in the class we want for a linear layer since this can be swapped for different exp
+               linear=nn.Linear, #Passing in the class we want for a linear layer since this can be swapped for different exp
+               ln_attn=True,
+               ln_mlp=True):
     super().__init__()
-    self.ln1 = nn.LayerNorm(embed_dim)
-    self.ln2 = nn.LayerNorm(embed_dim)
+    if ln_attn:
+      self.ln1 = nn.LayerNorm(embed_dim)
+    else:
+      self.ln1 = lambda x:x
+    if ln_mlp:
+      self.ln2 = nn.LayerNorm(embed_dim)
+    else:
+      self.ln2 = lambda x:x
     self.attn = MultiheadAttention(max_len,
                                    num_heads,
                                    embed_dim,

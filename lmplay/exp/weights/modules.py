@@ -5,12 +5,13 @@ from torch import nn
 import torch.nn.functional as F
 from torch.nn import init
 
+
 class ULinear(nn.Module):
-  #Modified from pytorch source
+  # Modified from pytorch source
   def __init__(self,
                in_features: int,
                out_features: int,
-               bias = True,
+               bias=True,
                device=None,
                dtype=None) -> None:
     factory_kwargs = {'device': device, 'dtype': dtype}
@@ -25,12 +26,12 @@ class ULinear(nn.Module):
       self.bias = nn.Parameter(torch.empty(out_features, **factory_kwargs))
       self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     else:
-      #this is needed because?????? Won't work in some frameworks without it because they are constructing the models and not the model code.
+      # this is needed because?????? Won't work in some frameworks without it because they are constructing the models and not the model code.
       self.register_parameter("bias", None)
     self.reset_parameters()
 
   def reset_parameters(self) -> None:
-    #This uses the pytorch init, different inits may be valuable with the mbias in place.
+    # This uses the pytorch init, different inits may be valuable with the mbias in place.
     # Setting a=sqrt(5) in kaiming_uniform is the same as initializing with
     # uniform(-1/sqrt(in_features), 1/sqrt(in_features)). For details, see
     # https://github.com/pytorch/pytorch/issues/57109
@@ -46,25 +47,27 @@ class ULinear(nn.Module):
     else:
       bias = None
     weight = self.weight.t() * (self.mbias + self.mbias_bias)
-    #This can clearly be re-stored as a normal weight/bias for prod.
+    # This can clearly be re-stored as a normal weight/bias for prod.
     result = F.linear(input, weight.t(), bias)
     return result
-
 
   def extra_repr(self) -> str:
     return f'in_features={self.in_features}, out_features={self.out_features}'
 
+
 class DULinear(nn.Module):
-  #Deep Unified Linear
+  # Deep Unified Linear
   def __init__(self,
                in_features: int,
                out_features: int,
-               bias = True,
+               bias=True,
                device=None,
                dtype=None,
-               predict_mbias2 = False,
-               predict_mbias = True,
-               predict_bias = True,
+               predict_bias=True,
+               predict_mbias=True,
+               predict_mbias2=False,
+               predict_mbias_a=None,
+               predict_mbias2_a=None,
                exp_mul=16.0,
                mid_mul=1.0,
                linear=nn.Linear) -> None:
@@ -72,7 +75,7 @@ class DULinear(nn.Module):
     super().__init__()
     self.in_features = in_features
     self.out_features = out_features
-    expansion_features = int(in_features*exp_mul)
+    expansion_features = int(in_features * exp_mul)
     weights_hidden = int(min(in_features, out_features) * mid_mul)
 
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
@@ -97,6 +100,16 @@ class DULinear(nn.Module):
       self.register_parameter('mbias_bias', None)
       self.register_parameter('mbias_weights', None)
 
+    if predict_mbias_a == True:
+      self.mbias_a_weights = nn.Linear(weights_hidden, in_features)
+      self.register_parameter('mbias_a', None)
+    elif predict_mbias_a == False:
+      self.mbias_a = nn.Parameter(torch.ones(in_features, **factory_kwargs))
+      self.register_parameter('mbias_a_weights', None)
+    else:
+      self.register_parameter('mbias_a', None)
+      self.register_parameter('mbias_a_weights', None)
+
     if predict_mbias2 == True:
       self.mbias2_weights = nn.Linear(weights_hidden, out_features)
       self.mbias2_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
@@ -109,6 +122,16 @@ class DULinear(nn.Module):
       self.register_parameter('mbias2', None)
       self.register_parameter('mbias2_bias', None)
       self.register_parameter('mbias2_weights', None)
+
+    if predict_mbias2_a == True:
+      self.mbias2_a_weights = nn.Linear(weights_hidden, in_features)
+      self.register_parameter('mbias2_a', None)
+    elif predict_mbias2_a == False:
+      self.mbias2_a = nn.Parameter(torch.ones(in_features, **factory_kwargs))
+      self.register_parameter('mbias2_a_weights', None)
+    else:
+      self.register_parameter('mbias2_a', None)
+      self.register_parameter('mbias2_a_weights', None)
 
     if bias == True:
       if predict_bias == True:
@@ -130,7 +153,7 @@ class DULinear(nn.Module):
     self.reset_parameters()
 
   def reset_parameters(self) -> None:
-    #This uses the pytorch init, different inits may be valuable with the mbias in place.
+    # This uses the pytorch init, different inits may be valuable with the mbias in place.
     # Setting a=sqrt(5) in kaiming_uniform is the same as initializing with
     # uniform(-1/sqrt(in_features), 1/sqrt(in_features)). For details, see
     # https://github.com/pytorch/pytorch/issues/57109
@@ -141,7 +164,6 @@ class DULinear(nn.Module):
       init.uniform_(self.bias, -bound, bound)
     if self.expansion_data is not None:
       init.uniform_(self.expansion_data, -bound, bound)
-
 
   def forward(self, input: torch.Tensor) -> torch.Tensor:
     if self.expansion_data is not None:
@@ -165,10 +187,20 @@ class DULinear(nn.Module):
     else:
       mbias = None
 
+    if not self.mbias_a_weights is None:
+      mbias_a = self.mbias_a_weights(mid)
+    elif not self.mbias_a is None:
+      mbias_a = self.mbias_a
+    else:
+      mbias_a = None
+
     if not mbias is None:
       weight = self.weight * mbias
     else:
       weight = self.weight
+
+    if not mbias_a is None:
+      weight = weight + mbias_a
 
     if not self.mbias2_weights is None:
       mbias2 = self.mbias2_weights(mid) + self.mbias2_bias
@@ -177,13 +209,23 @@ class DULinear(nn.Module):
     else:
       mbias2 = None
 
+    if not self.mbias2_a_weights is None:
+      mbias2_a = self.mbias2_a_weights(mid)
+    elif not self.mbias2_a is None:
+      mbias2_a = self.mbias2_a
+    else:
+      mbias2_a = None
+
     if not mbias2 is None:
       weight = weight.t() * mbias2
-      result = F.linear(input, weight.t(), bias)
-    else:
-      result = F.linear(input, weight, bias)
-    return result
+      weight = weight.t()
 
+    if not mbias2_a is None:
+      weight = weight.t() + mbias2_a
+      weight = weight.t()
+
+    result = F.linear(input, weight, bias)
+    return result
 
   def extra_repr(self) -> str:
     return f'in_features={self.in_features}, out_features={self.out_features}'
