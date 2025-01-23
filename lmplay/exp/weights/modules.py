@@ -124,10 +124,10 @@ class DULinear(nn.Module):
       self.register_parameter('mbias2_weights', None)
 
     if predict_mbias2_a == True:
-      self.mbias2_a_weights = nn.Linear(weights_hidden, in_features)
+      self.mbias2_a_weights = nn.Linear(weights_hidden, out_features)
       self.register_parameter('mbias2_a', None)
     elif predict_mbias2_a == False:
-      self.mbias2_a = nn.Parameter(torch.ones(in_features, **factory_kwargs))
+      self.mbias2_a = nn.Parameter(torch.ones(out_features, **factory_kwargs))
       self.register_parameter('mbias2_a_weights', None)
     else:
       self.register_parameter('mbias2_a', None)
