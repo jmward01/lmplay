@@ -12,6 +12,11 @@ from functools import partial
 
 # See the ULinear in the modules for more info on how this works.
 
+def _p(v) -> str:
+  if v is None:
+    return 'N'
+  return int(v)
+
 class GPT2(LMBase):
   def __init__(self,
                max_len=1024,
@@ -34,7 +39,7 @@ class GPT2(LMBase):
                ln_fc=True,
                **ignore):
     super().__init__(
-      f"uw_v{version}_{predict_bias}_{predict_mbias}_{predict_mbias2}_{predict_mbias_a}_{predict_mbias2_a}_{ln_attn}_{ln_mlp}_{ln_fc}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
+      f"uw_v{version}_{_p(predict_bias)}_{_p(predict_mbias)}_{_p(predict_mbias2)}_{_p(predict_mbias_a)}_{_p(predict_mbias2_a)}_{_p(ln_attn)}_{_p(ln_mlp)}_{_p(ln_fc)}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,
