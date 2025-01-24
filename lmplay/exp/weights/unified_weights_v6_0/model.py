@@ -29,7 +29,7 @@ class GPT2(LMBase):
                version="6.0",
                exp_mul=1.0,
                predict_bias=True,
-               predict_mbias=False,
+               predict_mbias=True,
                predict_mbias2=True,
                predict_mbias_a=False, #Close to stable but not quite.
                predict_mbias2_a=False, #Close to stable but not quite.

@@ -259,6 +259,7 @@ class SPredictor(nn.Module):
     self.in_features = in_features
     self.out_features = out_features
     self.out_parameters = nn.Parameter(torch.ones(out_features, **factory_kwargs))
+    self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     if in_features is None:
       # not much to do here.
       # They didn't tell us the in_features so we are just predicting the out_features without a sacrificial or shared network
@@ -296,8 +297,8 @@ class SPredictor(nn.Module):
 
   def forward(self, *args, **kwargs):
     if not self.net is None:
-      return self.net(self.expansion_data) + self.out_parameters
-    return self.out_parameters
+      return self.net(self.expansion_data) + (self.out_parameters + self.bias_bias)
+    return self.out_parameters + self.bias_bias
 
 
 class NopModule(nn.Module):
