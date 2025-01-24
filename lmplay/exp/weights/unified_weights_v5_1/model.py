@@ -38,7 +38,7 @@ class GPT2(LMBase):
                ln_mlp=False,
                ln_fc=True,
                dl_fc=True,
-               expansion_weights=False,
+               expansion_weights=True,
                **ignore):
     super().__init__(
       f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}{_p(dl_fc)}{_p(expansion_weights)}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
