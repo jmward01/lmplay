@@ -27,7 +27,7 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                version="5.1",
-               exp_mul=4.0,
+               exp_mul=6.0,
                mid_mul=1.0,
                predict_bias=True,
                predict_mbias=True,
