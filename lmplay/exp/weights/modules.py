@@ -238,3 +238,176 @@ class DULinear(nn.Module):
 
   def extra_repr(self) -> str:
     return f'in_features={self.in_features}, out_features={self.out_features}'
+
+
+def hide_net(net: nn.Module):
+  # just need to hold onto something that PyTorch won't try to serialize/deserialize
+  return lambda *args, **kwargs: net(*args, **kwargs)
+
+
+class SPredictor(nn.Module):
+  def __init__(self, out_features: int,
+               in_features: int = None,
+               shared_net: nn.Module = None,
+               init_for_task: int = None,
+               linear=nn.Linear,
+               device=None,
+               dtype=None):
+    super().__init__()
+    factory_kwargs = {'device': device, 'dtype': dtype}
+    self.init_for_task = init_for_task
+    self.in_features = in_features
+    self.out_features = out_features
+    self.out_parameters = nn.Parameter(torch.ones(out_features, **factory_kwargs))
+    if in_features is None:
+      # not much to do here.
+      # They didn't tell us the in_features so we are just predicting the out_features without a sacrificial or shared network
+      self.net = None
+      self.register_parameter('expansion_data', None)
+
+    else:
+      # Init to 1 so we can mul easily
+      self.expansion_data = nn.Parameter(torch.empty(in_features, **factory_kwargs))
+      # Ok, we do have in parameters so they want us to predict. Do we need to build the net or was one given to us?
+      if shared_net is None:
+        # We gotta build it
+        self.net = linear(in_features, out_features, bias=False, **factory_kwargs)
+      else:
+        self.net = hide_net(shared_net)
+    self.reset_parameters()
+
+  def reset_parameters(self) -> None:
+    if self.net is None:
+      if self.init_for_task is None:
+        init.uniform_(self.out_parameters, -1, 1)
+      else:
+        init.constant_(self.out_parameters, self.init_for_task)
+    else:
+      init.uniform_(self.expansion_data, -1, 1)
+      with torch.no_grad():
+        v = self.net(self.expansion_data)
+        if self.init_for_task is None:
+          # Just do things a bit random
+          ift = torch.empty(v.shape).uniform_(-1, 1)
+        else:
+          ift = self.init_for_task
+
+        self.out_parameters.set_(ift - v)
+
+  def forward(self, *args, **kwargs):
+    if not self.net is None:
+      return self.net(self.expansion_data) + self.out_parameters
+    return self.out_parameters
+
+
+class NopModule(nn.Module):
+  def forward(self, *args, **kwargs):
+    return None
+
+
+class SDULinear(nn.Module):
+  # Sharable Deep Unified Linear
+  def __init__(self,
+               in_features: int,
+               out_features: int,
+               bias=True,
+               device=None,
+               dtype=None,
+               predict_bias=True,
+               predict_mbias=True,
+               predict_mbias2=True,
+               predict_mbias_a=True,
+               predict_mbias2_a=True,
+               share_in=True,
+               share_out=True,
+               exp_mul=8.0,
+               linear=nn.Linear) -> None:
+    factory_kwargs = {'device': device, 'dtype': dtype}
+    super().__init__()
+    self.in_features = in_features
+    self.out_features = out_features
+
+    # Easy one first
+    self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
+
+    expansion_features = int(min(in_features, out_features) * exp_mul)
+
+    if share_in and (predict_mbias == True or predict_mbias_a == True):
+      # Only build this network if we will need it and we are going to use a shared network
+      self.in_net = linear(expansion_features, in_features, bias=False, **factory_kwargs)
+    else:
+      self.register_module('in_net', None)
+
+    if share_out and (predict_mbias2 == True or predict_mbias2_a == True or predict_bias == True):
+      # Only build this network if we will need it and we are going to use a shared network
+      self.out_net = linear(expansion_features, out_features, bias=False, **factory_kwargs)
+    else:
+      self.register_module('out_net', None)
+
+    for name, task, ift in (('mbias', predict_mbias, 1), ('mbias_a', predict_mbias_a, 0)):
+      if task is None:
+        self.register_module(name, NopModule())
+      elif task == True:
+        self.register_module(name, SPredictor(in_features,
+                                              expansion_features,
+                                              shared_net=self.in_net,
+                                              init_for_task=ift,
+                                              linear=linear,
+                                              **factory_kwargs))
+      else:
+        self.register_module(name, SPredictor(in_features,
+                                              init_for_task=ift,
+                                              **factory_kwargs))
+    if bias == False:
+      predict_bias = None
+
+    for name, task, ift in (('mbias2', predict_mbias2, 1),
+                            ('mbias2_a', predict_mbias2_a, 0),
+                            ('bias', predict_bias, None)):
+      if task is None:
+        self.register_module(name, NopModule())
+
+      elif task == True:
+        self.register_module(name, SPredictor(out_features,
+                                              expansion_features,
+                                              shared_net=self.out_net,
+                                              init_for_task=ift,
+                                              linear=linear,
+                                              **factory_kwargs))
+      else:
+        self.register_module(name, SPredictor(out_features,
+                                              init_for_task=ift,
+                                              **factory_kwargs))
+    self.reset_parameters()
+
+  def reset_parameters(self) -> None:
+    init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+
+  def forward(self, input: torch.Tensor) -> torch.Tensor:
+    bias = self.bias()
+    mbias = self.mbias()
+    mbias_a = self.mbias_a()
+    mbias2 = self.mbias2()
+    mbias2_a = self.mbias2_a()
+
+    if not mbias is None:
+      weight = self.weight * mbias
+    else:
+      weight = self.weight
+
+    if not mbias_a is None:
+      weight = weight + mbias_a
+
+    if not mbias2 is None:
+      weight = weight.t() * mbias2
+      weight = weight.t()
+
+    if not mbias2_a is None:
+      weight = weight.t() + mbias2_a
+      weight = weight.t()
+
+    result = F.linear(input, weight, bias)
+    return result
+
+  def extra_repr(self) -> str:
+    return f'in_features={self.in_features}, out_features={self.out_features}'
