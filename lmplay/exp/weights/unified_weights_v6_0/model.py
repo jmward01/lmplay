@@ -27,7 +27,7 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                version="6.0",
-               exp_mul=8.0,
+               exp_mul=4.0,
                predict_bias=True,
                predict_mbias=True,
                predict_mbias2=True,
@@ -37,8 +37,8 @@ class GPT2(LMBase):
                ln_mlp=False,
                ln_fc=True,
                dl_fc=True,
-               share_in=True,
-               share_out=True,
+               share_in=False,
+               share_out=False,
                **ignore):
     super().__init__(
       f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}{_p(dl_fc)}{_p(share_in)}{_p(share_out)}_{exp_mul}_{num_blocks}L_{max_len}",
