@@ -256,7 +256,9 @@ class LMRunnerBase(ABC):
                  no_grad_scale=False,
                  reset_history=False,
                  first_step=None,
+                 grad_clip=0.1,
                  **parameters):
+    self.grad_clip = grad_clip
     self.for_train = for_train
     self.device = device
     if 'cuda' in self.device:
@@ -493,6 +495,10 @@ class LMRunnerBase(ABC):
       optimizer.zero_grad()
 
     results, current_loss = self._run_with_truth(prompts, True, actual_samples_read)
+    if not self.grad_clip is None:
+      if not self.scaler is None:
+        self.scaler.unscale_(self._optimizers[0])
+      torch.nn.utils.clip_grad_norm_(self._model.parameters(), self.grad_clip)
     if self.scaler is not None:
       # Scaling only applies to the primary optimizer.
       self.scaler.step(self._optimizers[0])
