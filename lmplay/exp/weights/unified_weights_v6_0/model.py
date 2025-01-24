@@ -30,7 +30,7 @@ class GPT2(LMBase):
                exp_mul=1.0,
                predict_bias=True,
                predict_mbias=False,
-               predict_mbias2=False,
+               predict_mbias2=True,
                predict_mbias_a=False, #Close to stable but not quite.
                predict_mbias2_a=False, #Close to stable but not quite.
                ln_attn=False,
