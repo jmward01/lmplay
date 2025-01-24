@@ -256,7 +256,7 @@ class LMRunnerBase(ABC):
                  no_grad_scale=False,
                  reset_history=False,
                  first_step=None,
-                 grad_clip=0.1,
+                 grad_clip=None,
                  **parameters):
     self.grad_clip = grad_clip
     self.for_train = for_train

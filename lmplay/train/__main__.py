@@ -115,6 +115,7 @@ def main():
                     action="store_true")
   args.add_argument('--reset-history', help="Resets the training history. Useful for starting a new phase of training",
                     action="store_true")
+  args.add_argument('--grad-clip', help="Set gradient clipping. A reasonable value is probably 0.1. Default is no grad clipping", default=None, type=float)
   args = args.parse_args()
 
 
@@ -176,7 +177,8 @@ def main():
                 amp=args.amp,
                 no_grad_scale=args.no_grad_scale,
                 reset_history=args.reset_history,
-                first_step=first_step_name)
+                first_step=first_step_name,
+                grad_clip=args.grad_clip)
 
   early_exit = False
   for step_name, epochs, train, validation in steps(training_plan, current_step=mr.current_step):
