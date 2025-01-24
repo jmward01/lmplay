@@ -327,7 +327,7 @@ class SDULinear(nn.Module):
     super().__init__()
     self.in_features = in_features
     self.out_features = out_features
-
+    mid_features = min(in_features, out_features)
     # Easy one first
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
 
@@ -335,13 +335,20 @@ class SDULinear(nn.Module):
 
     if share_in and (predict_mbias == True or predict_mbias_a == True):
       # Only build this network if we will need it and we are going to use a shared network
-      self.in_net = linear(expansion_features, in_features, bias=False, **factory_kwargs)
+      #self.in_net = linear(expansion_features, in_features, bias=False, **factory_kwargs)
+      self.in_net = nn.Sequential(linear(expansion_features, mid_features, bias=True, **factory_kwargs),
+                                   nn.GELU(),
+                                   linear(mid_features, in_features, bias=False, **factory_kwargs))
+
     else:
       self.register_module('in_net', None)
 
     if share_out and (predict_mbias2 == True or predict_mbias2_a == True or predict_bias == True):
       # Only build this network if we will need it and we are going to use a shared network
-      self.out_net = linear(expansion_features, out_features, bias=False, **factory_kwargs)
+      #self.out_net = linear(expansion_features, out_features, bias=False, **factory_kwargs)
+      self.out_net = nn.Sequential(linear(expansion_features, mid_features, bias=True, **factory_kwargs),
+                                   nn.GELU(),
+                                   linear(mid_features, out_features, bias=False, **factory_kwargs))
     else:
       self.register_module('out_net', None)
 
