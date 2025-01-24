@@ -5,7 +5,7 @@ from typing import Optional, Any
 from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
-from lmplay.modules import DULinear, ULinear, UnifiedEmbedding
+from lmplay.modules import SDULinear, ULinear, UnifiedEmbedding
 from functools import partial
 
 
@@ -19,10 +19,11 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                front_embed_mul=16.0,
-               exp_mul=16.0,
-               mid_mul=1.0,
+               exp_mul=8.0,
                for_train=True,
                keep_embed_on_cpu=False,
+               ln_attn=False, #UW get a big boost from this and it is fewer parameter/computation so not cheating!
+               ln_mlp=False, #UW get a big boost from this and it is fewer parameter/computation so not cheating!
                version="2.0",
                **ignore):
     #Second in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
@@ -43,9 +44,8 @@ class GPT2(LMBase):
     vocab_size = self.tokenizer.n_vocab
 
     self.max_len = max_len
-    dulinear = partial(DULinear,
+    dulinear = partial(SDULinear,
                        exp_mul=exp_mul,
-                       mid_mul=mid_mul,
                        linear=ULinear)
 
     self.tok_embed = UnifiedEmbedding(vocab_size,
@@ -60,7 +60,9 @@ class GPT2(LMBase):
                                         embed_dim,
                                         attn_dropout=attn_dropout,
                                         ff_dropout=ff_dropout,
-                                        linear=dulinear) for _ in range(num_blocks)])
+                                        linear=dulinear,
+                                        ln_attn=ln_attn,
+                                        ln_mlp=ln_mlp) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = dulinear(embed_dim, vocab_size)
 
