@@ -31,10 +31,10 @@ class GPT2(LMBase):
                predict_bias=True,
                predict_mbias=True,
                predict_mbias2=True,
-               predict_mbias_a=None, #Close to stable but not quite.
-               predict_mbias2_a=None, #Close to stable but not quite.
-               ln_attn=False,
-               ln_mlp=False,
+               predict_mbias_a=True, #Close to stable but not quite.
+               predict_mbias2_a=True, #Close to stable but not quite.
+               ln_attn=True,
+               ln_mlp=True,
                ln_fc=True,
                dl_fc=True,
                share_in=True,
