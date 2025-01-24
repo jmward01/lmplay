@@ -287,13 +287,13 @@ class SPredictor(nn.Module):
       init.uniform_(self.expansion_data, -1, 1)
       with torch.no_grad():
         v = self.net(self.expansion_data)
-        if self.init_for_task is None:
-          # Just do things a bit random
-          ift = torch.empty(v.shape).uniform_(-1, 1)
-        else:
-          ift = self.init_for_task
+      if self.init_for_task is None:
+        # Just do things a bit random
+        ift = torch.empty(v.shape).uniform_(-1, 1)
+      else:
+        ift = self.init_for_task
 
-        self.out_parameters.set_(ift - v)
+      self.out_parameters.set_(ift - v)
 
   def forward(self, *args, **kwargs):
     if not self.net is None:
