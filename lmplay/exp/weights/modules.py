@@ -244,7 +244,7 @@ def hide_net(net: nn.Module):
   # just need to hold onto something that PyTorch won't try to serialize/deserialize
   return lambda *args, **kwargs: net(*args, **kwargs)
 
-
+DEFAULT_BOUND = 0.01
 class SPredictor(nn.Module):
   def __init__(self, out_features: int,
                in_features: int = None,
@@ -258,7 +258,7 @@ class SPredictor(nn.Module):
     self.init_for_task = init_for_task
     self.in_features = in_features
     self.out_features = out_features
-    self.out_parameters = nn.Parameter(torch.ones(out_features, **factory_kwargs))
+    self.out_parameters = nn.Parameter(torch.empty(out_features, **factory_kwargs))
     self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     if in_features is None:
       # not much to do here.
@@ -280,16 +280,16 @@ class SPredictor(nn.Module):
   def reset_parameters(self) -> None:
     if self.net is None:
       if self.init_for_task is None:
-        init.uniform_(self.out_parameters, -1, 1)
+        init.uniform_(self.out_parameters, -DEFAULT_BOUND, DEFAULT_BOUND)
       else:
         init.constant_(self.out_parameters, self.init_for_task)
     else:
-      init.uniform_(self.expansion_data, -1, 1)
+      init.uniform_(self.expansion_data, -DEFAULT_BOUND, DEFAULT_BOUND)
       with torch.no_grad():
         v = self.net(self.expansion_data)
         if self.init_for_task is None:
           # Just do things a bit random
-          ift = torch.empty(v.shape).uniform_(-1, 1)
+          ift = torch.empty(v.shape).uniform_(-DEFAULT_BOUND, DEFAULT_BOUND)
         else:
           ift = self.init_for_task
 
