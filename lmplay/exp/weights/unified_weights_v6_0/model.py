@@ -28,9 +28,9 @@ class GPT2(LMBase):
                embed_dropout: Optional[float] = 0.1,
                version="6.0",
                exp_mul=1.0,
-               predict_bias=True,
-               predict_mbias=True,
-               predict_mbias2=True,
+               predict_bias=False,
+               predict_mbias=False,
+               predict_mbias2=False,
                predict_mbias_a=False, #Close to stable but not quite.
                predict_mbias2_a=False, #Close to stable but not quite.
                ln_attn=False,
