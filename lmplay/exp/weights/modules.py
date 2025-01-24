@@ -244,7 +244,7 @@ def hide_net(net: nn.Module):
   # just need to hold onto something that PyTorch won't try to serialize/deserialize
   return lambda *args, **kwargs: net(*args, **kwargs)
 
-DEFAULT_BOUND = 0.001
+DEFAULT_BOUND = 0.01
 class SPredictor(nn.Module):
   def __init__(self, out_features: int,
                in_features: int = None,
