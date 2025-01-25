@@ -206,7 +206,7 @@ def main():
                                    fast_forward=mr.get_step_stats().total_validate_samples,
                                    max_length=mr.max_len)
       total_parameters = mr._model.parameter_count()
-      print(f"\nTraining {mr._model.name} with {total_parameters}({total_parameters / 10e9:0.3f}b) parameters.\n")
+      print(f"\nTraining {mr._model.name} with {total_parameters}({total_parameters / 1e9:0.3f}b) parameters.\n")
       try:
         for batch, new_train_samples_read in train_batcher:
           did_training = True
