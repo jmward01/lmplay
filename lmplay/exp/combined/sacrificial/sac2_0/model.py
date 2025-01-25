@@ -46,8 +46,8 @@ class GPT2(LMBase):
     self.shared_net = SimpleMLP(expansion_size, embed_dim, bias=False)
     self.max_len = max_len
     dulinear = partial(SDULinear,
-                       shared_in=self.shared_net,
-                       shared_out=self.shared_net,
+                       share_in=self.shared_net,
+                       share_out=self.shared_net,
                        linear=ULinear)
 
     self.tok_embed = UnifiedEmbedding(vocab_size,
