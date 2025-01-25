@@ -14,7 +14,7 @@ class ULinear(nn.Module):
                bias=True,
                device=None,
                dtype=None,
-               cacheable=False) -> None:
+               cacheable=True) -> None:
     self.cacheable = cacheable
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
@@ -90,7 +90,7 @@ class DULinear(nn.Module):
                mid_mul=1.0,
                expansion_weights=True,
                linear=nn.Linear,
-               cacheable=False) -> None:
+               cacheable=True) -> None:
     self.cacheable=cacheable
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
@@ -457,7 +457,7 @@ class SDULinear(nn.Module):
                share_out=True,
                exp_mul=32.0,
                linear=nn.Linear,
-               cacheable=False) -> None:
+               cacheable=True) -> None:
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
     self.cacheable = cacheable
