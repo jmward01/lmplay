@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from typing import Optional, Any, List
 
-from lmplay.exp.weights.modules import SDULinear, SimpleMLP
+from lmplay.exp.weights.modules import SDULinear, SimpleMLP, ULinear
 from lmplay.base.encoder.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
@@ -39,10 +39,11 @@ class GPT2(LMBase):
                dl_fc=True,
                share_in=True,
                share_out=True,
+               ulinear=False,
                share_layers=2,
                **ignore):
     super().__init__(
-      f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}{_p(dl_fc)}{_p(share_in)}{_p(share_out)}_{share_layers}_{exp_mul}_{num_blocks}L_{max_len}",
+      f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}{_p(dl_fc)}{_p(share_in)}{_p(share_out)}{_p(ulinear)}_{share_layers}_{exp_mul}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,
@@ -70,6 +71,10 @@ class GPT2(LMBase):
     if share_out == True:
       share_out = self.shared_net
 
+    if ulinear:
+      linear = ULinear
+    else:
+      linear = nn.Linear
     # add in the DULinear to the block definition
     dulinear = partial(SDULinear,
                        exp_mul=exp_mul,
@@ -80,7 +85,7 @@ class GPT2(LMBase):
                        predict_mbias2_a=predict_mbias2_a,
                        share_in=share_in,
                        share_out=share_out,
-                       linear=nn.Linear)
+                       linear=linear)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
