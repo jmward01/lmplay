@@ -15,7 +15,7 @@ class ModelRunner(LMRunnerBase):
                        **parameters) -> (LMBase, Any):
     model_args = model_args if model_args else dict(
                  version="6.1",
-                 exp_mul=64.0,
+                 exp_mul=8.0,# <- this is 6.1
                  predict_bias=True,
                  predict_mbias=True,
                  predict_mbias2=True,
@@ -27,8 +27,9 @@ class ModelRunner(LMRunnerBase):
                  dl_fc=True,
                  share_in=True,
                  share_out=True,
-                 ulinear=True, # <- this is 6.1
-                 share_layers=2,)
+                 ulinear=False,
+                 share_layers=2,
+                 share_mid_mul=8.0) # <- this is 6.1
     for k, v in parameters.items():
       if k not in model_args:
         model_args[k] = v
