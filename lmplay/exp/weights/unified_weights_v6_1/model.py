@@ -13,11 +13,8 @@ class ModelRunner(LMRunnerBase):
                        model_args=None,
                        strict=False,
                        **parameters) -> (LMBase, Any):
-    model_args = model_args if model_args else dict()
-    for k, v in parameters.items():
-      if k not in model_args:
-        model_args[k] = v
-    model = GPT2(version="6.1",
+    model_args = model_args if model_args else dict(
+                 version="6.1",
                  exp_mul=64.0,
                  predict_bias=True,
                  predict_mbias=True,
@@ -31,8 +28,11 @@ class ModelRunner(LMRunnerBase):
                  share_in=True,
                  share_out=True,
                  ulinear=True, # <- this is 6.1
-                 share_layers=2,
-                 **model_args)
+                 share_layers=2,)
+    for k, v in parameters.items():
+      if k not in model_args:
+        model_args[k] = v
+    model = GPT2(**model_args)
     if model_weights is not None:
       missing, unexpected = model.load_state_dict(model_weights, strict=strict)
       model.to(device)
