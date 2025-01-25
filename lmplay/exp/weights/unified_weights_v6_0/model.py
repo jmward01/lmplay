@@ -69,7 +69,7 @@ class GPT2(LMBase):
       linear = nn.Linear
 
     if share_in == True or share_out == True:
-      shared_net = SimpleMLP(int(embed_dim*exp_mul), embed_dim, bias=False, layers=share_layers, layer=linear)
+      shared_net = SimpleMLP(int(embed_dim*exp_mul), embed_dim, bias=False, layers=share_layers, linear=linear)
       self.shared_net = shared_net
 
     if share_in == True:

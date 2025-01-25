@@ -43,7 +43,7 @@ class GPT2(LMBase):
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
     expansion_size = int(exp_mul*embed_dim)
-    self.shared_net = SimpleMLP(expansion_size, embed_dim, layers=2, bias=False)
+    self.shared_net = SimpleMLP(expansion_size, embed_dim, layers=2, bias=False, linear=ULinear)
     self.max_len = max_len
     dulinear = partial(SDULinear,
                        share_in=self.shared_net,

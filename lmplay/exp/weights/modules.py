@@ -250,15 +250,15 @@ DEFAULT_BOUND = 0.01
 
 class SimpleMLP(nn.Module):
   def __init__(self,
-              in_features: int,
-              out_features: int,
-              bias=True,
-              layers=1,
-              non_linearity=nn.GELU,
-              layer=nn.Linear,
-              mid_features=None,
-              device=None,
-              dtype=None):
+               in_features: int,
+               out_features: int,
+               bias=True,
+               layers=1,
+               non_linearity=nn.GELU,
+               linear=nn.Linear,
+               mid_features=None,
+               device=None,
+               dtype=None):
     super().__init__()
     assert layers >=1
 
@@ -272,12 +272,12 @@ class SimpleMLP(nn.Module):
     if mid_features is None:
       mid_features = min(in_features, out_features)
     if layers > 1:
-      l = [layer(in_features, mid_features, **factory_kwargs), non_linearity()]
+      l = [linear(in_features, mid_features, **factory_kwargs), non_linearity()]
       for _ in range(layers - 2):
-        l.extend([layer(mid_features, mid_features, **factory_kwargs), non_linearity()])
-      l.append(layer(mid_features, out_features, bias=bias, **factory_kwargs))
+        l.extend([linear(mid_features, mid_features, **factory_kwargs), non_linearity()])
+      l.append(linear(mid_features, out_features, bias=bias, **factory_kwargs))
     else:
-      l = [layer(in_features, out_features, bias=bias, **factory_kwargs)]
+      l = [linear(in_features, out_features, bias=bias, **factory_kwargs)]
 
     self.net = nn.Sequential(*l)
   def forward(self, *arg):
