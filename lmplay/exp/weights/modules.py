@@ -5,6 +5,9 @@ from torch import nn
 import torch.nn.functional as F
 from torch.nn import init
 
+DEFAULT_BOUND = 0.01
+
+DEFAULT_CACHEABLE = False
 
 class ULinear(nn.Module):
   # Modified from pytorch source
@@ -280,9 +283,6 @@ def hide_net(net: nn.Module):
   return lambda *args, **kwargs: net(*args, **kwargs)
 
 
-DEFAULT_BOUND = 0.01
-
-
 class SimpleMLP(nn.Module):
   def __init__(self,
                in_features: int,
@@ -328,9 +328,9 @@ class SPredictor(nn.Module):
                linear=nn.Linear,
                device=None,
                dtype=None,
-               cachebale=False):
+               cacheable=DEFAULT_CACHEABLE):
     super().__init__()
-    self.cacheable = cachebale
+    self.cacheable = cacheable
     factory_kwargs = {'device': device, 'dtype': dtype}
     self.init_for_task = init_for_task
     self.in_features = in_features
@@ -457,7 +457,7 @@ class SDULinear(nn.Module):
                share_out=True,
                exp_mul=32.0,
                linear=nn.Linear,
-               cacheable=True) -> None:
+               cacheable=DEFAULT_CACHEABLE) -> None:
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
     self.cacheable = cacheable

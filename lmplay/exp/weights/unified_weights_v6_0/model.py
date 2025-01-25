@@ -89,7 +89,7 @@ class GPT2(LMBase):
                        share_in=share_in,
                        share_out=share_out,
                        linear=linear,
-                       cacheable=True)
+                       cacheable=False)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
