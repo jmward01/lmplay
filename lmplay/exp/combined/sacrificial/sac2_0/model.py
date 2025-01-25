@@ -5,7 +5,7 @@ from typing import Optional, Any
 from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
-from lmplay.modules import SDULinear, ULinear, UnifiedEmbedding
+from lmplay.modules import SDULinear, ULinear, UnifiedEmbedding, SimpleMLP
 from functools import partial
 
 
@@ -19,7 +19,7 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                front_embed_mul=16.0,
-               exp_mul=8.0,
+               exp_mul=128.0,
                for_train=True,
                keep_embed_on_cpu=False,
                ln_attn=False, #UW get a big boost from this and it is fewer parameter/computation so not cheating!
@@ -42,10 +42,12 @@ class GPT2(LMBase):
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
-
+    expansion_size = int(exp_mul*embed_dim)
+    self.shared_net = SimpleMLP(expansion_size, embed_dim, bias=False)
     self.max_len = max_len
     dulinear = partial(SDULinear,
-                       exp_mul=exp_mul,
+                       shared_in=self.shared_net,
+                       shared_out=self.shared_net,
                        linear=ULinear)
 
     self.tok_embed = UnifiedEmbedding(vocab_size,

@@ -402,7 +402,7 @@ class SDULinear(nn.Module):
                predict_mbias2_a=None,
                share_in=True,
                share_out=True,
-               exp_mul=8.0,
+               exp_mul=32.0,
                linear=nn.Linear) -> None:
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
