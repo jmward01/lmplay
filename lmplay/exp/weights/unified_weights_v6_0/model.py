@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from typing import Optional, Any, List
 
-from lmplay.exp.weights.modules import SDULinear
+from lmplay.exp.weights.modules import SDULinear, SimpleMLP
 from lmplay.base.encoder.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
@@ -27,7 +27,7 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                version="6.0",
-               exp_mul=8.0,
+               exp_mul=32.0,
                predict_bias=True,
                predict_mbias=True,
                predict_mbias2=True,
@@ -59,6 +59,16 @@ class GPT2(LMBase):
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
+    if share_in == True or share_out == True:
+      shared_net = SimpleMLP(int(embed_dim*exp_mul), embed_dim, bias=False)
+      self.shared_net = shared_net
+
+    if share_in == True:
+      share_in = self.shared_net
+
+    if share_out == True:
+      share_out = self.shared_net
+
     # add in the DULinear to the block definition
     dulinear = partial(SDULinear,
                        exp_mul=exp_mul,

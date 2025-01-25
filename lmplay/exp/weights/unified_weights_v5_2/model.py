@@ -29,6 +29,7 @@ class ModelRunner(LMRunnerBase):
                  ln_mlp=False,
                  ln_fc=True,
                  dl_fc=True,
+                 expansion_weights=True,
                  **model_args)
     if model_weights is not None:
       missing, unexpected = model.load_state_dict(model_weights, strict=strict)

@@ -244,11 +244,51 @@ def hide_net(net: nn.Module):
   # just need to hold onto something that PyTorch won't try to serialize/deserialize
   return lambda *args, **kwargs: net(*args, **kwargs)
 
+
 DEFAULT_BOUND = 0.01
+
+
+class SimpleMLP(nn.Module):
+  def __init__(self,
+              in_features: int,
+              out_features: int,
+              bias=True,
+              layers=1,
+              non_linearity=nn.GELU,
+              layer=nn.Linear,
+              mid_features=None,
+              device=None,
+              dtype=None):
+    super().__init__()
+    assert layers >=1
+
+    factory_kwargs = {'device': device, 'dtype': dtype}
+
+    self.nonlinearity = non_linearity
+    self.in_features = in_features
+    self.out_features = out_features
+    self.has_bias = bias
+
+    if mid_features is None:
+      mid_features = min(in_features, out_features)
+    if layers > 1:
+      l = [layer(in_features, mid_features, **factory_kwargs), non_linearity()]
+      for _ in range(layers - 2):
+        l.extend([layer(mid_features, mid_features, **factory_kwargs), non_linearity()])
+      l.append(layer(mid_features, out_features, bias=bias, **factory_kwargs))
+    else:
+      l = [layer(in_features, out_features, bias=bias, **factory_kwargs)]
+
+    self.net = nn.Sequential(*l)
+  def forward(self, *arg):
+    return self.net(*arg)
+
+
 class SPredictor(nn.Module):
-  def __init__(self, out_features: int,
+  def __init__(self,
+               out_features: int,
                in_features: int = None,
-               shared_net: nn.Module = None,
+               shared_net: SimpleMLP = None,
                init_for_task: int = None,
                linear=nn.Linear,
                device=None,
@@ -260,24 +300,54 @@ class SPredictor(nn.Module):
     self.out_features = out_features
     self.out_parameters = nn.Parameter(torch.empty(out_features, **factory_kwargs))
     self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
-    if in_features is None:
+    if in_features is None and shared_net is None:
       # not much to do here.
       # They didn't tell us the in_features so we are just predicting the out_features without a sacrificial or shared network
       self.net = None
       self.register_parameter('expansion_data', None)
+      self.register_module('in_adapter', None)
+      self.register_module('out_adapter', None)
+      self.register_parameter('out_adapter_bias', None)
 
     else:
-      # Init to 1 so we can mul easily
+      if in_features is None:
+        in_features = shared_net.in_features
       self.expansion_data = nn.Parameter(torch.empty(in_features, **factory_kwargs))
       # Ok, we do have in parameters so they want us to predict. Do we need to build the net or was one given to us?
       if shared_net is None:
         # We gotta build it
         self.net = linear(in_features, out_features, bias=False, **factory_kwargs)
+        net_in_features = in_features
+        net_out_features = out_features
+        net_has_bias = False
       else:
         self.net = hide_net(shared_net)
+        net_in_features = shared_net.in_features
+        net_out_features = shared_net.out_features
+        net_has_bias = shared_net.has_bias
+      if in_features != net_in_features:
+        #gotta build an adapter!
+        self.in_adapter = nn.Linear(in_features, net_in_features)
+      else:
+        self.register_module('in_adapter', None)
+
+      if out_features != net_out_features:
+        #Gotta build an adapter!
+        self.out_adapter = nn.Linear(net_out_features, out_features, bias=False)
+        if not net_has_bias:
+          #need to create a fake bias for the adapter real quick...
+          self.out_adapter_bias = nn.Parameter(torch.empty(net_out_features, **factory_kwargs))
+        else:
+          self.register_parameter('out_adapter_bias', None)
+      else:
+        self.register_module('out_adapter', None)
+        self.register_parameter('out_adapter_bias', None)
+
     self.reset_parameters()
 
   def reset_parameters(self) -> None:
+    if not self.out_adapter_bias is None:
+      init.uniform_(self.out_adapter_bias, -DEFAULT_BOUND, DEFAULT_BOUND)
     if self.net is None:
       if self.init_for_task is None:
         init.uniform_(self.out_parameters, -DEFAULT_BOUND, DEFAULT_BOUND)
@@ -286,18 +356,29 @@ class SPredictor(nn.Module):
     else:
       init.uniform_(self.expansion_data, -DEFAULT_BOUND, DEFAULT_BOUND)
       with torch.no_grad():
-        v = self.net(self.expansion_data)
+        v = self._net()
         if self.init_for_task is None:
           # Just do things a bit random
           ift = torch.empty(v.shape).uniform_(-DEFAULT_BOUND, DEFAULT_BOUND)
         else:
           ift = self.init_for_task
-
         self.out_parameters.set_(ift - v)
+
+  def _net(self):
+    x = self.expansion_data
+    if not self.in_adapter is None:
+      x = self.in_adapter(x)
+    x = self.net(x)
+    if not self.out_adapter_bias is None:
+      #The net they supplied didn't have a bias so add it in
+      x = x + self.out_adapter_bias
+    if not self.out_adapter is None:
+      x = self.out_adapter(x)
+    return x
 
   def forward(self, *args, **kwargs):
     if not self.net is None:
-      return self.net(self.expansion_data) + (self.out_parameters + self.bias_bias)
+      return self._net() + (self.out_parameters + self.bias_bias)
     return self.out_parameters + self.bias_bias
 
 
@@ -333,23 +414,34 @@ class SDULinear(nn.Module):
 
     expansion_features = int(min(in_features, out_features) * exp_mul)
 
-    if share_in and (predict_mbias == True or predict_mbias_a == True):
+    if share_in == True and (predict_mbias == True or predict_mbias_a == True):
       # Only build this network if we will need it and we are going to use a shared network
       self.in_net = linear(expansion_features, in_features, bias=False, **factory_kwargs)
-      #self.in_net = nn.Sequential(linear(expansion_features, mid_features, bias=True, **factory_kwargs),
+      in_net = self.in_net
+      # self.in_net = nn.Sequential(linear(expansion_features, mid_features, bias=True, **factory_kwargs),
       #                             nn.GELU(),
       #                             linear(mid_features, in_features, bias=False, **factory_kwargs))
-
+      in_net = self.in_net
+    elif not share_in is None and isinstance(share_in, nn.Module):
+      in_net = share_in
+      self.register_module('in_net', None)
     else:
+      in_net = None
       self.register_module('in_net', None)
 
-    if share_out and (predict_mbias2 == True or predict_mbias2_a == True or predict_bias == True):
+    if share_out == True and (predict_mbias2 == True or predict_mbias2_a == True or predict_bias == True):
       # Only build this network if we will need it and we are going to use a shared network
       self.out_net = linear(expansion_features, out_features, bias=False, **factory_kwargs)
-      #self.out_net = nn.Sequential(linear(expansion_features, mid_features, bias=True, **factory_kwargs),
+      # self.out_net = nn.Sequential(linear(expansion_features, mid_features, bias=True, **factory_kwargs),
       #                             nn.GELU(),
       #                             linear(mid_features, out_features, bias=False, **factory_kwargs))
+      out_net = self.out_net
+    elif not share_out is None and isinstance(share_out, nn.Module):
+      out_net = share_out
+      self.register_module('out_net', None)
+
     else:
+      out_net = None
       self.register_module('out_net', None)
 
     for name, task, ift in (('mbias', predict_mbias, 1), ('mbias_a', predict_mbias_a, 0)):
@@ -358,7 +450,7 @@ class SDULinear(nn.Module):
       elif task == True:
         self.register_module(name, SPredictor(in_features,
                                               expansion_features,
-                                              shared_net=self.in_net,
+                                              shared_net=in_net,
                                               init_for_task=ift,
                                               linear=linear,
                                               **factory_kwargs))
@@ -378,7 +470,7 @@ class SDULinear(nn.Module):
       elif task == True:
         self.register_module(name, SPredictor(out_features,
                                               expansion_features,
-                                              shared_net=self.out_net,
+                                              shared_net=out_net,
                                               init_for_task=ift,
                                               linear=linear,
                                               **factory_kwargs))
