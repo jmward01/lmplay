@@ -48,6 +48,7 @@ class GPT2(LMBase):
     dulinear = partial(SDULinear,
                        share_in=self.shared_net,
                        share_out=self.shared_net,
+                       exp_mul=exp_mul,
                        linear=ULinear)
 
     self.tok_embed = UnifiedEmbedding(vocab_size,
