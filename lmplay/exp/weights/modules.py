@@ -4,6 +4,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.nn import init
+from torch.nn.modules.module import T
 
 
 class ULinear(nn.Module):
@@ -29,6 +30,17 @@ class ULinear(nn.Module):
       # this is needed because?????? Won't work in some frameworks without it because they are constructing the models and not the model code.
       self.register_parameter("bias", None)
     self.reset_parameters()
+    self.cached_weight = None
+    self.cached_bias = None
+    self.register_full_backward_hook(self.clear_cache)
+
+  def clear_cache(self, *args, **kwargs):
+    self.cached_weight = None
+    self.cached_bias = None
+
+  def train(self, mode: bool = True):
+    self.clear_cache()
+    return self
 
   def reset_parameters(self) -> None:
     # This uses the pytorch init, different inits may be valuable with the mbias in place.
@@ -42,13 +54,22 @@ class ULinear(nn.Module):
       init.uniform_(self.bias, -bound, bound)
 
   def forward(self, input: torch.Tensor) -> torch.Tensor:
-    if self.bias is not None:
-      bias = self.bias + self.bias_bias
+    if self.cached_bias is None:
+      if self.bias is not None:
+        bias = self.bias + self.bias_bias
+      else:
+        bias = None
+      self.cached_bias = [bias]
     else:
-      bias = None
-    weight = self.weight.t() * (self.mbias + self.mbias_bias)
+      bias = self.cached_bias[0]
+    if self.cached_weight is None:
+      weight = self.weight.t() * (self.mbias + self.mbias_bias)
+      self.cached_weight = [weight]
+    else:
+      weight = self.cached_weight[0]
     # This can clearly be re-stored as a normal weight/bias for prod.
     result = F.linear(input, weight.t(), bias)
+
     return result
 
   def extra_repr(self) -> str:
@@ -159,6 +180,19 @@ class DULinear(nn.Module):
       self.register_parameter("bias", None)
     self.reset_parameters()
 
+    self.cached_weight = None
+    self.cached_bias = None
+    self.register_full_backward_hook(self.clear_cache)
+
+  def clear_cache(self, *args, **kwargs):
+    self.cached_weight = None
+    self.cached_bias = None
+
+  def train(self, mode: bool = True):
+    self.clear_cache()
+    return self
+
+
   def reset_parameters(self) -> None:
     # This uses the pytorch init, different inits may be valuable with the mbias in place.
     # Setting a=sqrt(5) in kaiming_uniform is the same as initializing with
@@ -173,67 +207,70 @@ class DULinear(nn.Module):
       init.uniform_(self.expansion_data, -bound, bound)
 
   def forward(self, input: torch.Tensor) -> torch.Tensor:
-    if self.expansion_data is not None:
-      mid = F.gelu(self.expansion_weights(self.expansion_data))
-    elif self.expansion_weights is not None:
-      mid = self.expansion_data
-    else:
-      mid = None
+    if self.cached_weight is None:
+      if self.expansion_data is not None:
+        mid = F.gelu(self.expansion_weights(self.expansion_data))
+      elif self.expansion_weights is not None:
+        mid = self.expansion_data
+      else:
+        mid = None
 
-    if not self.bias_weights is None:
-      bias = self.bias_weights(mid) + self.bias_bias
-    elif not self.bias_bias is None:
-      bias = self.bias + self.bias_bias
-    elif not self.bias is None:
-      bias = self.bias
-    else:
-      bias = None
+      if not self.bias_weights is None:
+        bias = self.bias_weights(mid) + self.bias_bias
+      elif not self.bias_bias is None:
+        bias = self.bias + self.bias_bias
+      elif not self.bias is None:
+        bias = self.bias
+      else:
+        bias = None
 
-    if not self.mbias_weights is None:
-      mbias = self.mbias_weights(mid) + self.mbias_bias
-    elif not self.mbias is None:
-      mbias = self.mbias + self.mbias_bias
-    else:
-      mbias = None
+      if not self.mbias_weights is None:
+        mbias = self.mbias_weights(mid) + self.mbias_bias
+      elif not self.mbias is None:
+        mbias = self.mbias + self.mbias_bias
+      else:
+        mbias = None
 
-    if not self.mbias_a_weights is None:
-      mbias_a = self.mbias_a_weights(mid)
-    elif not self.mbias_a is None:
-      mbias_a = self.mbias_a
-    else:
-      mbias_a = None
+      if not self.mbias_a_weights is None:
+        mbias_a = self.mbias_a_weights(mid)
+      elif not self.mbias_a is None:
+        mbias_a = self.mbias_a
+      else:
+        mbias_a = None
 
-    if not mbias is None:
-      weight = self.weight * mbias
-    else:
-      weight = self.weight
+      if not mbias is None:
+        weight = self.weight * mbias
+      else:
+        weight = self.weight
 
-    if not mbias_a is None:
-      weight = weight + mbias_a
+      if not mbias_a is None:
+        weight = weight + mbias_a
 
-    if not self.mbias2_weights is None:
-      mbias2 = self.mbias2_weights(mid) + self.mbias2_bias
-    elif not self.mbias2 is None:
-      mbias2 = self.mbias2 + self.mbias2_bias
-    else:
-      mbias2 = None
+      if not self.mbias2_weights is None:
+        mbias2 = self.mbias2_weights(mid) + self.mbias2_bias
+      elif not self.mbias2 is None:
+        mbias2 = self.mbias2 + self.mbias2_bias
+      else:
+        mbias2 = None
 
-    if not self.mbias2_a_weights is None:
-      mbias2_a = self.mbias2_a_weights(mid)
-    elif not self.mbias2_a is None:
-      mbias2_a = self.mbias2_a
-    else:
-      mbias2_a = None
+      if not self.mbias2_a_weights is None:
+        mbias2_a = self.mbias2_a_weights(mid)
+      elif not self.mbias2_a is None:
+        mbias2_a = self.mbias2_a
+      else:
+        mbias2_a = None
 
-    if not mbias2 is None:
-      weight = weight.t() * mbias2
-      weight = weight.t()
+      if not mbias2 is None:
+        weight = weight.t() * mbias2
+        weight = weight.t()
 
-    if not mbias2_a is None:
-      weight = weight.t() + mbias2_a
-      weight = weight.t()
+      if not mbias2_a is None:
+        weight = weight.t() + mbias2_a
+        weight = weight.t()
+      self.cached_weight = [weight]
+      self.cached_bias = [bias]
 
-    result = F.linear(input, weight, bias)
+    result = F.linear(input, self.cached_weight[0], self.cached_bias[0])
     return result
 
   def extra_repr(self) -> str:
