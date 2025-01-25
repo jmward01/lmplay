@@ -61,8 +61,15 @@ class GPT2(LMBase):
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
+
+
+    if ulinear:
+      linear = ULinear
+    else:
+      linear = nn.Linear
+
     if share_in == True or share_out == True:
-      shared_net = SimpleMLP(int(embed_dim*exp_mul), embed_dim, bias=False, layers=share_layers)
+      shared_net = SimpleMLP(int(embed_dim*exp_mul), embed_dim, bias=False, layers=share_layers, layer=linear)
       self.shared_net = shared_net
 
     if share_in == True:
@@ -71,10 +78,6 @@ class GPT2(LMBase):
     if share_out == True:
       share_out = self.shared_net
 
-    if ulinear:
-      linear = ULinear
-    else:
-      linear = nn.Linear
     # add in the DULinear to the block definition
     dulinear = partial(SDULinear,
                        exp_mul=exp_mul,
