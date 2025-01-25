@@ -19,7 +19,7 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                front_embed_mul=16.0,
-               exp_mul=128.0,
+               exp_mul=64.0,
                for_train=True,
                keep_embed_on_cpu=False,
                ln_attn=False, #UW get a big boost from this and it is fewer parameter/computation so not cheating!
