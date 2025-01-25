@@ -49,7 +49,8 @@ class GPT2(LMBase):
                        share_in=self.shared_net,
                        share_out=self.shared_net,
                        exp_mul=exp_mul,
-                       linear=ULinear)
+                       linear=ULinear,
+                       cacheable=True)
 
     self.tok_embed = UnifiedEmbedding(vocab_size,
                                       embed_dim,
@@ -67,7 +68,12 @@ class GPT2(LMBase):
                                         ln_attn=ln_attn,
                                         ln_mlp=ln_mlp) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
-    self.fc = dulinear(embed_dim, vocab_size)
+    self.fc = SDULinear(embed_dim,
+                       vocab_size,
+                       share_in=self.shared_net,
+                       share_out=self.shared_net,
+                       exp_mul=exp_mul,
+                       linear=ULinear)
 
   def forward(self, x:torch.Tensor, cache:Optional[list] = None):
     seq_len = x.size(1)

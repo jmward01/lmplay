@@ -4,7 +4,6 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.nn import init
-from torch.nn.modules.module import T
 
 
 class ULinear(nn.Module):
@@ -14,7 +13,9 @@ class ULinear(nn.Module):
                out_features: int,
                bias=True,
                device=None,
-               dtype=None) -> None:
+               dtype=None,
+               cacheable=False) -> None:
+    self.cacheable = cacheable
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
     self.has_bias = bias
@@ -30,13 +31,11 @@ class ULinear(nn.Module):
       # this is needed because?????? Won't work in some frameworks without it because they are constructing the models and not the model code.
       self.register_parameter("bias", None)
     self.reset_parameters()
-    self.cached_weight = None
-    self.cached_bias = None
+    self.cached_weights = None
     self.register_full_backward_hook(self.clear_cache)
 
   def clear_cache(self, *args, **kwargs):
-    self.cached_weight = None
-    self.cached_bias = None
+    self.cached_weights = None
 
   def train(self, mode: bool = True):
     self.clear_cache()
@@ -54,21 +53,19 @@ class ULinear(nn.Module):
       init.uniform_(self.bias, -bound, bound)
 
   def forward(self, input: torch.Tensor) -> torch.Tensor:
-    if self.cached_bias is None:
+    if self.cached_weights is None:
       if self.bias is not None:
         bias = self.bias + self.bias_bias
       else:
         bias = None
-      self.cached_bias = [bias]
-    else:
-      bias = self.cached_bias[0]
-    if self.cached_weight is None:
       weight = self.weight.t() * (self.mbias + self.mbias_bias)
-      self.cached_weight = [weight]
+      weight = weight.t()
+      if self.cacheable:
+        self.cached_weights = (weight, bias)
     else:
-      weight = self.cached_weight[0]
+      weight, bias = self.cached_weights
     # This can clearly be re-stored as a normal weight/bias for prod.
-    result = F.linear(input, weight.t(), bias)
+    result = F.linear(input, weight, bias)
 
     return result
 
@@ -92,7 +89,9 @@ class DULinear(nn.Module):
                exp_mul=16.0,
                mid_mul=1.0,
                expansion_weights=True,
-               linear=nn.Linear) -> None:
+               linear=nn.Linear,
+               cacheable=False) -> None:
+    self.cacheable=cacheable
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
     self.in_features = in_features
@@ -180,13 +179,11 @@ class DULinear(nn.Module):
       self.register_parameter("bias", None)
     self.reset_parameters()
 
-    self.cached_weight = None
-    self.cached_bias = None
+    self.cached_weights = None
     self.register_full_backward_hook(self.clear_cache)
 
   def clear_cache(self, *args, **kwargs):
-    self.cached_weight = None
-    self.cached_bias = None
+    self.cached_weights = None
 
   def train(self, mode: bool = True):
     self.clear_cache()
@@ -207,7 +204,7 @@ class DULinear(nn.Module):
       init.uniform_(self.expansion_data, -bound, bound)
 
   def forward(self, input: torch.Tensor) -> torch.Tensor:
-    if self.cached_weight is None:
+    if self.cached_weights is None:
       if self.expansion_data is not None:
         mid = F.gelu(self.expansion_weights(self.expansion_data))
       elif self.expansion_weights is not None:
@@ -267,10 +264,11 @@ class DULinear(nn.Module):
       if not mbias2_a is None:
         weight = weight.t() + mbias2_a
         weight = weight.t()
-      self.cached_weight = [weight]
-      self.cached_bias = [bias]
-
-    result = F.linear(input, self.cached_weight[0], self.cached_bias[0])
+      if self.cacheable:
+        self.cached_weights = (weight, bias)
+    else:
+      weight, bias = self.cached_weights
+    result = F.linear(input, weight, bias)
     return result
 
   def extra_repr(self) -> str:
@@ -329,8 +327,10 @@ class SPredictor(nn.Module):
                init_for_task: int = None,
                linear=nn.Linear,
                device=None,
-               dtype=None):
+               dtype=None,
+               cachebale=False):
     super().__init__()
+    self.cacheable = cachebale
     factory_kwargs = {'device': device, 'dtype': dtype}
     self.init_for_task = init_for_task
     self.in_features = in_features
@@ -381,6 +381,15 @@ class SPredictor(nn.Module):
         self.register_parameter('out_adapter_bias', None)
 
     self.reset_parameters()
+    self.cached_value = None
+    self.register_full_backward_hook(self.clear_cache)
+
+  def clear_cache(self, *args, **kwargs):
+    self.cached_value = None
+
+  def train(self, mode: bool = True):
+    self.clear_cache()
+    return self
 
   def reset_parameters(self) -> None:
     if not self.out_adapter_bias is None:
@@ -414,9 +423,16 @@ class SPredictor(nn.Module):
     return x
 
   def forward(self, *args, **kwargs):
-    if not self.net is None:
-      return self._net() + (self.out_parameters + self.bias_bias)
-    return self.out_parameters + self.bias_bias
+    if self.cached_value is None:
+      if not self.net is None:
+        value = self._net() + (self.out_parameters + self.bias_bias)
+      else:
+        value = self.out_parameters + self.bias_bias
+      if self.cacheable:
+        self.cached_value = [value]
+    else:
+      value = self.cached_value[0]
+    return value
 
 
 class NopModule(nn.Module):
@@ -440,9 +456,11 @@ class SDULinear(nn.Module):
                share_in=True,
                share_out=True,
                exp_mul=32.0,
-               linear=nn.Linear) -> None:
+               linear=nn.Linear,
+               cacheable=False) -> None:
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
+    self.cacheable = cacheable
     self.in_features = in_features
     self.out_features = out_features
     mid_features = min(in_features, out_features)
@@ -516,32 +534,47 @@ class SDULinear(nn.Module):
                                               init_for_task=ift,
                                               **factory_kwargs))
     self.reset_parameters()
+    self.cached_weights = None
+    self.register_full_backward_hook(self.clear_cache)
+
+  def clear_cache(self, *args, **kwargs):
+    self.cached_weights = None
+
+  def train(self, mode: bool = True):
+    self.clear_cache()
+    return self
+
 
   def reset_parameters(self) -> None:
     init.kaiming_uniform_(self.weight, a=math.sqrt(5))
 
   def forward(self, input: torch.Tensor) -> torch.Tensor:
-    bias = self.bias()
-    mbias = self.mbias()
-    mbias_a = self.mbias_a()
-    mbias2 = self.mbias2()
-    mbias2_a = self.mbias2_a()
+    if self.cached_weights is None:
+      bias = self.bias()
+      mbias = self.mbias()
+      mbias_a = self.mbias_a()
+      mbias2 = self.mbias2()
+      mbias2_a = self.mbias2_a()
 
-    if not mbias is None:
-      weight = self.weight * mbias
+      if not mbias is None:
+        weight = self.weight * mbias
+      else:
+        weight = self.weight
+
+      if not mbias_a is None:
+        weight = weight + mbias_a
+
+      if not mbias2 is None:
+        weight = weight.t() * mbias2
+        weight = weight.t()
+
+      if not mbias2_a is None:
+        weight = weight.t() + mbias2_a
+        weight = weight.t()
+      if self.cacheable:
+        self.cached_weights = (weight, bias)
     else:
-      weight = self.weight
-
-    if not mbias_a is None:
-      weight = weight + mbias_a
-
-    if not mbias2 is None:
-      weight = weight.t() * mbias2
-      weight = weight.t()
-
-    if not mbias2_a is None:
-      weight = weight.t() + mbias2_a
-      weight = weight.t()
+      weight, bias = self.cached_weights
 
     result = F.linear(input, weight, bias)
     return result

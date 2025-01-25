@@ -31,8 +31,8 @@ class GPT2(LMBase):
                predict_bias=True,
                predict_mbias=True,
                predict_mbias2=True,
-               predict_mbias_a=None, #Close to stable but not quite.
-               predict_mbias2_a=None, #Close to stable but not quite.
+               predict_mbias_a=None,  # Close to stable but not quite.
+               predict_mbias2_a=None,  # Close to stable but not quite.
                ln_attn=False,
                ln_mlp=False,
                ln_fc=True,
@@ -62,14 +62,13 @@ class GPT2(LMBase):
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
 
-
     if ulinear:
       linear = ULinear
     else:
       linear = nn.Linear
 
     if share_in == True or share_out == True:
-      shared_net = SimpleMLP(int(embed_dim*exp_mul), embed_dim, bias=False, layers=share_layers, linear=linear)
+      shared_net = SimpleMLP(int(embed_dim * exp_mul), embed_dim, bias=False, layers=share_layers, linear=linear)
       self.shared_net = shared_net
 
     if share_in == True:
@@ -88,7 +87,8 @@ class GPT2(LMBase):
                        predict_mbias2_a=predict_mbias2_a,
                        share_in=share_in,
                        share_out=share_out,
-                       linear=linear)
+                       linear=linear,
+                       cacheable=True)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
@@ -102,7 +102,18 @@ class GPT2(LMBase):
     else:
       self.ln = lambda x: x
     if dl_fc:
-      self.fc = dulinear(embed_dim, vocab_size)
+      self.fc = SDULinear(embed_dim,
+                          vocab_size,
+                          exp_mul=exp_mul,
+                          predict_bias=predict_bias,
+                          predict_mbias=predict_mbias,
+                          predict_mbias2=predict_mbias2,
+                          predict_mbias_a=predict_mbias_a,
+                          predict_mbias2_a=predict_mbias2_a,
+                          share_in=share_in,
+                          share_out=share_out,
+                          linear=linear,
+                          cacheable=False)
     else:
       self.fc = nn.Linear(embed_dim, vocab_size)
 
