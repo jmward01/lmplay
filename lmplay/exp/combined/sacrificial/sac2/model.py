@@ -9,6 +9,11 @@ from lmplay.modules import SDULinear, ULinear, UnifiedEmbedding, MultiMLP
 from functools import partial
 
 
+def _p(v) -> str:
+  if v is None:
+    return 'N'
+  return int(v)
+
 class GPT2(LMBase):
   def __init__(self,
                max_len=1024,
@@ -24,12 +29,13 @@ class GPT2(LMBase):
                keep_embed_on_cpu=False,
                ln_attn=False,  # UW get a big boost from this and it is fewer parameter/computation so not cheating!
                ln_mlp=False,  # UW get a big boost from this and it is fewer parameter/computation so not cheating!
+               ue_sduw=False,
                version="2",
                **ignore):
     # Second in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
     # This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
     # This specific version combines the changes from unified embeddings 1.3 (sort of) and unified weights 2.1
-    super().__init__(f"sac_v{version}_{num_blocks}L_{max_len}",
+    super().__init__(f"sac_v{version}_{_p(ln_attn)}{_p(ln_mlp)}{_p(ue_sduw)}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -44,6 +50,7 @@ class GPT2(LMBase):
                      ln_attn=ln_attn,
                      ln_mlp=ln_mlp,
                      version=version,
+                     ue_sduw=ue_sduw,
                      **ignore)
 
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
@@ -59,12 +66,18 @@ class GPT2(LMBase):
                        exp_mul=exp_mul,
                        linear=ULinear,
                        cacheable=True)
+    if ue_sduw == True:
+      tok_linear = dulinear
+    elif ue_sduw == False:
+      tok_linear = ULinear
+    else:
+      tok_linear = nn.Linear
 
     self.tok_embed = UnifiedEmbedding(vocab_size,
                                       embed_dim,
                                       front_embed_mul,
                                       keep_embed_on_cpu=keep_embed_on_cpu,
-                                      linear=ULinear)
+                                      linear=tok_linear)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
     self.blocks = nn.Sequential(*[Block(max_len,

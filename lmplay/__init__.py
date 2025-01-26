@@ -10,6 +10,7 @@ from lmplay.exp.combined.sacrificial.sac1_0.model import ModelRunner as SAC1_0Mo
 from lmplay.exp.combined.sacrificial.sac1_0_1.model import ModelRunner as SAC1_0_1ModelRunner
 from lmplay.exp.combined.sacrificial.sac1_1.model import ModelRunner as SAC1_1ModelRunner
 from lmplay.exp.combined.sacrificial.sac2.sac2_0.runner import ModelRunner as SAC2_0ModelRunner
+from lmplay.exp.combined.sacrificial.sac2.sac2_1.runner import ModelRunner as SAC2_1ModelRunner
 from lmplay.exp.attn_norm.normv.model import ModelRunner as NormVModelRunner
 from lmplay.base.encoder.model import ModelRunner as GPT2ishModelRunner
 from lmplay.base.base_model import LMRunnerBase
@@ -41,6 +42,7 @@ MODEL_RUNNERS = dict(gpt2ish=GPT2ishModelRunner,
                      sac16x1_0=SAC1_0_1ModelRunner,
                      sac16x1_1=SAC1_1ModelRunner,
                      sac2_0=SAC2_0ModelRunner,
+                     sac2_1=SAC2_1ModelRunner,
                      ue8x=UE8xModelRunner,
                      ue8x1=UE8x1ModelRunner,
                      ue16x=UE16xModelRunner,
