@@ -125,7 +125,7 @@ class GPT2(LMBase):
       self.ln = nn.LayerNorm(embed_dim)
     else:
       self.ln = lambda x: x
-    if dl_fc:
+    if dl_fc == True:
       self.fc = SDULinear(embed_dim,
                           vocab_size,
                           exp_mul=exp_mul,
@@ -138,6 +138,8 @@ class GPT2(LMBase):
                           share_out=share_out,
                           linear=linear,
                           cacheable=False)
+    elif dl_fc == False:
+      self.fc = ULinear(embed_dim, vocab_size)
     else:
       self.fc = nn.Linear(embed_dim, vocab_size)
 
