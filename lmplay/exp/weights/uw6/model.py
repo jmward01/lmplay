@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from typing import Optional, List
 
-from lmplay.exp.weights.modules import SDULinear, SimpleMLP, ULinear
+from lmplay.exp.weights.modules import SDULinear, SimpleMLP, ULinear, MultiMLP
 from lmplay.base.encoder.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase
@@ -43,9 +43,10 @@ class GPT2(LMBase):
                cacheable=True,
                share_layers=2,
                share_mid_mul=4,
+               mmlp=False,
                **ignore):
     super().__init__(
-      f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}{_p(dl_fc)}{_p(share_in)}{_p(share_out)}{_p(ulinear)}{_p(cacheable)}_{share_layers}_{share_mid_mul}_{exp_mul}_{num_blocks}L_{max_len}",
+      f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}{_p(dl_fc)}{_p(share_in)}{_p(share_out)}{_p(ulinear)}{_p(cacheable)}{_p(mmlp)}_{share_layers}_{share_mid_mul}_{exp_mul}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,  # 12 is the real default here
@@ -70,6 +71,7 @@ class GPT2(LMBase):
       cacheable=cacheable,
       share_layers=share_layers,
       share_mid_mul=share_mid_mul,
+      mmlp=False,
       **ignore)
 
     self.tokenizer = tiktoken.get_encoding("gpt2")
@@ -85,8 +87,11 @@ class GPT2(LMBase):
       linear = nn.Linear
 
     if share_in == True or share_out == True:
-      shared_net = SimpleMLP(int(embed_dim * exp_mul), embed_dim, mid_features=int(embed_dim * share_mid_mul),
-                             bias=False, layers=share_layers, linear=linear)
+      if mmlp == False:
+        shared_net = SimpleMLP(int(embed_dim * exp_mul), embed_dim, mid_features=int(embed_dim * share_mid_mul),
+                               bias=False, layers=share_layers, linear=linear)
+      else:
+        shared_net = MultiMLP(int(embed_dim * exp_mul), int(embed_dim * share_mid_mul), linear=linear, layers=share_layers - 1)
       self.shared_net = shared_net
 
     if share_in == True:

@@ -9,6 +9,7 @@ DEFAULT_BOUND = 0.01
 
 DEFAULT_CACHEABLE = False
 
+
 class ULinear(nn.Module):
   # Modified from pytorch source
   def __init__(self,
@@ -94,7 +95,7 @@ class DULinear(nn.Module):
                expansion_weights=True,
                linear=nn.Linear,
                cacheable=True) -> None:
-    self.cacheable=cacheable
+    self.cacheable = cacheable
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
     self.in_features = in_features
@@ -191,7 +192,6 @@ class DULinear(nn.Module):
   def train(self, mode: bool = True):
     self.clear_cache()
     return self
-
 
   def reset_parameters(self) -> None:
     # This uses the pytorch init, different inits may be valuable with the mbias in place.
@@ -295,7 +295,7 @@ class SimpleMLP(nn.Module):
                device=None,
                dtype=None):
     super().__init__()
-    assert layers >=1
+    assert layers >= 1
 
     factory_kwargs = {'device': device, 'dtype': dtype}
 
@@ -315,8 +315,45 @@ class SimpleMLP(nn.Module):
       l = [linear(in_features, out_features, bias=bias, **factory_kwargs)]
 
     self.net = nn.Sequential(*l)
+
   def forward(self, *arg):
     return self.net(*arg)
+
+
+class MultiMLP(nn.Module):
+  def __init__(self,
+               in_features: int,
+               mid_features: int,
+               layers=1,
+               non_linearity=nn.GELU,
+               linear=nn.Linear,
+               device=None,
+               dtype=None):
+    super().__init__()
+    assert layers >= 1
+
+    factory_kwargs = {'device': device, 'dtype': dtype}
+    self.l_constructor = linear
+    self.nonlinearity = non_linearity
+    self.in_features = in_features
+    self.mid_features = mid_features
+
+    if layers > 1:
+      l = [linear(in_features, mid_features, **factory_kwargs), non_linearity()]
+      for _ in range(layers - 1):
+        l.extend([linear(mid_features, mid_features, **factory_kwargs), non_linearity()])
+    else:
+      l = [linear(in_features, mid_features, **factory_kwargs), non_linearity()]
+
+    self.net = nn.Sequential(*l)
+
+  def require_out(self, out_features: int, bias: bool):
+    if not hasattr(self, f"_out_{out_features}_{bias}"):
+      self.register_module(f"_out_{out_features}_{bias}", self.l_constructor(self.mid_features, out_features, bias=bias))
+
+  def forward(self, out_features: int, bias: bool, *arg):
+    out_layer = getattr(self, f"_out_{out_features}_{bias}")
+    return out_layer(self.net(*arg))
 
 
 class SPredictor(nn.Module):
@@ -363,16 +400,16 @@ class SPredictor(nn.Module):
         net_out_features = shared_net.out_features
         net_has_bias = shared_net.has_bias
       if in_features != net_in_features:
-        #gotta build an adapter!
+        # gotta build an adapter!
         self.in_adapter = nn.Linear(in_features, net_in_features)
       else:
         self.register_module('in_adapter', None)
 
       if out_features != net_out_features:
-        #Gotta build an adapter!
+        # Gotta build an adapter!
         self.out_adapter = nn.Linear(net_out_features, out_features, bias=False)
         if not net_has_bias:
-          #need to create a fake bias for the adapter real quick...
+          # need to create a fake bias for the adapter real quick...
           self.out_adapter_bias = nn.Parameter(torch.empty(net_out_features, **factory_kwargs))
         else:
           self.register_parameter('out_adapter_bias', None)
@@ -416,7 +453,7 @@ class SPredictor(nn.Module):
       x = self.in_adapter(x)
     x = self.net(x)
     if not self.out_adapter_bias is None:
-      #The net they supplied didn't have a bias so add it in
+      # The net they supplied didn't have a bias so add it in
       x = x + self.out_adapter_bias
     if not self.out_adapter is None:
       x = self.out_adapter(x)
@@ -428,6 +465,59 @@ class SPredictor(nn.Module):
         value = self._net() + (self.out_parameters + self.bias_bias)
       else:
         value = self.out_parameters + self.bias_bias
+      if self.cacheable:
+        self.cached_value = [value]
+    else:
+      value = self.cached_value[0]
+    return value
+
+
+class SPredictor2(nn.Module):
+  def __init__(self,
+               out_features: int,
+               shared_net: MultiMLP,
+               init_for_task: int = None,
+               device=None,
+               dtype=None,
+               cacheable=DEFAULT_CACHEABLE):
+    super().__init__()
+    self.cacheable = cacheable
+    factory_kwargs = {'device': device, 'dtype': dtype}
+    self.init_for_task = init_for_task
+    self.out_features = out_features
+    self.out_parameters = nn.Parameter(torch.empty(out_features, **factory_kwargs))
+    self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+
+    self.expansion_data = nn.Parameter(torch.empty(shared_net.in_features, **factory_kwargs))
+    # Ok, we do have in parameters so they want us to predict. Do we need to build the net or was one given to us?
+    self.net = hide_net(shared_net)
+    shared_net.require_out(out_features, bias=False)
+
+    self.reset_parameters()
+    self.cached_value = None
+    self.register_full_backward_hook(self.clear_cache)
+
+  def clear_cache(self, *args, **kwargs):
+    self.cached_value = None
+
+  def train(self, mode: bool = True):
+    self.clear_cache()
+    return self
+
+  def reset_parameters(self) -> None:
+    init.uniform_(self.expansion_data, -DEFAULT_BOUND, DEFAULT_BOUND)
+    with torch.no_grad():
+      v = self.net(self.out_features, False, self.expansion_data)
+      if self.init_for_task is None:
+        # Just do things a bit random
+        ift = torch.empty(v.shape).uniform_(-DEFAULT_BOUND, DEFAULT_BOUND)
+      else:
+        ift = self.init_for_task
+      self.out_parameters.set_(ift - v)
+
+  def forward(self, *args, **kwargs):
+    if self.cached_value is None:
+      value = self.net(self.out_features, False, self.expansion_data) + (self.out_parameters + self.bias_bias)
       if self.cacheable:
         self.cached_value = [value]
     else:
@@ -503,12 +593,16 @@ class SDULinear(nn.Module):
       if task is None:
         self.register_module(name, NopModule())
       elif task == True:
-        self.register_module(name, SPredictor(in_features,
-                                              expansion_features,
-                                              shared_net=in_net,
-                                              init_for_task=ift,
-                                              linear=linear,
-                                              **factory_kwargs))
+        if isinstance(in_net, MultiMLP):
+          predictor = SPredictor2(in_features, in_net, init_for_task=ift, **factory_kwargs)
+        else:
+          predictor = SPredictor(in_features,
+                                 expansion_features,
+                                 shared_net=in_net,
+                                 init_for_task=ift,
+                                 linear=linear,
+                                 **factory_kwargs)
+        self.register_module(name, predictor)
       else:
         self.register_module(name, SPredictor(in_features,
                                               init_for_task=ift,
@@ -523,12 +617,16 @@ class SDULinear(nn.Module):
         self.register_module(name, NopModule())
 
       elif task == True:
-        self.register_module(name, SPredictor(out_features,
-                                              expansion_features,
-                                              shared_net=out_net,
-                                              init_for_task=ift,
-                                              linear=linear,
-                                              **factory_kwargs))
+        if isinstance(in_net, MultiMLP):
+          predictor = SPredictor2(out_features, out_net, init_for_task=ift, **factory_kwargs)
+        else:
+          predictor = SPredictor(out_features,
+                                 expansion_features,
+                                 shared_net=out_net,
+                                 init_for_task=ift,
+                                 linear=linear,
+                                 **factory_kwargs)
+        self.register_module(name, predictor)
       else:
         self.register_module(name, SPredictor(out_features,
                                               init_for_task=ift,
@@ -543,7 +641,6 @@ class SDULinear(nn.Module):
   def train(self, mode: bool = True):
     self.clear_cache()
     return self
-
 
   def reset_parameters(self) -> None:
     init.kaiming_uniform_(self.weight, a=math.sqrt(5))
