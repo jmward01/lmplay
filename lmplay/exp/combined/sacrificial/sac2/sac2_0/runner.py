@@ -1,6 +1,6 @@
 from typing import Any
 from lmplay.base.base_model import LMBase, LMRunnerBase
-from ..unified_weights_v6_0.model import GPT2
+from ..model import GPT2
 
 
 class ModelRunner(LMRunnerBase):
@@ -13,29 +13,17 @@ class ModelRunner(LMRunnerBase):
                        model_args=None,
                        strict=False,
                        **parameters) -> (LMBase, Any):
-    defaults = dict(version="6.1",
-                    exp_mul=8.0,  # <- this is 6.1
-                    predict_bias=True,
-                    predict_mbias=True,
-                    predict_mbias2=True,
-                    predict_mbias_a=None,
-                    predict_mbias2_a=None,
-                    ln_attn=False,
-                    ln_mlp=False,
-                    ln_fc=True,
-                    dl_fc=True,
-                    share_in=True,
-                    share_out=True,
-                    ulinear=False,
-                    share_layers=2,
-                    share_mid_mul=8.0)
-    model_args = model_args if model_args else dict()  # <- this is 6.1
+    # Put changes to defaults here
+    defaults = dict(version="2.0",)
+    model_args = model_args if model_args else dict()
     for k, v in parameters.items():
       if k not in model_args:
         model_args[k] = v
     for k, v in defaults.items():
-      if k not in model_args:
-        model_args[k] = v
+      #We override with our defaults incase we are starting from a different version model
+      model_args[k] = v
+        
+        
     model = GPT2(**model_args)
     if model_weights is not None:
       missing, unexpected = model.load_state_dict(model_weights, strict=strict)

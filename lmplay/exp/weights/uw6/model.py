@@ -1,11 +1,11 @@
 import torch
 from torch import nn
-from typing import Optional, Any, List
+from typing import Optional, List
 
 from lmplay.exp.weights.modules import SDULinear, SimpleMLP, ULinear
 from lmplay.base.encoder.modules import Block
 import tiktoken
-from lmplay.base.base_model import LMBase, LMRunnerBase
+from lmplay.base.base_model import LMBase
 from functools import partial
 
 
@@ -26,7 +26,7 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
-               version="6.0",
+               version="6",
                exp_mul=64.0,
                predict_bias=True,
                predict_mbias=True,
@@ -48,17 +48,32 @@ class GPT2(LMBase):
       f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}{_p(dl_fc)}{_p(share_in)}{_p(share_out)}{_p(ulinear)}{_p(cacheable)}_{share_layers}_{share_mid_mul}_{exp_mul}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
-      num_blocks=num_blocks,
+      num_blocks=num_blocks,  # 12 is the real default here
       embed_dim=embed_dim,
       attn_dropout=attn_dropout,
       ff_dropout=ff_dropout,
       embed_dropout=embed_dropout,
       version=version,
+      exp_mul=exp_mul,
+      predict_bias=predict_bias,
+      predict_mbias=predict_mbias,
+      predict_mbias2=predict_mbias2,
+      predict_mbias_a=predict_mbias_a,
+      predict_mbias2_a=predict_mbias2_a,
+      ln_attn=ln_attn,
+      ln_mlp=ln_mlp,
+      ln_fc=ln_fc,
+      dl_fc=dl_fc,
+      share_in=share_in,
+      share_out=share_out,
+      ulinear=ulinear,
+      cacheable=cacheable,
+      share_layers=share_layers,
+      share_mid_mul=share_mid_mul,
       **ignore)
-    # Testing standard DULinear on just the blocks.
+
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
-
     self.max_len = max_len
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
@@ -70,7 +85,8 @@ class GPT2(LMBase):
       linear = nn.Linear
 
     if share_in == True or share_out == True:
-      shared_net = SimpleMLP(int(embed_dim * exp_mul), embed_dim, mid_features=int(embed_dim * share_mid_mul), bias=False, layers=share_layers, linear=linear)
+      shared_net = SimpleMLP(int(embed_dim * exp_mul), embed_dim, mid_features=int(embed_dim * share_mid_mul),
+                             bias=False, layers=share_layers, linear=linear)
       self.shared_net = shared_net
 
     if share_in == True:
@@ -144,26 +160,3 @@ class GPT2(LMBase):
     if not cache is None:
       return x, cache
     return x
-
-
-class ModelRunner(LMRunnerBase):
-  def __init__(self, max_batch_size=25):
-    super().__init__(max_batch_size=max_batch_size)
-
-  def _construct_model(self,
-                       device,
-                       model_weights: dict = None,
-                       model_args=None,
-                       strict=False,
-                       **parameters) -> (LMBase, Any):
-    model_args = model_args if model_args else dict()
-    for k, v in parameters.items():
-      if k not in model_args:
-        model_args[k] = v
-    model = GPT2(**model_args)
-    if model_weights is not None:
-      missing, unexpected = model.load_state_dict(model_weights, strict=strict)
-      model.to(device)
-      return model, model.init_kwargs, missing, unexpected
-    model.to(device)
-    return model, model.init_kwargs

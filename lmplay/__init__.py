@@ -9,7 +9,7 @@ from lmplay.exp.embeddings.unified_embeddings_v2_0.model import ModelRunner as U
 from lmplay.exp.combined.sacrificial.sac1_0.model import ModelRunner as SAC1_0ModelRunner
 from lmplay.exp.combined.sacrificial.sac1_0_1.model import ModelRunner as SAC1_0_1ModelRunner
 from lmplay.exp.combined.sacrificial.sac1_1.model import ModelRunner as SAC1_1ModelRunner
-from lmplay.exp.combined.sacrificial.sac2_0.model import ModelRunner as SAC2_0ModelRunner
+from lmplay.exp.combined.sacrificial.sac2.sac2_0.runner import ModelRunner as SAC2_0ModelRunner
 from lmplay.exp.attn_norm.normv.model import ModelRunner as NormVModelRunner
 from lmplay.base.encoder.model import ModelRunner as GPT2ishModelRunner
 from lmplay.base.base_model import LMRunnerBase
@@ -31,8 +31,8 @@ from lmplay.exp.weights.unified_weights_v4_2.model import ModelRunner as UW4_2Mo
 from lmplay.exp.weights.unified_weights_v5_0.model import ModelRunner as UW5_0ModelRunner
 from lmplay.exp.weights.unified_weights_v5_1.model import ModelRunner as UW5_1ModelRunner
 from lmplay.exp.weights.unified_weights_v5_2.model import ModelRunner as UW5_2ModelRunner
-from lmplay.exp.weights.unified_weights_v6_0.model import ModelRunner as UW6_0ModelRunner
-from lmplay.exp.weights.unified_weights_v6_1.model import ModelRunner as UW6_1ModelRunner
+from lmplay.exp.weights.uw6.uw6_0.runner import ModelRunner as UW6_0ModelRunner
+from lmplay.exp.weights.uw6.uw6_1.runner import ModelRunner as UW6_1ModelRunner
 
 MODEL_RUNNERS = dict(gpt2ish=GPT2ishModelRunner,
                      normv=NormVModelRunner,
