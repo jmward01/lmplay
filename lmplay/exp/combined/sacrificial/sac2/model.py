@@ -30,7 +30,7 @@ class GPT2(LMBase):
                ln_attn=False,  # UW get a big boost from this and it is fewer parameter/computation so not cheating!
                ln_mlp=False,  # UW get a big boost from this and it is fewer parameter/computation so not cheating!
                ue_sduw=False,
-               t_sduw=False,
+               t_sduw=True,
                version="2",
                **ignore):
     # Second in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
@@ -62,7 +62,7 @@ class GPT2(LMBase):
     #self.shared_net = SimpleMLP(expansion_size, embed_dim, layers=2, bias=False, linear=ULinear)
     self.shared_net = MultiMLP(expansion_size, embed_dim, last_activation=False, layers=0)
     self.max_len = max_len
-    if t_sduw or ue_sduw:
+    if t_sduw == True or ue_sduw == True:
       linear = partial(SDULinear,
                          share_in=self.shared_net,
                          share_out=self.shared_net,
