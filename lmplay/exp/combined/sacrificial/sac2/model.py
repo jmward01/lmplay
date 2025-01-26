@@ -4,8 +4,8 @@ from typing import Optional, Any
 
 from lmplay.modules import Block
 import tiktoken
-from lmplay.base.base_model import LMBase, LMRunnerBase
-from lmplay.modules import SDULinear, ULinear, UnifiedEmbedding, SimpleMLP
+from lmplay.base.base_model import LMBase
+from lmplay.modules import SDULinear, ULinear, UnifiedEmbedding, MultiMLP
 from functools import partial
 
 
@@ -50,7 +50,8 @@ class GPT2(LMBase):
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
     expansion_size = int(exp_mul * embed_dim)
-    self.shared_net = SimpleMLP(expansion_size, embed_dim, layers=2, bias=False, linear=ULinear)
+    #self.shared_net = SimpleMLP(expansion_size, embed_dim, layers=2, bias=False, linear=ULinear)
+    self.shared_net = MultiMLP(expansion_size, embed_dim, last_activation=False, layers=0)
     self.max_len = max_len
     dulinear = partial(SDULinear,
                        share_in=self.shared_net,
@@ -75,12 +76,7 @@ class GPT2(LMBase):
                                         ln_attn=ln_attn,
                                         ln_mlp=ln_mlp) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
-    self.fc = SDULinear(embed_dim,
-                        vocab_size,
-                        share_in=self.shared_net,
-                        share_out=self.shared_net,
-                        exp_mul=exp_mul,
-                        linear=ULinear)
+    self.fc = ULinear(embed_dim, vocab_size)
 
   def forward(self, x: torch.Tensor, cache: Optional[list] = None):
     seq_len = x.size(1)
