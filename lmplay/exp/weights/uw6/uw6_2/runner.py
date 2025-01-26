@@ -16,8 +16,9 @@ class ModelRunner(LMRunnerBase):
     # Put changes to defaults here
     defaults = dict(version="6.2",
                     mmlp=True,
-                    share_layers=3,
-                    last_activation=False)
+                    share_layers=1,
+                    last_activation=False,
+                    dl_fc=None)
 
     model_args = model_args if model_args else dict()
     for k, v in parameters.items():

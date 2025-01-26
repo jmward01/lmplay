@@ -67,7 +67,7 @@ class LMBase(nn.Module):
     # So it we said the prompt ended on 1 then prediction starts on 0
     prediction_starts = len(tokens) - 1
     if 'truth' in sample:
-      truth:str = sample['truth']
+      truth: str = sample['truth']
       if not truth.endswith("<|endoftext|>"):
         tokens.extend(self.tokenizer.encode(sample['truth'] + "<|endoftext|>", allowed_special={"<|endoftext|>"}))
       else:
@@ -219,7 +219,7 @@ class LMRunnerBase(ABC):
     self.device_type: Optional[str] = None
     self.max_len: Optional[int] = None
 
-  def set_current_step(self, step_name:str):
+  def set_current_step(self, step_name: str):
     if not self.current_step is None and step_name != self.current_step:
       self.get_step_stats().write_train()
       self.get_step_stats().write_validate()
@@ -257,7 +257,9 @@ class LMRunnerBase(ABC):
                  reset_history=False,
                  first_step=None,
                  grad_clip=None,
+                 check_grads=False,
                  **parameters):
+    self.check_grads = check_grads
     self.grad_clip = grad_clip
     self.for_train = for_train
     self.device = device
@@ -317,11 +319,12 @@ class LMRunnerBase(ABC):
             **data,
             basedir=self._stats_dir)
         if len(self.step_stats) == 0 and 'stats' in weight_data and first_step != None:
-          #looks like we didn't find any step info but there are model stats. We are probably loading an old model.
-          #just load the full model stats as the first step.
-          self.step_stats[first_step] = modelstats.ModelStats(model_name=f"{self._model.name}{self.run_name}_step_{first_step}",
-                                                 **weight_data.get('stats', {}),
-                                                 basedir=self._stats_dir)
+          # looks like we didn't find any step info but there are model stats. We are probably loading an old model.
+          # just load the full model stats as the first step.
+          self.step_stats[first_step] = modelstats.ModelStats(
+            model_name=f"{self._model.name}{self.run_name}_step_{first_step}",
+            **weight_data.get('stats', {}),
+            basedir=self._stats_dir)
 
       if for_train:
         if default_freeze:
@@ -395,9 +398,9 @@ class LMRunnerBase(ABC):
                     'model_args': self.get_model_args(),
                     'optimizer_args': self.get_optimizer_args(),
                     'optimizer': optimizer_save,
-                    'current_step':self.current_step,
+                    'current_step': self.current_step,
                     'stats': self.model_stats.dump_dict(),
-                    'step_stats': {stat_name:stat.dump_dict() for stat_name, stat in self.step_stats.items()}}
+                    'step_stats': {stat_name: stat.dump_dict() for stat_name, stat in self.step_stats.items()}}
     if os.path.exists(location):
       copyfile(location, f"{location}.bak")
     torch.save(checkpoint, location)
@@ -479,10 +482,12 @@ class LMRunnerBase(ABC):
       pct_correct = 0
     if train:
       self.model_stats.update_train(len(prompts), pct_correct, float(batch_loss), actual_samples=actual_samples_read)
-      self.get_step_stats().update_train(len(prompts), pct_correct, float(batch_loss), actual_samples=actual_samples_read)
+      self.get_step_stats().update_train(len(prompts), pct_correct, float(batch_loss),
+                                         actual_samples=actual_samples_read)
     else:
       self.model_stats.update_validate(len(prompts), pct_correct, float(batch_loss), actual_samples=actual_samples_read)
-      self.get_step_stats().update_validate(len(prompts), pct_correct, float(batch_loss), actual_samples=actual_samples_read)
+      self.get_step_stats().update_validate(len(prompts), pct_correct, float(batch_loss),
+                                            actual_samples=actual_samples_read)
     return batch_results, batch_loss
 
   def train(self, prompts: Sequence[dict], actual_samples_read: Optional[int] = None) -> (Sequence[str], torch.Tensor):
@@ -499,6 +504,12 @@ class LMRunnerBase(ABC):
       if not self.scaler is None:
         self.scaler.unscale_(self._optimizers[0])
       torch.nn.utils.clip_grad_norm_(self._model.parameters(), self.grad_clip)
+
+    if self.check_grads:
+      for name, param in self._model.named_parameters():
+        if param.grad is None:
+          print(f"{name} - no gradient found")
+
     if self.scaler is not None:
       # Scaling only applies to the primary optimizer.
       self.scaler.step(self._optimizers[0])
@@ -513,10 +524,11 @@ class LMRunnerBase(ABC):
 
   def validate(self, prompts: Sequence[dict], actual_samples_read: Optional[int] = None) -> (
           Sequence[str], torch.Tensor):
+    self._model.train(False)
     if not actual_samples_read:
       actual_samples_read = len(prompts)
-    with torch.no_grad():
-      results, current_loss = self._run_with_truth(prompts, False, actual_samples_read)
+    results, current_loss = self._run_with_truth(prompts, False, actual_samples_read)
+    self._model.train(True)
     return results, current_loss
 
   def generate(self, prompts: Sequence[str], max_len: Optional[int] = None):

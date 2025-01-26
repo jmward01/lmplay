@@ -4,6 +4,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.nn import init
+from torch.nn.modules.module import T
 
 DEFAULT_BOUND = 0.01
 
@@ -42,6 +43,12 @@ class ULinear(nn.Module):
     self.cached_weights = None
 
   def train(self, mode: bool = True):
+    super().train(mode)
+    self.clear_cache()
+    return self
+
+  def eval(self):
+    super().eval()
     self.clear_cache()
     return self
 
@@ -190,6 +197,12 @@ class DULinear(nn.Module):
     self.cached_weights = None
 
   def train(self, mode: bool = True):
+    super().train(mode)
+    self.clear_cache()
+    return self
+
+  def eval(self):
+    super().eval()
     self.clear_cache()
     return self
 
@@ -331,7 +344,7 @@ class MultiMLP(nn.Module):
                device=None,
                dtype=None):
     super().__init__()
-    assert layers >= 1
+    assert layers >= 0
 
     factory_kwargs = {'device': device, 'dtype': dtype}
     self.l_constructor = linear
@@ -347,13 +360,16 @@ class MultiMLP(nn.Module):
         l.extend([linear(mid_features, mid_features, **factory_kwargs), non_linearity()])
       else:
         l.append(linear(mid_features, mid_features, **factory_kwargs))
-    else:
+      self.net = nn.Sequential(*l)
+    elif layers == 1:
       if last_activation:
         l = [linear(in_features, mid_features, **factory_kwargs), non_linearity()]
       else:
         l = [linear(in_features, mid_features, **factory_kwargs)]
-
-    self.net = nn.Sequential(*l)
+      self.net = nn.Sequential(*l)
+    else:
+      self.net = lambda x: x
+      self.mid_features = self.in_features
 
   def require_out(self, out_features: int, bias: bool):
     if not hasattr(self, f"_out_{out_features}_{bias}"):
@@ -433,6 +449,12 @@ class SPredictor(nn.Module):
     self.cached_value = None
 
   def train(self, mode: bool = True):
+    super().train(mode)
+    self.clear_cache()
+    return self
+
+  def eval(self):
+    super().eval()
     self.clear_cache()
     return self
 
@@ -509,6 +531,12 @@ class SPredictor2(nn.Module):
     self.cached_value = None
 
   def train(self, mode: bool = True):
+    super().train(mode)
+    self.clear_cache()
+    return self
+
+  def eval(self):
+    super().eval()
     self.clear_cache()
     return self
 
@@ -647,6 +675,12 @@ class SDULinear(nn.Module):
     self.cached_weights = None
 
   def train(self, mode: bool = True):
+    super().train(mode)
+    self.clear_cache()
+    return self
+
+  def eval(self):
+    super().eval()
     self.clear_cache()
     return self
 
