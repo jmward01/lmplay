@@ -327,6 +327,7 @@ class MultiMLP(nn.Module):
                layers=1,
                non_linearity=nn.GELU,
                linear=nn.Linear,
+               last_activation=True,
                device=None,
                dtype=None):
     super().__init__()
@@ -340,10 +341,17 @@ class MultiMLP(nn.Module):
 
     if layers > 1:
       l = [linear(in_features, mid_features, **factory_kwargs), non_linearity()]
-      for _ in range(layers - 1):
+      for _ in range(layers - 2):
         l.extend([linear(mid_features, mid_features, **factory_kwargs), non_linearity()])
+      if last_activation:
+        l.extend([linear(mid_features, mid_features, **factory_kwargs), non_linearity()])
+      else:
+        l.append(linear(mid_features, mid_features, **factory_kwargs))
     else:
-      l = [linear(in_features, mid_features, **factory_kwargs), non_linearity()]
+      if last_activation:
+        l = [linear(in_features, mid_features, **factory_kwargs), non_linearity()]
+      else:
+        l = [linear(in_features, mid_features, **factory_kwargs)]
 
     self.net = nn.Sequential(*l)
 

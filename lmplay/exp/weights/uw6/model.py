@@ -44,9 +44,10 @@ class GPT2(LMBase):
                share_layers=2,
                share_mid_mul=4,
                mmlp=False,
+               last_activation=True,
                **ignore):
     super().__init__(
-      f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}{_p(dl_fc)}{_p(share_in)}{_p(share_out)}{_p(ulinear)}{_p(cacheable)}{_p(mmlp)}_{share_layers}_{share_mid_mul}_{exp_mul}_{num_blocks}L_{max_len}",
+      f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}{_p(dl_fc)}{_p(share_in)}{_p(share_out)}{_p(ulinear)}{_p(cacheable)}{_p(mmlp)}{_p(last_activation)}_{share_layers}_{share_mid_mul}_{exp_mul}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,  # 12 is the real default here
@@ -91,7 +92,7 @@ class GPT2(LMBase):
         shared_net = SimpleMLP(int(embed_dim * exp_mul), embed_dim, mid_features=int(embed_dim * share_mid_mul),
                                bias=False, layers=share_layers, linear=linear)
       else:
-        shared_net = MultiMLP(int(embed_dim * exp_mul), int(embed_dim * share_mid_mul), linear=linear, layers=share_layers - 1)
+        shared_net = MultiMLP(int(embed_dim * exp_mul), int(embed_dim * share_mid_mul), linear=linear, layers=share_layers - 1, last_activation=last_activation)
       self.shared_net = shared_net
 
     if share_in == True:
