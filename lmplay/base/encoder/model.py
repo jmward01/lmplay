@@ -5,6 +5,7 @@ from typing import Optional, Any, List
 from .modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
+from lmplay.base.runner_list import expose_runner
 
 
 class GPT2(LMBase):
@@ -66,6 +67,7 @@ class GPT2(LMBase):
       return x, cache
     return x
 
+@expose_runner('gpt2ish', description='The reference model class all other models are compared to. Loosely based on GPT2 so any mistakes are mine not theirs.')
 class ModelRunner(LMRunnerBase):
   def __init__(self, max_batch_size=25):
     super().__init__(max_batch_size=max_batch_size)

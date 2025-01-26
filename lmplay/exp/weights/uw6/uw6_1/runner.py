@@ -2,7 +2,9 @@ from typing import Any
 from lmplay.base.base_model import LMBase, LMRunnerBase
 from ..model import GPT2
 
+from lmplay.base.runner_list import expose_runner
 
+@expose_runner('uw6_1')
 class ModelRunner(LMRunnerBase):
   def __init__(self, max_batch_size=25):
     super().__init__(max_batch_size=max_batch_size)

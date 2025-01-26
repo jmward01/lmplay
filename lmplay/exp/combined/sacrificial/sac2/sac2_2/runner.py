@@ -5,7 +5,7 @@ from ..model import GPT2
 
 from lmplay.base.runner_list import expose_runner
 
-@expose_runner('sac2_1', description="Combines UE 1.0 16x with UW 6.0")
+@expose_runner('sac2_2', description="Combines UE 1.0 16x with UW 6.0")
 class ModelRunner(LMRunnerBase):
   def __init__(self, max_batch_size=25):
     super().__init__(max_batch_size=max_batch_size)
@@ -17,8 +17,8 @@ class ModelRunner(LMRunnerBase):
                        strict=False,
                        **parameters) -> (LMBase, Any):
     # Put changes to defaults here
-    defaults = dict(version="2.1",
-                    ue_sduw=True)
+    defaults = dict(version="2.2",
+                    t_sduw=False)
     model_args = model_args if model_args else dict()
     for k, v in parameters.items():
       if k not in model_args:

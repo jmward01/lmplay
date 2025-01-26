@@ -117,7 +117,23 @@ def main():
                     action="store_true")
   args.add_argument('--grad-clip', help="Set gradient clipping. A reasonable value is probably 0.1. Default is no grad clipping", default=None, type=float)
   args.add_argument('--check-grads', help="Prints any None gradients found while training.", action="store_true")
+  args.add_argument('--describe', help="Prints the model description and exits", action="store_true")
   args = args.parse_args()
+
+
+  if args.exp not in MODEL_RUNNERS:
+    all_exps = ', '.join(MODEL_RUNNERS)
+    if args.exp == 'list':
+      print(f"Choose from {all_exps}")
+      exit(0)
+    else:
+      print(f"{args.exp} not found. Choose from {all_exps}")
+      exit(1)
+
+  if args.describe == True:
+    runner_info = MODEL_RUNNERS[args.exp]
+    print(f"{runner_info['long_name']}:{runner_info['description']}")
+    exit(0)
 
 
   if args.training_plan in DEFAULT_PLANS:
@@ -153,15 +169,7 @@ def main():
   validation_batch_size = args.validation_batch_size
   mini_batch_size = min(batch_size, args.mini_batch_size)
 
-  if args.exp not in MODEL_RUNNERS:
-    all_exps = ', '.join(MODEL_RUNNERS)
-    if args.exp == 'list':
-      print(f"Choose from {all_exps}")
-      exit(0)
-    else:
-      print(f"{args.exp} not found. Choose from {all_exps}")
-      exit(1)
-  mr:LMRunnerBase = MODEL_RUNNERS[args.exp](max_batch_size=mini_batch_size)
+  mr:LMRunnerBase = MODEL_RUNNERS[args.exp]['runner'](max_batch_size=mini_batch_size)
   mr.initialize(device,
                 locations=initial_locations,
                 run_name=args.run_name,

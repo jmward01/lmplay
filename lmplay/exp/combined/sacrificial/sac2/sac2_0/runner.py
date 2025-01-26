@@ -3,6 +3,9 @@ from lmplay.base.base_model import LMBase, LMRunnerBase
 from ..model import GPT2
 
 
+from lmplay.base.runner_list import expose_runner
+
+@expose_runner('sac2_0', description="Combines UE 1.0 16x with UW 6.0")
 class ModelRunner(LMRunnerBase):
   def __init__(self, max_batch_size=25):
     super().__init__(max_batch_size=max_batch_size)

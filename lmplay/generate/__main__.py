@@ -25,7 +25,7 @@ def main():
     else:
       print(f"{args.exp} not found. Choose from {all_exps}")
       exit(1)
-  mr:LMRunnerBase = MODEL_RUNNERS[args.exp]()
+  mr:LMRunnerBase = MODEL_RUNNERS[args.exp]['runner']()
   location = os.path.expanduser(args.model)
   if not os.path.exists(location):
     print(f"{location} not found.")

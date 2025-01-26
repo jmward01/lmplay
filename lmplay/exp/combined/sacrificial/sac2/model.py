@@ -30,12 +30,13 @@ class GPT2(LMBase):
                ln_attn=False,  # UW get a big boost from this and it is fewer parameter/computation so not cheating!
                ln_mlp=False,  # UW get a big boost from this and it is fewer parameter/computation so not cheating!
                ue_sduw=False,
+               t_sduw=False,
                version="2",
                **ignore):
     # Second in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
     # This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
     # This specific version combines the changes from unified embeddings 1.3 (sort of) and unified weights 2.1
-    super().__init__(f"sac_v{version}_{_p(ln_attn)}{_p(ln_mlp)}{_p(ue_sduw)}_{num_blocks}L_{max_len}",
+    super().__init__(f"sac_v{version}_{_p(ln_attn)}{_p(ln_mlp)}{_p(ue_sduw)}{_p(t_sduw)}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -51,6 +52,7 @@ class GPT2(LMBase):
                      ln_mlp=ln_mlp,
                      version=version,
                      ue_sduw=ue_sduw,
+                     t_sduw=t_sduw,
                      **ignore)
 
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
@@ -60,18 +62,29 @@ class GPT2(LMBase):
     #self.shared_net = SimpleMLP(expansion_size, embed_dim, layers=2, bias=False, linear=ULinear)
     self.shared_net = MultiMLP(expansion_size, embed_dim, last_activation=False, layers=0)
     self.max_len = max_len
-    dulinear = partial(SDULinear,
-                       share_in=self.shared_net,
-                       share_out=self.shared_net,
-                       exp_mul=exp_mul,
-                       linear=ULinear,
-                       cacheable=True)
+    if t_sduw or ue_sduw:
+      linear = partial(SDULinear,
+                         share_in=self.shared_net,
+                         share_out=self.shared_net,
+                         exp_mul=exp_mul,
+                         linear=ULinear,
+                         cacheable=True)
+    else:
+      linear = nn.Linear
     if ue_sduw == True:
-      tok_linear = dulinear
+      tok_linear = linear
     elif ue_sduw == False:
       tok_linear = ULinear
     else:
       tok_linear = nn.Linear
+
+    if t_sduw == True:
+      t_linear = linear
+    elif ue_sduw == False:
+      t_linear = ULinear
+    else:
+      t_linear = nn.Linear
+
 
     self.tok_embed = UnifiedEmbedding(vocab_size,
                                       embed_dim,
@@ -85,7 +98,7 @@ class GPT2(LMBase):
                                         embed_dim,
                                         attn_dropout=attn_dropout,
                                         ff_dropout=ff_dropout,
-                                        linear=dulinear,
+                                        linear=t_linear,
                                         ln_attn=ln_attn,
                                         ln_mlp=ln_mlp) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)

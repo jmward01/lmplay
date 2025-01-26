@@ -3,6 +3,9 @@ from typing import Any
 from lmplay.base.base_model import LMBase, LMRunnerBase
 from ..unified_embeddings_v1_0.model import GPT2
 
+from lmplay.base.runner_list import expose_runner
+
+@expose_runner('ue16x', description="Unifeid Embeddings with a 16x front embedding multiplier")
 class ModelRunner(LMRunnerBase):
   def __init__(self, max_batch_size=25):
     super().__init__(max_batch_size=max_batch_size)

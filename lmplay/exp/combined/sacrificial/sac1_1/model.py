@@ -88,6 +88,9 @@ class GPT2(LMBase):
       return x, cache
     return x
 
+from lmplay.base.runner_list import expose_runner
+
+@expose_runner('sac1_1', description="Second in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.")
 class ModelRunner(LMRunnerBase):
   def __init__(self, max_batch_size=25):
     super().__init__(max_batch_size=max_batch_size)
