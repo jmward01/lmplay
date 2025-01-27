@@ -37,7 +37,7 @@ class ModelRunner(LMRunnerBase):
 
 
 @expose_runner('sac2_0_med', description="sac2_0 but with 20 heads and embed_dim of 1280")
-class ModelRunner(LMRunnerBase):
+class MedModelRunner(LMRunnerBase):
   def __init__(self, max_batch_size=25):
     super().__init__(max_batch_size=max_batch_size)
 
