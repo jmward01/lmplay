@@ -638,3 +638,35 @@ class LMRunnerBase(ABC):
     if len(optimizers) > 1:
       return optimizers, optimizer_args, lr_scheduler
     return optimizers[0], optimizer_args, lr_scheduler
+
+
+
+class BasicModelRunner(LMRunnerBase):
+  def __init__(self, model_class, max_batch_size=25, overrides:dict=None, **kwargs):
+    super().__init__(max_batch_size=max_batch_size, **kwargs)
+    self.model_class = model_class
+    self.overrides = overrides
+
+  def _construct_model(self,
+                       device,
+                       model_weights: dict = None,
+                       model_args=None,
+                       strict=False,
+                       **parameters) -> (LMBase, Any):
+
+    model_args = model_args if model_args else dict()
+    for k, v in parameters.items():
+      if k not in model_args:
+        model_args[k] = v
+    if not self.overrides is None:
+      for k, v in self.overrides.items():
+        # We override with our defaults incase we are starting from a different version model
+        model_args[k] = v
+
+    model = self.model_class(**model_args)
+    if model_weights is not None:
+      missing, unexpected = model.load_state_dict(model_weights, strict=strict)
+      model.to(device)
+      return model, model.init_kwargs, missing, unexpected
+    model.to(device)
+    return model, model.init_kwargs
