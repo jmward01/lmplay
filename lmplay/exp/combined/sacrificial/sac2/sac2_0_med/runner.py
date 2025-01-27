@@ -17,7 +17,7 @@ class ModelRunner(LMRunnerBase):
                        strict=False,
                        **parameters) -> (LMBase, Any):
     # Put changes to defaults here
-    defaults = dict(version="2.0",
+    defaults = dict(version="2.0.1",
                     num_heads=20,
                     embed_dim=1280)
     model_args = model_args if model_args else dict()
