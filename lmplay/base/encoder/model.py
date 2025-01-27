@@ -89,3 +89,68 @@ class ModelRunner(LMRunnerBase):
       return model, model.init_kwargs, missing, unexpected
     model.to(device)
     return model, model.init_kwargs
+
+
+@expose_runner('gpt2ish_med', description='24layer 1024 embedding 16 heads.')
+class GPT2MED_ModelRunner(LMRunnerBase):
+  def __init__(self, max_batch_size=25):
+    super().__init__(max_batch_size=max_batch_size)
+
+  def _construct_model(self,
+                       device,
+                       model_weights: dict = None,
+                       model_args=None,
+                       strict=False,
+                       **parameters) -> (LMBase, Any):
+    defaults = dict(num_heads=16,
+               num_blocks=24,
+               embed_dim=1024)
+
+    model_args = model_args if model_args else dict()
+    for k,v in parameters.items():
+      if k not in model_args:
+        model_args[k] = v
+
+    for k, v in defaults.items():
+      #We override with our defaults incase we are starting from a different version model
+      model_args[k] = v
+
+    model = GPT2(**model_args)
+    if model_weights is not None:
+      missing, unexpected = model.load_state_dict(model_weights, strict=strict)
+      model.to(device)
+      return model, model.init_kwargs, missing, unexpected
+    model.to(device)
+    return model, model.init_kwargs
+
+@expose_runner('gpt2ish_large', description='36 layer 1280 embedding 20 heads.')
+class GPT2LARGE_ModelRunner(LMRunnerBase):
+  def __init__(self, max_batch_size=25):
+    super().__init__(max_batch_size=max_batch_size)
+
+  def _construct_model(self,
+                       device,
+                       model_weights: dict = None,
+                       model_args=None,
+                       strict=False,
+                       **parameters) -> (LMBase, Any):
+    defaults = dict(num_heads=20,
+               num_blocks=36,
+               embed_dim=1280)
+
+    model_args = model_args if model_args else dict()
+    for k,v in parameters.items():
+      if k not in model_args:
+        model_args[k] = v
+
+    for k, v in defaults.items():
+      #We override with our defaults incase we are starting from a different version model
+      model_args[k] = v
+
+    model = GPT2(**model_args)
+    if model_weights is not None:
+      missing, unexpected = model.load_state_dict(model_weights, strict=strict)
+      model.to(device)
+      return model, model.init_kwargs, missing, unexpected
+    model.to(device)
+    return model, model.init_kwargs
