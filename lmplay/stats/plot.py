@@ -45,7 +45,7 @@ def _plot_worker(out_file,
                  min_show:float,
                  average_count:Optional[int],
                  satart_ac = 5,
-                 ac_inc = 10):
+                 ac_inc = 1):
   #with plt.xkcd():
   acs = dict()
 
