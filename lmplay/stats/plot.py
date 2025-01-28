@@ -70,7 +70,8 @@ def _plot_worker(out_file,
       l = plt.plot(data['iter'], d, linewidth=.2, alpha=.3)
       avgs = [0.0]*len(d)
       current_average_count = satart_ac
-      inc = max(int(len(d)/average_count), 1)
+      #inc = max(int(len(d)/average_count), 1)
+      inc = ac_inc*4
       for i in range(len(d)):
         if (i+1)%inc == 0:
           current_average_count = min(average_count, current_average_count+ac_inc)
