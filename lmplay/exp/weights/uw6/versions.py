@@ -44,7 +44,7 @@ def uw6_0(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(version="6.3",
-                                         predict_bias=False,
+                                         predict_bias=None,
                                          exp_mul=32,
                                          mmlp=True,
                                          share_layers=1,
