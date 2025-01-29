@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from typing import Optional, List
 
-from lmplay.exp.weights.modules import SDULinear, SimpleMLP, ULinear, MultiMLP
+from lmplay.exp.weights.modules import SDULinear, SimpleMLP, ULinear, MultiMLP, accepts_purpose
 from lmplay.base.encoder.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase
@@ -45,9 +45,10 @@ class GPT2(LMBase):
                share_mid_mul=4,
                mmlp=False,
                last_activation=True,
+               ignore_purpose=True,
                **ignore):
     super().__init__(
-      f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}{_p(dl_fc)}{_p(share_in)}{_p(share_out)}{_p(ulinear)}{_p(cacheable)}{_p(mmlp)}{_p(last_activation)}_{share_layers}_{share_mid_mul}_{exp_mul}_{num_blocks}L_{max_len}",
+      f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}{_p(dl_fc)}{_p(share_in)}{_p(share_out)}{_p(ulinear)}{_p(cacheable)}{_p(mmlp)}{_p(last_activation)}{_p(ignore_purpose)}_{share_layers}_{share_mid_mul}_{exp_mul}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,  # 12 is the real default here
@@ -72,7 +73,8 @@ class GPT2(LMBase):
       cacheable=cacheable,
       share_layers=share_layers,
       share_mid_mul=share_mid_mul,
-      mmlp=False,
+      mmlp=mmlp,
+      ignore_purpose=ignore_purpose,
       **ignore)
 
     self.tokenizer = tiktoken.get_encoding("gpt2")
@@ -112,7 +114,9 @@ class GPT2(LMBase):
                        share_in=share_in,
                        share_out=share_out,
                        linear=linear,
+                       ignore_purpose=ignore_purpose,
                        cacheable=cacheable)
+    dulinear = accepts_purpose(dulinear)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
@@ -137,6 +141,8 @@ class GPT2(LMBase):
                           share_in=share_in,
                           share_out=share_out,
                           linear=linear,
+                          purpose="fc",
+                          ignore_purpose=ignore_purpose,
                           cacheable=False)
     elif dl_fc == False:
       self.fc = ULinear(embed_dim, vocab_size)

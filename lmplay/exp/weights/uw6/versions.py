@@ -40,7 +40,7 @@ def uw6_2(*args, **kwargs):
                           **kwargs)
 
 @expose_runner('uw6_3')
-def uw6_0(*args, **kwargs):
+def uw6_3(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(version="6.3",
@@ -50,4 +50,17 @@ def uw6_0(*args, **kwargs):
                                          share_layers=1,
                                          last_activation=False,
                                          dl_fc=False),
+                          **kwargs)
+
+@expose_runner('uw6_4')
+def uw6_4(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(version="6.4",
+                                         exp_mul=32,
+                                         mmlp=True,
+                                         share_layers=1,
+                                         last_activation=False,
+                                         dl_fc=False,
+                                         ignore_purpose=False),
                           **kwargs)

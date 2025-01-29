@@ -371,12 +371,21 @@ class MultiMLP(nn.Module):
       self.net = lambda x: x
       self.mid_features = self.in_features
 
-  def require_out(self, out_features: int, bias: bool):
-    if not hasattr(self, f"_out_{out_features}_{bias}"):
-      self.register_module(f"_out_{out_features}_{bias}", self.l_constructor(self.mid_features, out_features, bias=bias))
 
-  def forward(self, out_features: int, bias: bool, *arg):
-    out_layer = getattr(self, f"_out_{out_features}_{bias}")
+  def require_out(self, out_features: int, purpose:str, bias: bool):
+    if purpose is None:
+      name = f"_out_{out_features}_{bias}"
+    else:
+      name = f"_out_{out_features}_{purpose}_{bias}"
+    if not hasattr(self, name):
+      self.register_module(name, self.l_constructor(self.mid_features, out_features, bias=bias))
+
+  def forward(self, out_features: int, purpose:str, bias: bool, *arg):
+    if purpose is None:
+      name = f"_out_{out_features}_{bias}"
+    else:
+      name = f"_out_{out_features}_{purpose}_{bias}"
+    out_layer = getattr(self, name)
     return out_layer(self.net(*arg))
 
 
@@ -509,8 +518,10 @@ class SPredictor2(nn.Module):
                init_for_task: int = None,
                device=None,
                dtype=None,
+               purpose=None,
                cacheable=DEFAULT_CACHEABLE):
     super().__init__()
+    self.purpose = purpose
     self.cacheable = cacheable
     factory_kwargs = {'device': device, 'dtype': dtype}
     self.init_for_task = init_for_task
@@ -521,7 +532,7 @@ class SPredictor2(nn.Module):
     self.expansion_data = nn.Parameter(torch.empty(shared_net.in_features, **factory_kwargs))
     # Ok, we do have in parameters so they want us to predict. Do we need to build the net or was one given to us?
     self.net = hide_net(shared_net)
-    shared_net.require_out(out_features, bias=False)
+    shared_net.require_out(out_features, purpose, bias=False)
 
     self.reset_parameters()
     self.cached_value = None
@@ -543,7 +554,7 @@ class SPredictor2(nn.Module):
   def reset_parameters(self) -> None:
     init.uniform_(self.expansion_data, -DEFAULT_BOUND, DEFAULT_BOUND)
     with torch.no_grad():
-      v = self.net(self.out_features, False, self.expansion_data)
+      v = self.net(self.out_features, self.purpose, False, self.expansion_data)
       if self.init_for_task is None:
         # Just do things a bit random
         ift = torch.empty(v.shape).uniform_(-DEFAULT_BOUND, DEFAULT_BOUND)
@@ -553,7 +564,7 @@ class SPredictor2(nn.Module):
 
   def forward(self, *args, **kwargs):
     if self.cached_value is None:
-      value = self.net(self.out_features, False, self.expansion_data) + (self.out_parameters + self.bias_bias)
+      value = self.net(self.out_features, self.purpose, False, self.expansion_data) + (self.out_parameters + self.bias_bias)
       if self.cacheable:
         self.cached_value = [value]
     else:
@@ -565,6 +576,10 @@ class NopModule(nn.Module):
   def forward(self, *args, **kwargs):
     return None
 
+def accepts_purpose(o, v:bool = True):
+  if not hasattr(o,'accepts_purpose'):
+    setattr(o, 'accepts_purpose', v)
+  return o
 
 class SDULinear(nn.Module):
   # Sharable Deep Unified Linear
@@ -583,7 +598,13 @@ class SDULinear(nn.Module):
                share_out=True,
                exp_mul=32.0,
                linear=nn.Linear,
+               purpose=None,
+               ignore_purpose=True,
                cacheable=DEFAULT_CACHEABLE) -> None:
+    if ignore_purpose:
+      self.purpose = None
+    else:
+      self.purpose = purpose
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
     self.cacheable = cacheable
@@ -630,7 +651,7 @@ class SDULinear(nn.Module):
         self.register_module(name, NopModule())
       elif task == True:
         if isinstance(in_net, MultiMLP):
-          predictor = SPredictor2(in_features, in_net, init_for_task=ift, **factory_kwargs)
+          predictor = SPredictor2(in_features, in_net, init_for_task=ift, purpose=self.purpose, **factory_kwargs)
         else:
           predictor = SPredictor(in_features,
                                  expansion_features,
@@ -654,7 +675,7 @@ class SDULinear(nn.Module):
 
       elif task == True:
         if isinstance(in_net, MultiMLP):
-          predictor = SPredictor2(out_features, out_net, init_for_task=ift, **factory_kwargs)
+          predictor = SPredictor2(out_features, out_net, init_for_task=ift, purpose=self.purpose, **factory_kwargs)
         else:
           predictor = SPredictor(out_features,
                                  expansion_features,
@@ -720,3 +741,5 @@ class SDULinear(nn.Module):
 
   def extra_repr(self) -> str:
     return f'in_features={self.in_features}, out_features={self.out_features}'
+
+SDULinear = accepts_purpose(SDULinear)

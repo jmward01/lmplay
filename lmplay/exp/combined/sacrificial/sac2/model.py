@@ -5,7 +5,7 @@ from typing import Optional, Any
 from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase
-from lmplay.modules import SDULinear, ULinear, UnifiedEmbedding, MultiMLP
+from lmplay.modules import SDULinear, ULinear, UnifiedEmbedding, MultiMLP, accepts_purpose
 from functools import partial
 
 
@@ -69,6 +69,7 @@ class GPT2(LMBase):
                          exp_mul=exp_mul,
                          linear=ULinear,
                          cacheable=True)
+      linear = accepts_purpose(linear)
     else:
       linear = nn.Linear
     if ue_sduw == True:
