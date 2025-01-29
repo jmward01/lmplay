@@ -48,3 +48,13 @@ def sac2_3(*args, **kwargs):
                                          ignore_purpose=False, #<-big diff
                                          dl_fc=True),#<-big diff
                           **kwargs)
+
+@expose_runner('sac2_4', description="sac2 2.3 but dl_fc back to false! It looks like it initially helps but then eventually hurts. Best guess is this is because it just learns to drop loss and doesn't actually add ability to learn knowledge.")
+def sac2_4(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(version="2.4",
+                                         max_predict=True,
+                                         ue_sduw=True,
+                                         ignore_purpose=False),
+                          **kwargs)
