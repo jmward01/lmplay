@@ -3,6 +3,8 @@ from torch import nn
 import torch.nn.functional as F
 import random
 from tqdm import tqdm
+from lmplay.utils import create_linear
+
 class ConvertableEmbedding(nn.Embedding):
   """This acts like a normal embedding but when it sees a UE loaded with its name it converts it to a normal embedding and deletes the UE weights.
 
@@ -65,9 +67,9 @@ class UnifiedEmbedding(nn.Module):
     #Anyway, Prod could lose the integration weights and big tok_embed.weight so the weight structure would go back to normal and have no prod costs.
     front_embed_dim = int(embed_dim * front_embed_mul)
     self.tok_embed = nn.Embedding(vocab_size, front_embed_dim)
-    self.integration1 = linear(front_embed_dim, embed_dim)
+    self.integration1 = create_linear(linear, "ue_integration1", front_embed_dim, embed_dim)
     if integration1_5:
-      self.integration1_5 = linear(embed_dim, embed_dim)
+      self.integration1_5 = create_linear(linear, "ue_integration15", embed_dim, embed_dim)
     else:
       self.register_parameter('integration1_5', None)
     #This only works if the main model has overridden the 'to' call to check for it. See LMBase.
@@ -87,7 +89,7 @@ class UnifiedEmbedding(nn.Module):
 
 
     if integration2:
-      self.integration2 = linear(embed_dim, embed_dim)
+      self.integration2 = create_linear(linear, "ue_integration2", embed_dim, embed_dim)
     else:
       self.register_parameter('integration2', None)
     if ln:

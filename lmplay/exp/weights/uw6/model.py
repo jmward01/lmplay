@@ -94,7 +94,8 @@ class GPT2(LMBase):
         shared_net = SimpleMLP(int(embed_dim * exp_mul), embed_dim, mid_features=int(embed_dim * share_mid_mul),
                                bias=False, layers=share_layers, linear=linear)
       else:
-        shared_net = MultiMLP(int(embed_dim * exp_mul), int(embed_dim * share_mid_mul), linear=linear, layers=share_layers - 1, last_activation=last_activation)
+        shared_net = MultiMLP(int(embed_dim * exp_mul), int(embed_dim * share_mid_mul), linear=linear,
+                              layers=share_layers - 1, last_activation=last_activation)
       self.shared_net = shared_net
 
     if share_in == True:
@@ -130,14 +131,26 @@ class GPT2(LMBase):
     else:
       self.ln = lambda x: x
     if dl_fc == True:
+      # The out features are massive. Predicting things associated with them is too expensive.
+      # If prediction was turned on we will instead set it to 'False' to use a standard ULinear which is way cheaper.
+      pmb2 = predict_mbias2
+      if pmb2 == True:
+        pmb2 = False
+      pmb2a = predict_mbias2_a
+      if pmb2a == True:
+        pmb2a = False
+      pb = predict_bias
+      if pb == True:
+        pb = False
+
       self.fc = SDULinear(embed_dim,
                           vocab_size,
                           exp_mul=exp_mul,
-                          predict_bias=predict_bias,
+                          predict_bias=pb,
                           predict_mbias=predict_mbias,
-                          predict_mbias2=predict_mbias2,
+                          predict_mbias2=pmb2,
                           predict_mbias_a=predict_mbias_a,
-                          predict_mbias2_a=predict_mbias2_a,
+                          predict_mbias2_a=pmb2a,
                           share_in=share_in,
                           share_out=share_out,
                           linear=linear,

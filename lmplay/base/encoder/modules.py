@@ -5,17 +5,11 @@ from torch import nn
 import torch.nn.functional as F
 from typing import Optional
 
+from lmplay.utils import create_linear
+
+
 def gen_mask(max_len:int) -> torch.Tensor:
     return  torch.tril(torch.ones(max_len, max_len)).unsqueeze(0).unsqueeze(0)
-
-def create_linear(linear_class, purpose:str, *args, **kwargs):
-  #When we construct things we give them a purpose so
-
-  if hasattr(linear_class, 'accepts_purpose') and linear_class.accepts_purpose == True:
-    l = linear_class(*args, purpose=purpose, **kwargs)
-  else:
-    l = linear_class(*args, **kwargs)
-  return l
 
 
 class MultiheadAttention(nn.Module):
@@ -49,7 +43,7 @@ class MultiheadAttention(nn.Module):
     assert embed_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
     self.num_heads = num_heads
     # k&v are what are 'attended' to and will be cached for generation.
-    self.key =create_linear(linear, 'mha_key', embed_dim, embed_dim)
+    self.key = create_linear(linear, 'mha_key', embed_dim, embed_dim)
     self.value = create_linear(linear, 'mha_value', embed_dim, embed_dim)
     if norm_v:
       self.value_norm = nn.LayerNorm(int(embed_dim / num_heads))
