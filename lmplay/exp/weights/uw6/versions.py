@@ -77,3 +77,17 @@ def uw6_5(*args, **kwargs):
                                          dl_fc=True, #<-big 6.5 diff
                                          ignore_purpose=False),
                           **kwargs)
+
+@expose_runner('uw6_6')
+def uw6_6(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(version="6.5",
+                                         exp_mul=32,
+                                         mmlp=True,
+                                         share_layers=1,
+                                         last_activation=False,
+                                         dl_fc=True,
+                                         ln_fc=False, #<-big diff from last. With all the extra fc logic maybe we don't want the layernorm.
+                                         ignore_purpose=False),
+                          **kwargs)
