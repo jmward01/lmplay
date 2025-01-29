@@ -34,13 +34,14 @@ class GPT2(LMBase):
                t_sduw=True,
                ignore_purpose=True,
                dl_fc=False,
+               max_predict=False,
                version="2",
                **ignore):
     # Second in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
     # This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
     # This specific version combines the changes from unified embeddings 1.3 (sort of) and unified weights 2.1
     super().__init__(
-      f"sac_v{version}_{_p(ln_attn)}{_p(ln_mlp)}{_p(ue_sduw)}{_p(t_sduw)}{_p(ignore_purpose)}{_p(dl_fc)}_{num_blocks}L_{max_len}",
+      f"sac_v{version}_{_p(ln_attn)}{_p(ln_mlp)}{_p(ue_sduw)}{_p(t_sduw)}{_p(ignore_purpose)}{_p(dl_fc)}{_p(max_predict)}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,
@@ -59,8 +60,12 @@ class GPT2(LMBase):
       t_sduw=t_sduw,
       ignore_purpose=ignore_purpose,
       dl_fc=dl_fc,
+      max_predict=max_predict,
       **ignore)
-
+    if max_predict == True:
+      max_predict_size = embed_dim*4
+    else:
+      max_predict_size = None
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
@@ -75,7 +80,8 @@ class GPT2(LMBase):
                        exp_mul=exp_mul,
                        linear=ULinear,
                        ignore_purpose=ignore_purpose,
-                       cacheable=True)
+                       cacheable=True,
+                       max_predict_size=max_predict_size)
       linear = accepts_purpose(linear)
     else:
       linear = nn.Linear
@@ -123,7 +129,8 @@ class GPT2(LMBase):
                           linear=linear,
                           purpose="fc",
                           ignore_purpose=ignore_purpose,
-                          cacheable=False)
+                          cacheable=False,
+                          max_predict_size=max_predict_size)
     else:
       self.fc = ULinear(embed_dim, vocab_size)
 

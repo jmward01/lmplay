@@ -599,6 +599,7 @@ class SDULinear(nn.Module):
                linear=nn.Linear,
                purpose=None,
                ignore_purpose=True,
+               max_predict_size:int = None,
                cacheable=DEFAULT_CACHEABLE) -> None:
     if ignore_purpose:
       self.purpose = None
@@ -614,14 +615,24 @@ class SDULinear(nn.Module):
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
 
     expansion_features = int(min(in_features, out_features) * exp_mul)
+    if not max_predict_size is None:
+      if in_features > max_predict_size:
+        #Too big. Gotta cut them down to just parameters
+        if predict_mbias == True:
+          predict_mbias = False
+        if predict_mbias_a == True:
+          predict_mbias_a = False
+      if out_features > max_predict_size:
+        if predict_mbias2 == True:
+          predict_mbias2 = False
+        if predict_mbias2_a == True:
+          predict_mbias2 = False
+        if predict_bias == True:
+          predict_bias = False
 
     if share_in == True and (predict_mbias == True or predict_mbias_a == True):
       # Only build this network if we will need it and we are going to use a shared network
       self.in_net = linear(expansion_features, in_features, bias=False, **factory_kwargs)
-      in_net = self.in_net
-      # self.in_net = nn.Sequential(linear(expansion_features, mid_features, bias=True, **factory_kwargs),
-      #                             nn.GELU(),
-      #                             linear(mid_features, in_features, bias=False, **factory_kwargs))
       in_net = self.in_net
     elif not share_in is None and isinstance(share_in, nn.Module):
       in_net = share_in
@@ -633,9 +644,6 @@ class SDULinear(nn.Module):
     if share_out == True and (predict_mbias2 == True or predict_mbias2_a == True or predict_bias == True):
       # Only build this network if we will need it and we are going to use a shared network
       self.out_net = linear(expansion_features, out_features, bias=False, **factory_kwargs)
-      # self.out_net = nn.Sequential(linear(expansion_features, mid_features, bias=True, **factory_kwargs),
-      #                             nn.GELU(),
-      #                             linear(mid_features, out_features, bias=False, **factory_kwargs))
       out_net = self.out_net
     elif not share_out is None and isinstance(share_out, nn.Module):
       out_net = share_out

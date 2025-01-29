@@ -38,11 +38,13 @@ def sac2_2(*args, **kwargs):
                                          t_sduw=False),#<-big diff
                           **kwargs)
 
-@expose_runner('sac2_3', description="sac2 but with the final fc using a memory efficient shared deep unified setup and purpose linked shared sacrifical networks.")
+@expose_runner('sac2_3', description="sac2 but with the UE and final fc using a memory efficient shared deep unified setup and purpose linked shared sacrifical networks.")
 def sac2_3(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(version="2.3",
+                                         max_predict=True,
+                                         ue_sduw=True, #<-big diff
                                          ignore_purpose=False, #<-big diff
                                          dl_fc=True),#<-big diff
                           **kwargs)
