@@ -40,7 +40,7 @@ def sac2_2(*args, **kwargs):
 
 @expose_runner('sac2_3', description="sac2 but with the final fc using a memory efficient shared deep unified setup and purpose linked shared sacrifical networks.")
 def sac2_3(*args, **kwargs):
-  return BasicModelRunner(GPT2,#May want to try turning off the final layer norm....
+  return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(version="2.3",
                                          ignore_purpose=False, #<-big diff

@@ -82,7 +82,7 @@ def uw6_5(*args, **kwargs):
 def uw6_6(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(version="6.5",
+                          overrides=dict(version="6.6",
                                          exp_mul=32,
                                          mmlp=True,
                                          share_layers=1,
