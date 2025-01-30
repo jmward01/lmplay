@@ -350,7 +350,10 @@ class MultiMLP(nn.Module):
     self.nonlinearity = non_linearity
     self.in_features = in_features
     self.mid_features = mid_features
-
+    self._results = None
+    self._inputs = []
+    self._inputs_map = dict()
+    self._r_inputs = []
     if layers > 1:
       l = [linear(in_features, mid_features, **factory_kwargs), non_linearity()]
       for _ in range(layers - 2):
@@ -370,23 +373,58 @@ class MultiMLP(nn.Module):
       self.net = lambda x: x
       self.mid_features = self.in_features
 
+    self.register_full_backward_hook(self.clear_cache)
 
-  def require_out(self, out_features: int, purpose:str, bias: bool):
+  def clear_cache(self, *args, **kwargs):
+    self._results = None
+
+  def train(self, mode: bool = True):
+    super().train(mode)
+    self.clear_cache()
+    return self
+
+  def eval(self):
+    super().eval()
+    self.clear_cache()
+    return self
+
+
+  def require_out(self, inputs, out_features: int, purpose: str, bias: bool) -> int:
     if purpose is None:
       name = f"_out_{out_features}_{bias}"
     else:
       name = f"_out_{out_features}_{purpose}_{bias}"
     if not hasattr(self, name):
       self.register_module(name, self.l_constructor(self.mid_features, out_features, bias=bias))
+    if name not in self._inputs_map:
+      self._inputs_map[name] = []
+    input_idx = len(self._inputs)
+    self._inputs.append(inputs)
+    r_input_idx = len(self._inputs_map[name])
+    self._inputs_map[name].append(input_idx)
+    self._r_inputs.append((name, r_input_idx))
 
-  def forward(self, out_features: int, purpose:str, bias: bool, *arg):
-    if purpose is None:
-      name = f"_out_{out_features}_{bias}"
-    else:
-      name = f"_out_{out_features}_{purpose}_{bias}"
-    out_layer = getattr(self, name)
-    return out_layer(self.net(*arg))
+    return input_idx
 
+  def get_results(self):
+
+    if self._results is None:
+      self._results = dict()
+      for name, input_map in self._inputs_map.items():
+        out_layer = getattr(self, name)
+        inputs = torch.stack([self._inputs[i] for i in input_map])
+        r = out_layer(inputs)
+        self._results[name] = r
+    return self._results
+
+  def forward(self, input_id:int, single=False):
+    name, r_idx = self._r_inputs[input_id]
+    if single:
+      out_layer = getattr(self, name)
+      return out_layer(self._inputs[input_id])
+
+    result = self.get_results()[name][r_idx]
+    return result
 
 class SPredictor(nn.Module):
   def __init__(self,
@@ -531,7 +569,7 @@ class SPredictor2(nn.Module):
     self.expansion_data = nn.Parameter(torch.empty(shared_net.in_features, **factory_kwargs))
     # Ok, we do have in parameters so they want us to predict. Do we need to build the net or was one given to us?
     self.net = hide_net(shared_net)
-    shared_net.require_out(out_features, purpose, bias=False)
+    self.net_idx = shared_net.require_out(self.expansion_data, out_features, purpose, bias=False)
 
     self.reset_parameters()
     self.cached_value = None
@@ -553,7 +591,7 @@ class SPredictor2(nn.Module):
   def reset_parameters(self) -> None:
     init.uniform_(self.expansion_data, -DEFAULT_BOUND, DEFAULT_BOUND)
     with torch.no_grad():
-      v = self.net(self.out_features, self.purpose, False, self.expansion_data)
+      v = self.net(self.net_idx, single=True)
       if self.init_for_task is None:
         # Just do things a bit random
         ift = torch.empty(v.shape).uniform_(-DEFAULT_BOUND, DEFAULT_BOUND)
@@ -563,7 +601,7 @@ class SPredictor2(nn.Module):
 
   def forward(self, *args, **kwargs):
     if self.cached_value is None:
-      value = self.net(self.out_features, self.purpose, False, self.expansion_data) + (self.out_parameters + self.bias_bias)
+      value = self.net(self.net_idx) + (self.out_parameters + self.bias_bias)
       if self.cacheable:
         self.cached_value = [value]
     else:
@@ -575,10 +613,12 @@ class NopModule(nn.Module):
   def forward(self, *args, **kwargs):
     return None
 
-def accepts_purpose(o, v:bool = True):
-  if not hasattr(o,'accepts_purpose'):
+
+def accepts_purpose(o, v: bool = True):
+  if not hasattr(o, 'accepts_purpose'):
     setattr(o, 'accepts_purpose', v)
   return o
+
 
 class SDULinear(nn.Module):
   # Sharable Deep Unified Linear
@@ -599,7 +639,7 @@ class SDULinear(nn.Module):
                linear=nn.Linear,
                purpose=None,
                ignore_purpose=True,
-               max_predict_size:int = None,
+               max_predict_size: int = None,
                cacheable=DEFAULT_CACHEABLE) -> None:
     if ignore_purpose:
       self.purpose = None
@@ -617,7 +657,7 @@ class SDULinear(nn.Module):
     expansion_features = int(min(in_features, out_features) * exp_mul)
     if not max_predict_size is None:
       if in_features > max_predict_size:
-        #Too big. Gotta cut them down to just parameters
+        # Too big. Gotta cut them down to just parameters
         if predict_mbias == True:
           predict_mbias = False
         if predict_mbias_a == True:
@@ -715,29 +755,33 @@ class SDULinear(nn.Module):
   def reset_parameters(self) -> None:
     init.kaiming_uniform_(self.weight, a=math.sqrt(5))
 
+  def gen_weights(self) -> (torch.Tensor, torch.Tensor):
+    bias = self.bias()
+    mbias = self.mbias()
+    mbias_a = self.mbias_a()
+    mbias2 = self.mbias2()
+    mbias2_a = self.mbias2_a()
+
+    if not mbias is None:
+      weight = self.weight * mbias
+    else:
+      weight = self.weight
+
+    if not mbias_a is None:
+      weight = weight + mbias_a
+
+    if not mbias2 is None:
+      weight = weight.t() * mbias2
+      weight = weight.t()
+
+    if not mbias2_a is None:
+      weight = weight.t() + mbias2_a
+      weight = weight.t()
+    return weight, bias
+
   def forward(self, input: torch.Tensor) -> torch.Tensor:
     if self.cached_weights is None:
-      bias = self.bias()
-      mbias = self.mbias()
-      mbias_a = self.mbias_a()
-      mbias2 = self.mbias2()
-      mbias2_a = self.mbias2_a()
-
-      if not mbias is None:
-        weight = self.weight * mbias
-      else:
-        weight = self.weight
-
-      if not mbias_a is None:
-        weight = weight + mbias_a
-
-      if not mbias2 is None:
-        weight = weight.t() * mbias2
-        weight = weight.t()
-
-      if not mbias2_a is None:
-        weight = weight.t() + mbias2_a
-        weight = weight.t()
+      weight, bias = self.gen_weights()
       if self.cacheable:
         self.cached_weights = (weight, bias)
     else:
@@ -748,5 +792,6 @@ class SDULinear(nn.Module):
 
   def extra_repr(self) -> str:
     return f'in_features={self.in_features}, out_features={self.out_features}'
+
 
 SDULinear = accepts_purpose(SDULinear)
