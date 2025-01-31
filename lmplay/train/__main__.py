@@ -203,7 +203,7 @@ def main():
 
     save_interval = args.save_interval
     next_save = calc_next(save_interval, mr.get_step_stats().total_train_samples)
-    with tqdm(total=len(train), initial=mr.get_step_stats().total_train_samples) as pbar:
+    with tqdm(total=int(len(train)*epochs), initial=mr.get_step_stats().total_train_samples) as pbar:
 
       train_batcher = batcher(train,
                               batch_size=batch_size,
