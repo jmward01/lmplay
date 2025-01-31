@@ -19,12 +19,8 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                version="4.2",
-               bias_exp_mul=0.0,
-               bias_mid_mul=1.0,
-               mbias_exp_mul=8.0,
-               mbias_mid_mul=1.0,
                **ignore):
-    super().__init__(f"uw_v{version}_{mbias_exp_mul}_{mbias_mid_mul}_{bias_exp_mul}_{bias_mid_mul}_{num_blocks}L_{max_len}",
+    super().__init__(f"uw_v{version}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -44,10 +40,8 @@ class GPT2(LMBase):
     self.dropout = nn.Dropout(embed_dropout)
     #add in the DULinear to the block definition
     dulinear = partial(DULinear,
-                       bias_mid_mul=bias_mid_mul,
-                       bias_exp_mul=bias_exp_mul,
-                       mbias_mid_mul=mbias_mid_mul,
-                       mbias_exp_mul=mbias_exp_mul,
+                       predict_mbias2=False,
+                       predict_bias=False,
                        linear=ULinear)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,

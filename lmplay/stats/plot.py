@@ -43,39 +43,53 @@ def _plot_worker(out_file,
                  max_min_value:float,
                  min_max_value:float,
                  min_show:float,
-                 average_count:Optional[int]):
+                 average_count:Optional[int],
+                 satart_ac = 5,
+                 ac_inc = 1):
   #with plt.xkcd():
-  ac = []
-  center = int(average_count/2)
-  for i in range(average_count*2 + 1):
-    weight = (1.0 - abs(i - center) / average_count) ** 2
-    ac.append(weight)
-  ac = numpy.array(ac)
+  acs = dict()
+
+  def get_ac(i):
+    if i not in acs:
+      ac = []
+      center = int(i/2)
+      for j in range(i*2 + 1):
+        weight = (1.0 - abs(j - center) / i) ** 2
+        ac.append(weight)
+      ac = numpy.array(ac)
+      acs[i] = ac
+    return acs[i]
   #ac = ac/np.sum(ac)
   addtl_lines = []
   for name, data in file_data.items():
     for data_name in plot_targets:
       d = numpy.array(data[data_name])
-      if average_count is None:
-        plt.plot(data['iter'], d, label=f"{name}_{data_name}", linewidth=1)
-      else:
-        l = plt.plot(data['iter'], d, linewidth=.2, alpha=.3)
-        avgs = [0.0]*len(d)
-        for i in range(len(d)):
-          d_start = max(0, i - average_count)
-          d_end = min(i + average_count, len(d))
-          count = min(i - d_start, d_end - i - 1)
-          d_start = i - count
-          d_end = i + count + 1
-          ac_start = average_count -count
-          ac_end = average_count + count + 1
-          d_sect = d[d_start:d_end]
-          ac_sect = ac[ac_start:ac_end]
-          ac_sect = ac_sect/np.sum(ac_sect)
-          avg = d_sect*ac_sect
-          avg = np.sum(avg)
-          avgs[i] = avg
-        addtl_lines.append({'iter':data['iter'], 'data':avgs, 'color':l[0].get_color(), "label": f"{name}_{data_name}"})
+      #if average_count is None:
+      #  plt.plot(data['iter'], d, label=f"{name}_{data_name}", linewidth=1)
+      #else:
+      l = plt.plot(data['iter'], d, linewidth=.2, alpha=.3)
+      avgs = [0.0]*len(d)
+      current_average_count = satart_ac
+      #inc = max(int(len(d)/average_count), 1)
+      inc = ac_inc*4
+      for i in range(len(d)):
+        if (i+1)%inc == 0:
+          current_average_count = min(average_count, current_average_count+ac_inc)
+        ac = get_ac(current_average_count)
+        d_start = max(0, i - current_average_count)
+        d_end = min(i + current_average_count, len(d))
+        count = min(i - d_start, d_end - i - 1)
+        d_start = i - count
+        d_end = i + count + 1
+        ac_start = current_average_count -count
+        ac_end = current_average_count + count + 1
+        d_sect = d[d_start:d_end]
+        ac_sect = ac[ac_start:ac_end]
+        ac_sect = ac_sect/np.sum(ac_sect)
+        avg = d_sect*ac_sect
+        avg = np.sum(avg)
+        avgs[i] = avg
+      addtl_lines.append({'iter':data['iter'], 'data':avgs, 'color':l[0].get_color(), "label": f"{name}_{data_name}"})
   for line_info in addtl_lines:
     #do these last so the show on top of the other line data
     plt.plot(line_info['iter'], line_info['data'], label=line_info['label'], linewidth=.5, color=line_info['color'])

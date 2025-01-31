@@ -1,10 +1,10 @@
 import torch
 from torch import nn
-from typing import Optional, Any, List
+from typing import Optional, List
 
 from .modules import Block
 import tiktoken
-from lmplay.base.base_model import LMBase, LMRunnerBase
+from lmplay.base.base_model import LMBase
 
 
 class GPT2(LMBase):
@@ -66,24 +66,3 @@ class GPT2(LMBase):
       return x, cache
     return x
 
-class ModelRunner(LMRunnerBase):
-  def __init__(self, max_batch_size=25):
-    super().__init__(max_batch_size=max_batch_size)
-
-  def _construct_model(self,
-                       device,
-                       model_weights: dict = None,
-                       model_args=None,
-                       strict=False,
-                       **parameters) -> (LMBase, Any):
-    model_args = model_args if model_args else dict()
-    for k,v in parameters.items():
-      if k not in model_args:
-        model_args[k] = v
-    model = GPT2(**model_args)
-    if model_weights is not None:
-      missing, unexpected = model.load_state_dict(model_weights, strict=strict)
-      model.to(device)
-      return model, model.init_kwargs, missing, unexpected
-    model.to(device)
-    return model, model.init_kwargs

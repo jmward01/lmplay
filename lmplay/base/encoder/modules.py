@@ -5,8 +5,12 @@ from torch import nn
 import torch.nn.functional as F
 from typing import Optional
 
+from lmplay.utils import create_linear
+
+
 def gen_mask(max_len:int) -> torch.Tensor:
     return  torch.tril(torch.ones(max_len, max_len)).unsqueeze(0).unsqueeze(0)
+
 
 class MultiheadAttention(nn.Module):
   """This allows testing different ideas. The default behavior (I think) is implemented like the ref transformer block.
@@ -39,8 +43,8 @@ class MultiheadAttention(nn.Module):
     assert embed_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
     self.num_heads = num_heads
     # k&v are what are 'attended' to and will be cached for generation.
-    self.key = linear(embed_dim, embed_dim)
-    self.value = linear(embed_dim, embed_dim)
+    self.key = create_linear(linear, 'mha_key', embed_dim, embed_dim)
+    self.value = create_linear(linear, 'mha_value', embed_dim, embed_dim)
     if norm_v:
       self.value_norm = nn.LayerNorm(int(embed_dim / num_heads))
     else:
@@ -57,10 +61,10 @@ class MultiheadAttention(nn.Module):
       self.query_norm = lambda x:x
 
 
-    self.query = linear(embed_dim, embed_dim)
+    self.query = create_linear(linear, 'mha_query', embed_dim, embed_dim)
 
     # proj to clean things up after
-    self.proj = linear(embed_dim, embed_dim)
+    self.proj = create_linear(linear, 'mha_proj', embed_dim, embed_dim)
 
     # I had implementation issues with this dropout so I just... dropped it out.
     # It isn't critical to the concept of MHA so this is the easy route.
@@ -150,6 +154,7 @@ class MultiheadAttention(nn.Module):
     x = self.proj_dropout(self.proj(x))
     return x
 
+
 class Block(nn.Module):
   """Your basic encoder block implementation! Nothing crazy in here.
 
@@ -160,19 +165,27 @@ class Block(nn.Module):
                embed_dim: int,
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
-               linear=nn.Linear): #Passing in the class we want for a linear layer since this can be swapped for different exp
+               linear=nn.Linear, #Passing in the class we want for a linear layer since this can be swapped for different exp
+               ln_attn=True,
+               ln_mlp=True):
     super().__init__()
-    self.ln1 = nn.LayerNorm(embed_dim)
-    self.ln2 = nn.LayerNorm(embed_dim)
+    if ln_attn:
+      self.ln1 = nn.LayerNorm(embed_dim)
+    else:
+      self.ln1 = lambda x:x
+    if ln_mlp:
+      self.ln2 = nn.LayerNorm(embed_dim)
+    else:
+      self.ln2 = lambda x:x
     self.attn = MultiheadAttention(max_len,
                                    num_heads,
                                    embed_dim,
                                    attn_dropout=attn_dropout,
                                    ff_dropout=ff_dropout,
                                    linear=linear)
-    self.ff = nn.Sequential(linear(embed_dim, embed_dim * 4),
+    self.ff = nn.Sequential(create_linear(linear, 'block_ff_1', embed_dim, embed_dim * 4),
                             nn.GELU(),
-                            linear(embed_dim * 4, embed_dim),
+                            create_linear(linear, 'block_ff_2', embed_dim * 4, embed_dim),
                             nn.Dropout(ff_dropout))
 
   def forward(self, x, cache:Optional[list]=None):

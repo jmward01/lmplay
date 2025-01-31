@@ -67,6 +67,9 @@ class GPT2(LMBase):
       return x, cache
     return x
 
+from lmplay.base.runner_list import expose_runner
+
+@expose_runner('normv', description="Tests adding layer norm to the value in attn")
 class ModelRunner(LMRunnerBase):
   def __init__(self, max_batch_size=25):
     super().__init__(max_batch_size=max_batch_size)

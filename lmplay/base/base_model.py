@@ -67,7 +67,7 @@ class LMBase(nn.Module):
     # So it we said the prompt ended on 1 then prediction starts on 0
     prediction_starts = len(tokens) - 1
     if 'truth' in sample:
-      truth:str = sample['truth']
+      truth: str = sample['truth']
       if not truth.endswith("<|endoftext|>"):
         tokens.extend(self.tokenizer.encode(sample['truth'] + "<|endoftext|>", allowed_special={"<|endoftext|>"}))
       else:
@@ -219,7 +219,7 @@ class LMRunnerBase(ABC):
     self.device_type: Optional[str] = None
     self.max_len: Optional[int] = None
 
-  def set_current_step(self, step_name:str):
+  def set_current_step(self, step_name: str):
     if not self.current_step is None and step_name != self.current_step:
       self.get_step_stats().write_train()
       self.get_step_stats().write_validate()
@@ -256,7 +256,11 @@ class LMRunnerBase(ABC):
                  no_grad_scale=False,
                  reset_history=False,
                  first_step=None,
+                 grad_clip=None,
+                 check_grads=False,
                  **parameters):
+    self.check_grads = check_grads
+    self.grad_clip = grad_clip
     self.for_train = for_train
     self.device = device
     if 'cuda' in self.device:
@@ -315,11 +319,12 @@ class LMRunnerBase(ABC):
             **data,
             basedir=self._stats_dir)
         if len(self.step_stats) == 0 and 'stats' in weight_data and first_step != None:
-          #looks like we didn't find any step info but there are model stats. We are probably loading an old model.
-          #just load the full model stats as the first step.
-          self.step_stats[first_step] = modelstats.ModelStats(model_name=f"{self._model.name}{self.run_name}_step_{first_step}",
-                                                 **weight_data.get('stats', {}),
-                                                 basedir=self._stats_dir)
+          # looks like we didn't find any step info but there are model stats. We are probably loading an old model.
+          # just load the full model stats as the first step.
+          self.step_stats[first_step] = modelstats.ModelStats(
+            model_name=f"{self._model.name}{self.run_name}_step_{first_step}",
+            **weight_data.get('stats', {}),
+            basedir=self._stats_dir)
 
       if for_train:
         if default_freeze:
@@ -393,9 +398,9 @@ class LMRunnerBase(ABC):
                     'model_args': self.get_model_args(),
                     'optimizer_args': self.get_optimizer_args(),
                     'optimizer': optimizer_save,
-                    'current_step':self.current_step,
+                    'current_step': self.current_step,
                     'stats': self.model_stats.dump_dict(),
-                    'step_stats': {stat_name:stat.dump_dict() for stat_name, stat in self.step_stats.items()}}
+                    'step_stats': {stat_name: stat.dump_dict() for stat_name, stat in self.step_stats.items()}}
     if os.path.exists(location):
       copyfile(location, f"{location}.bak")
     torch.save(checkpoint, location)
@@ -477,10 +482,12 @@ class LMRunnerBase(ABC):
       pct_correct = 0
     if train:
       self.model_stats.update_train(len(prompts), pct_correct, float(batch_loss), actual_samples=actual_samples_read)
-      self.get_step_stats().update_train(len(prompts), pct_correct, float(batch_loss), actual_samples=actual_samples_read)
+      self.get_step_stats().update_train(len(prompts), pct_correct, float(batch_loss),
+                                         actual_samples=actual_samples_read)
     else:
       self.model_stats.update_validate(len(prompts), pct_correct, float(batch_loss), actual_samples=actual_samples_read)
-      self.get_step_stats().update_validate(len(prompts), pct_correct, float(batch_loss), actual_samples=actual_samples_read)
+      self.get_step_stats().update_validate(len(prompts), pct_correct, float(batch_loss),
+                                            actual_samples=actual_samples_read)
     return batch_results, batch_loss
 
   def train(self, prompts: Sequence[dict], actual_samples_read: Optional[int] = None) -> (Sequence[str], torch.Tensor):
@@ -493,6 +500,16 @@ class LMRunnerBase(ABC):
       optimizer.zero_grad()
 
     results, current_loss = self._run_with_truth(prompts, True, actual_samples_read)
+    if not self.grad_clip is None:
+      if not self.scaler is None:
+        self.scaler.unscale_(self._optimizers[0])
+      torch.nn.utils.clip_grad_norm_(self._model.parameters(), self.grad_clip)
+
+    if self.check_grads:
+      for name, param in self._model.named_parameters():
+        if param.grad is None:
+          print(f"{name} - no gradient found")
+
     if self.scaler is not None:
       # Scaling only applies to the primary optimizer.
       self.scaler.step(self._optimizers[0])
@@ -507,10 +524,11 @@ class LMRunnerBase(ABC):
 
   def validate(self, prompts: Sequence[dict], actual_samples_read: Optional[int] = None) -> (
           Sequence[str], torch.Tensor):
+    self._model.train(False)
     if not actual_samples_read:
       actual_samples_read = len(prompts)
-    with torch.no_grad():
-      results, current_loss = self._run_with_truth(prompts, False, actual_samples_read)
+    results, current_loss = self._run_with_truth(prompts, False, actual_samples_read)
+    self._model.train(True)
     return results, current_loss
 
   def generate(self, prompts: Sequence[str], max_len: Optional[int] = None):
@@ -620,3 +638,35 @@ class LMRunnerBase(ABC):
     if len(optimizers) > 1:
       return optimizers, optimizer_args, lr_scheduler
     return optimizers[0], optimizer_args, lr_scheduler
+
+
+
+class BasicModelRunner(LMRunnerBase):
+  def __init__(self, model_class, max_batch_size=25, overrides:dict=None, **kwargs):
+    super().__init__(max_batch_size=max_batch_size, **kwargs)
+    self.model_class = model_class
+    self.overrides = overrides
+
+  def _construct_model(self,
+                       device,
+                       model_weights: dict = None,
+                       model_args=None,
+                       strict=False,
+                       **parameters) -> (LMBase, Any):
+
+    model_args = model_args if model_args else dict()
+    for k, v in parameters.items():
+      if k not in model_args:
+        model_args[k] = v
+    if not self.overrides is None:
+      for k, v in self.overrides.items():
+        # We override with our defaults incase we are starting from a different version model
+        model_args[k] = v
+
+    model = self.model_class(**model_args)
+    if model_weights is not None:
+      missing, unexpected = model.load_state_dict(model_weights, strict=strict)
+      model.to(device)
+      return model, model.init_kwargs, missing, unexpected
+    model.to(device)
+    return model, model.init_kwargs

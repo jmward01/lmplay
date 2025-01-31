@@ -80,6 +80,9 @@ class GPT2(LMBase):
     return x
 
 
+from lmplay.base.runner_list import expose_runner
+
+@expose_runner('uw2_1', description="Unifeid Weights using a shared sacrificial network but unique expansion data")
 class ModelRunner(LMRunnerBase):
   def __init__(self, max_batch_size=25):
     super().__init__(max_batch_size=max_batch_size)

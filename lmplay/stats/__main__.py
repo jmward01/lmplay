@@ -5,7 +5,7 @@ def main():
   args = ArgumentParser("Graph some things!")
   args.add_argument('locations', help="Directories to look for training stats. Default is just out_gpt", nargs="*", default=["out_gpt"])
   args.add_argument('--plot-train', help="Generate plots for train stats instead of validate.", action="store_true")
-  args.add_argument('--average-count', help="Smoothing factor. Default = 200", type=int, default=200)
+  args.add_argument('--average-count', help="Smoothing factor. Default = 300", type=int, default=300)
   args.add_argument('--min-show', help="Min pct to show of the shortest run. Default is 0.95", type=float, default=0.95)
   args.add_argument('--out-type', help="type of plot to make either jpg, png. default is png", default='png')
   args.add_argument('--max-files', help="Max files to gather stats from. default is 20", default=20, type=int)
