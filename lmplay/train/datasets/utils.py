@@ -23,11 +23,13 @@ def to_row(row: dict, max_length:int=None) -> (dict, Optional[int]):
   truth:str = row['text']
   ts = truth.split()
   ps = prompt.split()
+  #This is the total estimated tokens
   estimated_tokens = (len(ps) + len(ts))*1.5
   continuation = None
   if not max_length is None and estimated_tokens > max_length:
+    #we probably have an example that is too long
     #Find the number of words into the truth (approximately) to start looking for a split.
-    start_trim = int(max_length/1.4 - len(ps)*1.5)
+    start_trim = max(int(max_length/1.4 - len(ps)*1.5), 1)
     #Now convert that ti an actual place in the string
     start_trim = len(' '.join(ts[:start_trim]))
     nearest_period = truth.find('. ', start_trim)
@@ -42,6 +44,7 @@ def continue_row(row:dict, continuation:int, max_length:int=None) -> (dict, Opti
   else:
     prompt = '...'
   if next_nearest_period > 0 and next_nearest_period + 2 < len(row['text']):
+    #trying to give it some runup in the form of a fragment of the last sentence as part of the prompt.
     prompt = prompt + row['text'][continuation:next_nearest_period + 2]
     continuation = next_nearest_period + 2
 
@@ -52,7 +55,7 @@ def continue_row(row:dict, continuation:int, max_length:int=None) -> (dict, Opti
   new_continuation = None
   if not max_length is None and estimated_tokens > max_length:
     #Find the number of words into the truth (approximately) to start looking for a split.
-    start_trim = int(max_length/1.4 - len(ps)*1.5)
+    start_trim = max(int(max_length/1.4 - len(ps)*1.5), 1)
     #Now convert that ti an actual place in the string
     start_trim = len(' '.join(ts[:start_trim]))
     nearest_period = truth.find('. ', start_trim)
@@ -83,19 +86,21 @@ def batcher(dataset,
   :return:
   """
   batch = []
+  #Total count of samples used accross all epochs
   count = 0
   dataset_len = len(dataset)
   running = True
   while running:
 
     if count == 0 and fast_forward > 0:
+      #Offset is the place in the current epoch.
       offset = fast_forward % dataset_len
       count = fast_forward
     else:
       offset = 0
     #Just re-start the dataset
     new_count = 0
-    while offset < dataset_len:
+    while offset < dataset_len and running:
       row = dataset[offset]
       continuation = -1
       while continuation is not None:
