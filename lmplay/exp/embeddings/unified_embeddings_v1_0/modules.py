@@ -203,7 +203,8 @@ class UnifiedEmbedding(nn.Module):
 
         if not self.integration1 is None:
           x = self.integration1(x)
-      x = self.integration1_5(F.gelu(x))
+      if not self.integration1_5 is None:
+        x = self.integration1_5(F.gelu(x))
       #x = self.integration1(x)
       if not self.integration2 is None:
         x = self.integration2(F.gelu(x))
