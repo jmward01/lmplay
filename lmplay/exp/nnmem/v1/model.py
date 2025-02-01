@@ -5,6 +5,7 @@ from typing import Optional, List
 from .modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase
+from lmplay.modules import UnifiedEmbedding
 
 
 class GPT2(LMBase):
@@ -17,6 +18,8 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                version="1",
+               nnm_size=128,
+               nnm_emb_mul=16,
                **ignore):
     super().__init__(f"nnm_v{version}_{num_blocks}L_{max_len}",
                      max_len=max_len,
@@ -25,7 +28,11 @@ class GPT2(LMBase):
                      embed_dim=embed_dim,
                      attn_dropout=attn_dropout,
                      ff_dropout=ff_dropout,
-                     embed_dropout=embed_dropout)
+                     embed_dropout=embed_dropout,
+                     nnm_size=nnm_size,
+                     nnm_emb_mul=nnm_emb_mul,
+                     version = version
+                     )
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -33,11 +40,19 @@ class GPT2(LMBase):
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
+    if nnm_size > 0:
+      nnm_emb = UnifiedEmbedding(nnm_size, embed_dim, nnm_emb_mul)
+      self.nnm_emb = nnm_emb
+    else:
+      nnm_emb = None
+      self.register_module('nnm_emb', None)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
                                         attn_dropout=attn_dropout,
-                                        ff_dropout=ff_dropout) for _ in range(num_blocks)])
+                                        ff_dropout=ff_dropout,
+                                        nnm=nnm_emb,
+                                        front_emb_mul=nnm_emb_mul) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 
