@@ -22,8 +22,10 @@ class Block(nn.Module):
     super().__init__()
     if ln_attn:
       self.ln1 = nn.LayerNorm(embed_dim)
+      self.ln_cross = nn.LayerNorm(embed_dim)
     else:
       self.ln1 = lambda x:x
+      self.ln_cross = lambda x:x
     if ln_mlp:
       self.ln2 = nn.LayerNorm(embed_dim)
     else:
@@ -51,6 +53,8 @@ class Block(nn.Module):
                                    attn_dropout=attn_dropout,
                                    ff_dropout=ff_dropout,
                                    linear=linear)
+
+
     self.ff = nn.Sequential(create_linear(linear, 'block_ff_1', embed_dim, embed_dim * 4),
                             nn.GELU(),
                             create_linear(linear, 'block_ff_2', embed_dim * 4, embed_dim),
@@ -59,7 +63,7 @@ class Block(nn.Module):
   def forward(self, x, cache:Optional[list]=None):
     #A simple 'block' that uses residual connections and gives attn + pure logic both a chance to modify the hidden layer
     #the 'cache' is the kv cache and is only needed for inference, not training.
+    x = x + self.x_attn(self.ln_cross(x), x_cross=self._nnm[0]())
     x = x + self.attn(self.ln1(x), cache=cache)
-    x = x + self.x_attn(x, x_cross=self._nnm[0]())
     x = x + self.ff(self.ln2(x))
     return x
