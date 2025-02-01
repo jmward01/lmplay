@@ -4,6 +4,31 @@ from lmplay.utils import create_linear
 from lmplay.modules import MultiheadAttention, UnifiedEmbedding
 
 
+class CachedOutput(nn.Module):
+  def __init__(self, module:nn.Module):
+    super().__init__()
+    self.module = [module]
+    self.cached_value = None
+    self.register_full_backward_hook(self.clear_cache)
+
+  def clear_cache(self, *args, **kwargs):
+    self.cached_value = None
+
+  def train(self, mode: bool = True):
+    super().train(mode)
+    self.clear_cache()
+    return self
+
+  def eval(self):
+    super().eval()
+    self.clear_cache()
+    return self
+
+  def forward(self, *args, **kwargs):
+    if self.cached_value is None:
+      self.cached_value = self.module[0]()
+    return self.cached_value
+
 class Block(nn.Module):
   """Your basic encoder block implementation! Nothing crazy in here.
 
@@ -49,7 +74,7 @@ class Block(nn.Module):
       self.register_module('nnm', None)
     #This is what we will use.
     # If they passed in a ashared embedding then we don't want to set it directly since then it will become part of our state dict.
-    self._nnm = [nnm]
+    self._nnm = CachedOutput(nnm)
 
     self.x_attn = MultiheadAttention(max_len,
                                    num_heads,
@@ -77,7 +102,7 @@ class Block(nn.Module):
   def forward(self, x, cache:Optional[list]=None):
     #A simple 'block' that uses residual connections and gives attn + pure logic both a chance to modify the hidden layer
     #the 'cache' is the kv cache and is only needed for inference, not training.
-    x = x + self.x_attn(self.ln1_cross(x), x_cross=self._nnm[0]())
+    x = x + self.x_attn(self.ln1_cross(x), x_cross=self._nnm())
     if not self.ff_cross is None:
       x = x + self.ff_cross(self.ln2_cross(x))
     x = x + self.attn(self.ln1(x), cache=cache)
