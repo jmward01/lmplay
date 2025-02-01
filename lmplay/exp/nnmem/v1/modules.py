@@ -39,12 +39,12 @@ class Block(nn.Module):
                embed_dim: int,
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
-               linear=nn.Linear, #Passing in the class we want for a linear layer since this can be swapped for different exp
+               linear=nn.Linear,  #Passing in the class we want for a linear layer since this can be swapped for different exp
                ln_attn=True,
                ln_mlp=True,
                nnm:UnifiedEmbedding|int=32,
                front_emb_mul=64,
-               x_cross_ff=True):
+               cross_ff=True):
     super().__init__()
     if ln_attn:
       self.ln1 = nn.LayerNorm(embed_dim)
@@ -57,7 +57,7 @@ class Block(nn.Module):
     else:
       self.ln2 = lambda x:x
 
-    if x_cross_ff:
+    if cross_ff:
       self.ln2_cross = nn.LayerNorm(embed_dim)
       self.ff_cross = nn.Sequential(create_linear(linear, 'block_ff_1', embed_dim, embed_dim * 4),
                               nn.GELU(),
