@@ -149,7 +149,7 @@ class UnifiedEmbedding(nn.Module):
     if f'{prefix}weight' in state_dict:
       self.initialize(state_dict[f'{prefix}weight'])
 
-  def forward(self, idxs: torch.Tensor | None = None, allow_reorder=True) -> torch.Tensor:
+  def forward(self, idxs: torch.Tensor = None, allow_reorder=True) -> torch.Tensor:
     #If they send in 'none' then we will send back all embeddings.
     tok_embed_device = self.tok_embed.weight.device
     if not idxs is None:
