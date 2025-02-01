@@ -7,6 +7,11 @@ import tiktoken
 from lmplay.base.base_model import LMBase
 from lmplay.modules import UnifiedEmbedding
 
+def _p(v) -> str:
+  if v is None:
+    return 'N'
+  return str(int(v))
+
 
 class GPT2(LMBase):
   def __init__(self,
@@ -20,8 +25,9 @@ class GPT2(LMBase):
                version="1",
                nnm_size=128,
                nnm_emb_mul=32,
+               cross_ff = True,
                **ignore):
-    super().__init__(f"nnm_v{version}_{num_blocks}L_{max_len}",
+    super().__init__(f"nnm_v{version}_{_p(cross_ff)}_{nnm_size}_{nnm_emb_mul}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -31,8 +37,8 @@ class GPT2(LMBase):
                      embed_dropout=embed_dropout,
                      nnm_size=nnm_size,
                      nnm_emb_mul=nnm_emb_mul,
-                     version = version
-                     )
+                     version = version,
+                     cross_ff=cross_ff)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 

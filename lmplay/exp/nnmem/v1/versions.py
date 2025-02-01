@@ -9,3 +9,11 @@ def nnm1_0(*args, **kwargs):
                           *args,
                           overrides=dict(version="1.0"),
                           **kwargs)
+
+@expose_runner('nnm1_1')
+def nnm1_1(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(version="1.1",
+                                         cross_ff=False),
+                          **kwargs)
