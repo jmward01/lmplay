@@ -2,10 +2,10 @@ import torch
 from torch import nn
 from typing import Optional, List
 
-from .modules import Block
+from .modules import Block, NNMemory, NNMemoryLayer
 import tiktoken
 from lmplay.base.base_model import LMBase
-from lmplay.modules import UnifiedEmbedding
+from functools import partial
 
 def _p(v) -> str:
   if v is None:
@@ -17,7 +17,7 @@ class GPT2(LMBase):
   def __init__(self,
                max_len=1024,
                num_heads=12,
-               num_blocks=6, #12 is the real default here
+               num_blocks=6,  #12 is the real default here
                embed_dim=768,
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
@@ -25,9 +25,12 @@ class GPT2(LMBase):
                version="1",
                nnm_size=128,
                nnm_emb_mul=32,
-               cross_ff = True,
+               nnm_heads=6,
+               nnm_ff = True,
+               shared_nnm=True,
+               shared_nnm_layer=True,
                **ignore):
-    super().__init__(f"nnm_v{version}_{_p(cross_ff)}_{nnm_size}_{nnm_emb_mul}_{num_blocks}L_{max_len}",
+    super().__init__(f"nnm_v{version}_{_p(nnm_ff)}{_p(shared_nnm)}{_p(shared_nnm_layer)}_{nnm_size}_{nnm_heads}_{nnm_emb_mul}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -37,8 +40,11 @@ class GPT2(LMBase):
                      embed_dropout=embed_dropout,
                      nnm_size=nnm_size,
                      nnm_emb_mul=nnm_emb_mul,
+                     nnm_heads=6,
                      version = version,
-                     cross_ff=cross_ff)
+                     nnm_ff=nnm_ff,
+                     shared_nnm= shared_nnm,
+                     shared_nnm_layer=shared_nnm_layer)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -46,20 +52,39 @@ class GPT2(LMBase):
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
-    if nnm_size > 0:
-      nnm_emb = UnifiedEmbedding(nnm_size, embed_dim, nnm_emb_mul)
-      self.nnm_emb = nnm_emb
+
+    if shared_nnm:
+      self.nnm = NNMemory(nnm_size, embed_dim, nnm_heads, front_emb_mul=nnm_emb_mul)
+
+      if shared_nnm_layer:
+        self.nnm_layer = NNMemoryLayer(self.nnm)
+        gen_layer = lambda :self.nnm_layer
+      else:
+        _layer_count = 0
+        def gen_layer():
+          nonlocal _layer_count
+          nnm_layer = NNMemoryLayer(self.nnm)
+          self.register_module(f'nnm_layer_{_layer_count}', nnm_layer)
+          _layer_count += 1
+          return nnm_layer
     else:
-      nnm_emb = None
-      self.register_module('nnm_emb', None)
+      _layer_count = 0
+      def gen_layer():
+        nonlocal _layer_count
+        nnm = NNMemory(nnm_size, embed_dim, nnm_heads, front_emb_mul=nnm_emb_mul)
+        nnm_layer = NNMemoryLayer(nnm)
+        self.register_module(f'nnm_{_layer_count}', nnm)
+        self.register_module(f'nnm_layer_{_layer_count}', nnm_layer)
+        _layer_count += 1
+        return nnm_layer
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
                                         attn_dropout=attn_dropout,
                                         ff_dropout=ff_dropout,
-                                        nnm=nnm_emb,
+                                        nnm=gen_layer(),
                                         front_emb_mul=nnm_emb_mul,
-                                        cross_ff=cross_ff) for _ in range(num_blocks)])
+                                        nnm_ff=nnm_ff) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 

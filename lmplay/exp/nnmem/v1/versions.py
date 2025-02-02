@@ -15,5 +15,13 @@ def nnm1_1(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(version="1.1",
-                                         cross_ff=False),
+                                         shared_nnm_layer=False),
+                          **kwargs)
+
+@expose_runner('nnm1_2')
+def nnm1_2(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(version="1.2",
+                                         shared_nnm=False),
                           **kwargs)
