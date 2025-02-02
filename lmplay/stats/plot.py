@@ -43,6 +43,7 @@ def _plot_worker(out_file,
                  max_min_value:float,
                  min_max_value:float,
                  min_show:float,
+                 plot_raw:bool,
                  average_count:Optional[int],
                  satart_ac = 5,
                  ac_inc = 1):
@@ -67,7 +68,11 @@ def _plot_worker(out_file,
       #if average_count is None:
       #  plt.plot(data['iter'], d, label=f"{name}_{data_name}", linewidth=1)
       #else:
-      l = plt.plot(data['iter'], d, linewidth=.2, alpha=.3)
+
+      if plot_raw:
+        l = plt.plot(data['iter'], d, linewidth=.2, alpha=.3)
+      else:
+        l = None
       avgs = [0.0]*len(d)
       current_average_count = satart_ac
       #inc = max(int(len(d)/average_count), 1)
@@ -89,10 +94,16 @@ def _plot_worker(out_file,
         avg = d_sect*ac_sect
         avg = np.sum(avg)
         avgs[i] = avg
-      addtl_lines.append({'iter':data['iter'], 'data':avgs, 'color':l[0].get_color(), "label": f"{name}_{data_name}"})
+      if l is None:
+        addtl_lines.append({'iter':data['iter'], 'data':avgs, "label": f"{name}_{data_name}"})
+      else:
+        addtl_lines.append({'iter':data['iter'], 'data':avgs, 'color':l[0].get_color(), "label": f"{name}_{data_name}"})
   for line_info in addtl_lines:
     #do these last so the show on top of the other line data
-    plt.plot(line_info['iter'], line_info['data'], label=line_info['label'], linewidth=.5, color=line_info['color'])
+    if 'color' in line_info:
+      plt.plot(line_info['iter'], line_info['data'], label=line_info['label'], linewidth=.5, color=line_info['color'])
+    else:
+      plt.plot(line_info['iter'], line_info['data'], label=line_info['label'], linewidth=.3)
   plt.ylabel(' '.join(plot_targets))
   plt.xlabel('Iteration')
   if log_plot:
@@ -269,7 +280,8 @@ def plot(out_file,
          average_count:Optional[int] = 10,
          diff_to_target=False,
          use_process=True,
-         target=None):
+         target=None,
+         plot_raw = False):
   out_file = os.path.expanduser(out_file)
   # We want to center the graph on the interesting areas so we need to track the overall min/max and the worst min value
   # across all datasets we are plotting. Then we will show from the absolute min to abve the worst min but below the abs max.
@@ -313,4 +325,5 @@ def plot(out_file,
        max_min_value,
        min_max_value,
        min_show,
+       plot_raw,
        average_count)
