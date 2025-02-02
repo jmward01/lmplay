@@ -132,16 +132,20 @@ class Block(nn.Module):
                ln_attn=True,
                ln_mlp=True,
                nnm_ff=True,
-               nnm_first=True):
+               nnm_first=False,
+               nnm_only=False):
     super().__init__()
     self.nnm_first = nnm_first
     if ln_attn:
-      self.ln1 = nn.LayerNorm(embed_dim)
+      if not nnm_only:
+        self.ln1 = nn.LayerNorm(embed_dim)
+      else:
+        self.ln1 = lambda x:x
       self.ln1_nnm = nn.LayerNorm(embed_dim)
     else:
       self.ln1 = lambda x:x
       self.ln1_nnm = lambda x:x
-    if ln_mlp:
+    if ln_mlp and not nnm_only:
       self.ln2 = nn.LayerNorm(embed_dim)
     else:
       self.ln2 = lambda x:x
@@ -158,19 +162,22 @@ class Block(nn.Module):
       self.register_module('ff_nnm', None)
     self.nnm = [nnm]
 
+    if not nnm_only:
+      self.attn = MultiheadAttention(max_len,
+                                     num_heads,
+                                     embed_dim,
+                                     attn_dropout=attn_dropout,
+                                     ff_dropout=ff_dropout,
+                                     linear=linear)
 
-    self.attn = MultiheadAttention(max_len,
-                                   num_heads,
-                                   embed_dim,
-                                   attn_dropout=attn_dropout,
-                                   ff_dropout=ff_dropout,
-                                   linear=linear)
 
-
-    self.ff = nn.Sequential(create_linear(linear, 'block_ff_1', embed_dim, embed_dim * 4),
-                            nn.GELU(),
-                            create_linear(linear, 'block_ff_2', embed_dim * 4, embed_dim),
-                            nn.Dropout(ff_dropout))
+      self.ff = nn.Sequential(create_linear(linear, 'block_ff_1', embed_dim, embed_dim * 4),
+                              nn.GELU(),
+                              create_linear(linear, 'block_ff_2', embed_dim * 4, embed_dim),
+                              nn.Dropout(ff_dropout))
+    else:
+      self.register_module('attn', None)
+      self.register_module('ff', None)
 
 
 
@@ -182,12 +189,13 @@ class Block(nn.Module):
       x = x + self.nnm[0](self.ln1_nnm(x))
       if not self.ff_nnm is None:
         x = x + self.ff_nnm(self.ln2_nnm(x))
-
-      x = x + self.attn(self.ln1(x), cache=cache)
-      x = x + self.ff(self.ln2(x))
+      if not self.attn is None:
+        x = x + self.attn(self.ln1(x), cache=cache)
+        x = x + self.ff(self.ln2(x))
     else:
-      x = x + self.attn(self.ln1(x), cache=cache)
-      x = x + self.ff(self.ln2(x))
+      if not self.attn is None:
+        x = x + self.attn(self.ln1(x), cache=cache)
+        x = x + self.ff(self.ln2(x))
 
       x = x + self.nnm[0](self.ln1_nnm(x))
       if not self.ff_nnm is None:
