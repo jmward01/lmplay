@@ -131,9 +131,10 @@ class Block(nn.Module):
                linear=nn.Linear,  #Passing in the class we want for a linear layer since this can be swapped for different exp
                ln_attn=True,
                ln_mlp=True,
-               front_emb_mul=64,
-               nnm_ff=True):
+               nnm_ff=True,
+               nnm_first=True):
     super().__init__()
+    self.nnm_first = nnm_first
     if ln_attn:
       self.ln1 = nn.LayerNorm(embed_dim)
       self.ln1_nnm = nn.LayerNorm(embed_dim)
@@ -176,11 +177,19 @@ class Block(nn.Module):
   def forward(self, x, cache:Optional[list]=None):
     #A simple 'block' that uses residual connections and gives attn + pure logic both a chance to modify the hidden layer
     #the 'cache' is the kv cache and is only needed for inference, not training.
-    nnm = self.nnm[0](self.ln1_nnm(x))
-    x = x + nnm
-    if not self.ff_nnm is None:
-      x = x + self.ff_nnm(self.ln2_nnm(x))
 
-    x = x + self.attn(self.ln1(x), cache=cache)
-    x = x + self.ff(self.ln2(x))
+    if self.nnm_first:
+      x = x + self.nnm[0](self.ln1_nnm(x))
+      if not self.ff_nnm is None:
+        x = x + self.ff_nnm(self.ln2_nnm(x))
+
+      x = x + self.attn(self.ln1(x), cache=cache)
+      x = x + self.ff(self.ln2(x))
+    else:
+      x = x + self.attn(self.ln1(x), cache=cache)
+      x = x + self.ff(self.ln2(x))
+
+      x = x + self.nnm[0](self.ln1_nnm(x))
+      if not self.ff_nnm is None:
+        x = x + self.ff_nnm(self.ln2_nnm(x))
     return x
