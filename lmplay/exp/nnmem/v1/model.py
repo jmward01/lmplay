@@ -85,7 +85,6 @@ class GPT2(LMBase):
                                         attn_dropout=attn_dropout,
                                         ff_dropout=ff_dropout,
                                         nnm=gen_layer(),
-                                        front_emb_mul=nnm_emb_mul,
                                         nnm_ff=nnm_ff,
                                         nnm_first=nnm_first) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
