@@ -49,7 +49,6 @@ class NNMemory(nn.Module):
     #In a prod version these go away completely and turn into fixed K/V paramteres
     self.key = create_linear(linear, 'nnm_key', embed_dim, embed_dim)
     self.value = create_linear(linear, 'nnm_value', embed_dim, embed_dim)
-
     #So that we don't recalc the k/v parameters every time
     self.cached_value = None
     self.register_full_backward_hook(self.clear_cache)
@@ -133,9 +132,11 @@ class Block(nn.Module):
                ln_mlp=True,
                nnm_ff=True,
                nnm_first=False,
-               nnm_only=False):
+               nnm_only=False,
+               nnm_attn_residual=True):
     super().__init__()
     self.nnm_first = nnm_first
+    self.nnm_attn_residual = nnm_attn_residual
     if ln_attn:
       if not nnm_only:
         self.ln1 = nn.LayerNorm(embed_dim)
@@ -186,9 +187,15 @@ class Block(nn.Module):
     #the 'cache' is the kv cache and is only needed for inference, not training.
 
     if self.nnm_first:
-      x = x + self.nnm[0](self.ln1_nnm(x))
+      if self.nnm_attn_residual:
+        r = x + self.nnm[0](self.ln1_nnm(x))
+        x = r
+      else:
+        r = self.nnm[0](self.ln1_nnm(x))
       if not self.ff_nnm is None:
-        x = x + self.ff_nnm(self.ln2_nnm(x))
+        x = x + self.ff_nnm(self.ln2_nnm(r))
+      else:
+        x = r
       if not self.attn is None:
         x = x + self.attn(self.ln1(x), cache=cache)
         x = x + self.ff(self.ln2(x))
@@ -197,7 +204,13 @@ class Block(nn.Module):
         x = x + self.attn(self.ln1(x), cache=cache)
         x = x + self.ff(self.ln2(x))
 
-      x = x + self.nnm[0](self.ln1_nnm(x))
+      if self.nnm_attn_residual:
+        r = x + self.nnm[0](self.ln1_nnm(x))
+        x = r
+      else:
+        r = self.nnm[0](self.ln1_nnm(x))
       if not self.ff_nnm is None:
-        x = x + self.ff_nnm(self.ln2_nnm(x))
+        x = x + self.ff_nnm(self.ln2_nnm(r))
+      else:
+        x = r
     return x

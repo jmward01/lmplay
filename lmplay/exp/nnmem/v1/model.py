@@ -32,9 +32,10 @@ class GPT2(LMBase):
                shared_nnm_layer=True,
                nnm_first=False,
                extra_nnm_only_blocks=0,
+               nnm_attn_residual=True,
                **ignore):
     super().__init__(
-      f"nnm_v{version}_{_p(nnm_ff)}{_p(shared_nnm)}{_p(shared_nnm_layer)}{_p(nnm_first)}_{nnm_size}_{nnm_heads}_{nnm_emb_mul}_{extra_nnm_only_blocks}_{num_blocks}L_{max_len}",
+      f"nnm_v{version}_{_p(nnm_ff)}{_p(shared_nnm)}{_p(shared_nnm_layer)}{_p(nnm_first)}{_p(nnm_attn_residual)}_{nnm_size}_{nnm_heads}_{nnm_emb_mul}_{extra_nnm_only_blocks}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,
@@ -50,7 +51,8 @@ class GPT2(LMBase):
       shared_nnm=shared_nnm,
       shared_nnm_layer=shared_nnm_layer,
       nnm_first=nnm_first,
-      extra_nnm_only_blocks=extra_nnm_only_blocks)
+      extra_nnm_only_blocks=extra_nnm_only_blocks,
+      nnm_attn_residual=nnm_attn_residual)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -94,7 +96,8 @@ class GPT2(LMBase):
                 ff_dropout=ff_dropout,
                 nnm=gen_layer(),
                 nnm_ff=nnm_ff,
-                nnm_first=nnm_first)
+                nnm_first=nnm_first,
+                nnm_attn_residual=nnm_attn_residual)
       blocks.append(b)
       for _ in range(extra_nnm_only_blocks):
         b = Block(max_len,
@@ -105,7 +108,8 @@ class GPT2(LMBase):
                   nnm=gen_layer(),
                   nnm_ff=nnm_ff,
                   nnm_first=nnm_first,
-                  nnm_only=True)
+                  nnm_only=True,
+                  nnm_attn_residual=nnm_attn_residual)
         blocks.append(b)
     self.blocks = nn.Sequential(*blocks)
     self.ln = nn.LayerNorm(embed_dim)
