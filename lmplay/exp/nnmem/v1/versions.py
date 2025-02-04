@@ -82,3 +82,12 @@ def rc(*args, **kwargs):
                           *args,
                           overrides=dict(nnm_emb_mul=0),
                           **kwargs)
+
+
+@expose_runner('nnm1_11', "Testing without UE and with a bigger embedding to share between the k and v.")
+def rc(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(nnm_emb_mul=0,
+                                         nnm_emb_mul2=8),
+                          **kwargs)

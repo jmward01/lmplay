@@ -48,21 +48,23 @@ class NNMemory(nn.Module):
                embedding_dim:int,
                num_heads:int,
                front_emb_mul=64,
+               emb_mul=1,
                linear=nn.Linear,
                force_ref = False):
     super().__init__()
     self.embedding_dim = embedding_dim
     self.force_ref = force_ref
+    nnm_embedding = emb_mul*embedding_dim
     if front_emb_mul == 0:
-      self.nnm = NNEmbedding(cells, embedding_dim)
+      self.nnm = NNEmbedding(cells, nnm_embedding)
     else:
-      self.nnm = UnifiedEmbedding(cells, embedding_dim, front_embed_mul=front_emb_mul)
+      self.nnm = UnifiedEmbedding(cells, nnm_embedding, front_embed_mul=front_emb_mul)
     assert embedding_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
     self.num_heads = num_heads
     # k&v are what are 'attended' to and will be cached for generation.
     #In a prod version these go away completely and turn into fixed K/V paramteres
-    self.key = create_linear(linear, 'nnm_key', embedding_dim, embedding_dim)
-    self.value = create_linear(linear, 'nnm_value', embedding_dim, embedding_dim)
+    self.key = create_linear(linear, 'nnm_key', nnm_embedding, embedding_dim)
+    self.value = create_linear(linear, 'nnm_value', nnm_embedding, embedding_dim)
     #So that we don't recalc the k/v parameters every time
     self.cached_value = None
     self.register_full_backward_hook(self.clear_cache)

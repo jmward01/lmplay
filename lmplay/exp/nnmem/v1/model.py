@@ -26,6 +26,7 @@ class GPT2(LMBase):
                version="1",
                nnm_size=128,
                nnm_emb_mul=32,
+               nnm_emb_mul2=1,
                nnm_heads=6,
                nnm_ff=True,
                shared_nnm=True,
@@ -35,7 +36,7 @@ class GPT2(LMBase):
                nnm_attn_residual=True,
                **ignore):
     super().__init__(
-      f"{version}_{_p(nnm_ff)}{_p(shared_nnm)}{_p(shared_nnm_layer)}{_p(nnm_first)}{_p(nnm_attn_residual)}_{nnm_size}_{nnm_heads}_{nnm_emb_mul}_{extra_nnm_only_blocks}_{num_blocks}L_{max_len}",
+      f"{version}_{_p(nnm_ff)}{_p(shared_nnm)}{_p(shared_nnm_layer)}{_p(nnm_first)}{_p(nnm_attn_residual)}_{nnm_size}_{nnm_heads}_{nnm_emb_mul2}_{nnm_emb_mul}_{extra_nnm_only_blocks}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,
@@ -52,7 +53,8 @@ class GPT2(LMBase):
       shared_nnm_layer=shared_nnm_layer,
       nnm_first=nnm_first,
       extra_nnm_only_blocks=extra_nnm_only_blocks,
-      nnm_attn_residual=nnm_attn_residual)
+      nnm_attn_residual=nnm_attn_residual,
+      nnm_emb_mul2=nnm_emb_mul2)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -62,7 +64,7 @@ class GPT2(LMBase):
     self.dropout = nn.Dropout(embed_dropout)
 
     if shared_nnm:
-      self.nnm = NNMemory(nnm_size, embed_dim, nnm_heads, front_emb_mul=nnm_emb_mul)
+      self.nnm = NNMemory(nnm_size, embed_dim, nnm_heads, emb_mul=nnm_emb_mul2, front_emb_mul=nnm_emb_mul)
 
       if shared_nnm_layer:
         self.nnm_layer = NNMemoryLayer(self.nnm)
@@ -81,7 +83,7 @@ class GPT2(LMBase):
 
       def gen_layer():
         nonlocal _layer_count
-        nnm = NNMemory(nnm_size, embed_dim, nnm_heads, front_emb_mul=nnm_emb_mul)
+        nnm = NNMemory(nnm_size, embed_dim, nnm_heads, emb_mul=nnm_emb_mul2, front_emb_mul=nnm_emb_mul)
         nnm_layer = NNMemoryLayer(nnm)
         self.register_module(f'nnm_{_layer_count}', nnm)
         self.register_module(f'nnm_layer_{_layer_count}', nnm_layer)
