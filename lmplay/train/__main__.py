@@ -188,7 +188,8 @@ def main():
                 reset_history=args.reset_history,
                 first_step=first_step_name,
                 grad_clip=args.grad_clip,
-                check_grads=args.check_grads)
+                check_grads=args.check_grads,
+                version=args.exp)
 
   early_exit = False
   for step_name, epochs, train, validation in steps(training_plan, current_step=mr.current_step):

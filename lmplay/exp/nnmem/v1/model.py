@@ -35,7 +35,7 @@ class GPT2(LMBase):
                nnm_attn_residual=True,
                **ignore):
     super().__init__(
-      f"nnm_v{version}_{_p(nnm_ff)}{_p(shared_nnm)}{_p(shared_nnm_layer)}{_p(nnm_first)}{_p(nnm_attn_residual)}_{nnm_size}_{nnm_heads}_{nnm_emb_mul}_{extra_nnm_only_blocks}_{num_blocks}L_{max_len}",
+      f"{version}_{_p(nnm_ff)}{_p(shared_nnm)}{_p(shared_nnm_layer)}{_p(nnm_first)}{_p(nnm_attn_residual)}_{nnm_size}_{nnm_heads}_{nnm_emb_mul}_{extra_nnm_only_blocks}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,
