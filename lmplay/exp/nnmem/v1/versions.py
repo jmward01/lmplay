@@ -68,3 +68,10 @@ def rc(*args, **kwargs):
                           *args,
                           overrides=dict(nnm_size=64),
                           **kwargs)
+
+@expose_runner('nnm1_9', "Testing how a larger nnm_emb_mul impacts things.")
+def rc(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(nnm_emb_mul=64),
+                          **kwargs)
