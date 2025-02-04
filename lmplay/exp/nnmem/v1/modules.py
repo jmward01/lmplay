@@ -54,7 +54,7 @@ class NNMemory(nn.Module):
     super().__init__()
     self.embedding_dim = embedding_dim
     self.force_ref = force_ref
-    nnm_embedding = emb_mul*embedding_dim
+    nnm_embedding = int(emb_mul*embedding_dim)
     if front_emb_mul == 0:
       self.nnm = NNEmbedding(cells, nnm_embedding)
     else:

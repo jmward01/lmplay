@@ -61,6 +61,8 @@ def _plot_worker(out_file,
       acs[i] = ac
     return acs[i]
   #ac = ac/np.sum(ac)
+  abs_avg_min_value = None
+  abs_avg_max_value = None
   addtl_lines = []
   for name, data in file_data.items():
     for data_name in plot_targets:
@@ -94,6 +96,12 @@ def _plot_worker(out_file,
         avg = d_sect*ac_sect
         avg = np.sum(avg)
         avgs[i] = avg
+      if abs_avg_min_value is None:
+        abs_avg_min_value = min(avgs)
+        abs_avg_max_value = max(avgs)
+      else:
+        abs_avg_min_value = min(min(avgs), abs_avg_min_value)
+        abs_avg_max_value = max(max(avgs), abs_avg_max_value)
       if l is None:
         addtl_lines.append({'iter':data['iter'], 'data':avgs, "label": f"{name}_{data_name}"})
       else:
@@ -108,6 +116,9 @@ def _plot_worker(out_file,
   plt.xlabel('Iteration')
   if log_plot:
     plt.xscale('log')
+  if not plot_raw:
+    abs_min_value = abs_avg_min_value
+    abs_max_value = abs_avg_max_value
   # We want to scale it just the lowest part to zoom in on it so set the max to min_show above out max_min
   if scale:
     #upper_show = (abs_max_value - max_min_value) * min_show
