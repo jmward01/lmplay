@@ -5,6 +5,7 @@ from typing import Optional
 from lmplay.utils import create_linear
 from lmplay.modules import MultiheadAttention, UnifiedEmbedding
 import math
+from torch.nn import init
 
 class CachedOutput(nn.Module):
   def __init__(self, module:nn.Module):
@@ -31,24 +32,37 @@ class CachedOutput(nn.Module):
       self.cached_value = self.module[0]()
     return self.cached_value
 
+class NNEmbedding(nn.Module):
+  def __init__(self, cells, embedding_dim):
+    super().__init__()
+    self.embedding_dim = embedding_dim
+    self.weight = nn.Parameter(torch.empty((cells, embedding_dim)))
+    init.normal_(self.weight)
+
+  def forward(self):
+    return self.weight
+
 class NNMemory(nn.Module):
   def __init__(self,
                cells:int,
-               embed_dim:int,
+               embedding_dim:int,
                num_heads:int,
                front_emb_mul=64,
                linear=nn.Linear,
                force_ref = False):
     super().__init__()
-    self.embed_dim = embed_dim
+    self.embedding_dim = embedding_dim
     self.force_ref = force_ref
-    self.nnm = UnifiedEmbedding(cells, embed_dim, front_embed_mul=front_emb_mul)
-    assert embed_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
+    if front_emb_mul == 0:
+      self.nnm = NNEmbedding(cells, embedding_dim)
+    else:
+      self.nnm = UnifiedEmbedding(cells, embedding_dim, front_embed_mul=front_emb_mul)
+    assert embedding_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
     self.num_heads = num_heads
     # k&v are what are 'attended' to and will be cached for generation.
     #In a prod version these go away completely and turn into fixed K/V paramteres
-    self.key = create_linear(linear, 'nnm_key', embed_dim, embed_dim)
-    self.value = create_linear(linear, 'nnm_value', embed_dim, embed_dim)
+    self.key = create_linear(linear, 'nnm_key', embedding_dim, embedding_dim)
+    self.value = create_linear(linear, 'nnm_value', embedding_dim, embedding_dim)
     #So that we don't recalc the k/v parameters every time
     self.cached_value = None
     self.register_full_backward_hook(self.clear_cache)
@@ -106,8 +120,8 @@ class NNMemoryLayer(nn.Module):
                proj_dropout: Optional[float] = 0.1):
     super().__init__()
     self. nnm = [nnm]
-    self.value = create_linear(linear, 'nnm_q', nnm.embed_dim, nnm.embed_dim)
-    self.proj = create_linear(linear, 'nnm_proj', nnm.embed_dim, nnm.embed_dim)
+    self.value = create_linear(linear, 'nnm_q', nnm.embedding_dim, nnm.embedding_dim)
+    self.proj = create_linear(linear, 'nnm_proj', nnm.embedding_dim, nnm.embedding_dim)
     self.proj_dropout = nn.Dropout(proj_dropout)
 
   def forward(self, v):
