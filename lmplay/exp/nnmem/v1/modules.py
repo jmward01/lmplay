@@ -118,12 +118,19 @@ class NNMemory(nn.Module):
 class NNMemoryLayer(nn.Module):
   def __init__(self,
                nnm:NNMemory,
+               in_features=None,
+               out_features=None,
                linear = nn.Linear,
-               proj_dropout: Optional[float] = 0.1):
+               proj_dropout: Optional[float] = 0.1,
+               **kwargs):
     super().__init__()
     self. nnm = [nnm]
-    self.value = create_linear(linear, 'nnm_q', nnm.embedding_dim, nnm.embedding_dim)
-    self.proj = create_linear(linear, 'nnm_proj', nnm.embedding_dim, nnm.embedding_dim)
+    if in_features is None:
+      in_features = nnm.embedding_dim
+    if out_features is None:
+      out_features = nnm.embedding_dim
+    self.value = create_linear(linear, 'nnm_q', in_features, nnm.embedding_dim, **kwargs)
+    self.proj = create_linear(linear, 'nnm_proj', nnm.embedding_dim, out_features, **kwargs)
     self.proj_dropout = nn.Dropout(proj_dropout)
 
   def forward(self, v):

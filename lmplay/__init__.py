@@ -17,3 +17,4 @@ import lmplay.exp.embeddings.unified_embeddings_v1_1.model
 import lmplay.exp.attn_norm.normv.model
 
 import lmplay.exp.nnmem.v1.versions
+import lmplay.exp.nnmem.v2.versions
