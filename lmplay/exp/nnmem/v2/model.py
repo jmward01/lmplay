@@ -24,7 +24,7 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
-               version="1",
+               version="2",
                nnm_size=128,
                nnm_emb_mul=32,
                nnm_emb_mul2=1,
