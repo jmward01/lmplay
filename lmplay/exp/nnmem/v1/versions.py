@@ -54,11 +54,18 @@ def nnm1_5(*args, **kwargs):
                                          num_blocks = 2),
                           **kwargs)
 
-#nnm_attn_residual
 @expose_runner('nnm1_6', "Playing with connections to see if it boosts performance.")
 def nnm1_6(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(version="1.6",
                                          nnm_attn_residual=False),
+                          **kwargs)
+
+@expose_runner('nnm1_7', "Testing how more hedas impacts things.")
+def nnm1_7(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(version="1.7",
+                                         nnm_heads=12),
                           **kwargs)
