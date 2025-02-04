@@ -8,7 +8,6 @@ import tiktoken
 from lmplay.base.base_model import LMBase
 
 
-
 def _p(v) -> str:
   if v is None:
     return 'N'
@@ -29,9 +28,10 @@ class GPT2(LMBase):
                nnm_emb_mul=32,
                nnm_emb_mul2=1,
                nnm_heads=6,
+               shadow=False,
                **ignore):
     super().__init__(
-      f"{version}_{nnm_size}_{nnm_heads}_{nnm_emb_mul2}_{nnm_emb_mul}_{num_blocks}L_{max_len}",
+      f"{version}_{_p(shadow)}_{nnm_size}_{nnm_heads}_{nnm_emb_mul2}_{nnm_emb_mul}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,
@@ -43,7 +43,8 @@ class GPT2(LMBase):
       nnm_size=nnm_size,
       nnm_emb_mul=nnm_emb_mul,
       nnm_heads=nnm_heads,
-      nnm_emb_mul2=nnm_emb_mul2)
+      nnm_emb_mul2=nnm_emb_mul2,
+      shadow=shadow)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -54,10 +55,10 @@ class GPT2(LMBase):
 
     self.nnm = NNMemory(nnm_size, embed_dim, nnm_heads, emb_mul=nnm_emb_mul2, front_emb_mul=nnm_emb_mul)
 
-    #self.nnm_layer = NNMemoryLayer(self.nnm)
+    # self.nnm_layer = NNMemoryLayer(self.nnm)
 
     def linear(in_features, out_features, **kwargs):
-      return NNMemoryLayer(self.nnm, in_features=in_features, out_features=out_features, **kwargs)
+      return NNMemoryLayer(self.nnm, in_features=in_features, out_features=out_features, shadow=shadow, **kwargs)
 
     blocks = []
     for i in range(num_blocks):

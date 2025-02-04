@@ -7,5 +7,12 @@ from lmplay.base.runner_list import expose_runner
 def rc(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(nnm_first=False),
+                          overrides=dict(),
+                          **kwargs)
+
+@expose_runner('nnm2_1', "Now with shadow!")
+def rc(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(shadow=True),
                           **kwargs)

@@ -7,8 +7,9 @@ from lmplay.modules import MultiheadAttention, UnifiedEmbedding
 import math
 from torch.nn import init
 
+
 class CachedOutput(nn.Module):
-  def __init__(self, module:nn.Module):
+  def __init__(self, module: nn.Module):
     super().__init__()
     self.module = [module]
     self.cached_value = None
@@ -32,6 +33,7 @@ class CachedOutput(nn.Module):
       self.cached_value = self.module[0]()
     return self.cached_value
 
+
 class NNEmbedding(nn.Module):
   def __init__(self, cells, embedding_dim):
     super().__init__()
@@ -42,19 +44,20 @@ class NNEmbedding(nn.Module):
   def forward(self):
     return self.weight
 
+
 class NNMemory(nn.Module):
   def __init__(self,
-               cells:int,
-               embedding_dim:int,
-               num_heads:int,
+               cells: int,
+               embedding_dim: int,
+               num_heads: int,
                front_emb_mul=64,
                emb_mul=1,
                linear=nn.Linear,
-               force_ref = False):
+               force_ref=False):
     super().__init__()
     self.embedding_dim = embedding_dim
     self.force_ref = force_ref
-    nnm_embedding = int(emb_mul*embedding_dim)
+    nnm_embedding = int(emb_mul * embedding_dim)
     if front_emb_mul == 0:
       self.nnm = NNEmbedding(cells, nnm_embedding)
     else:
@@ -62,10 +65,10 @@ class NNMemory(nn.Module):
     assert embedding_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
     self.num_heads = num_heads
     # k&v are what are 'attended' to and will be cached for generation.
-    #In a prod version these go away completely and turn into fixed K/V paramteres
+    # In a prod version these go away completely and turn into fixed K/V paramteres
     self.key = create_linear(linear, 'nnm_key', nnm_embedding, embedding_dim)
     self.value = create_linear(linear, 'nnm_value', nnm_embedding, embedding_dim)
-    #So that we don't recalc the k/v parameters every time
+    # So that we don't recalc the k/v parameters every time
     self.cached_value = None
     self.register_full_backward_hook(self.clear_cache)
 
@@ -89,7 +92,7 @@ class NNMemory(nn.Module):
       k = self.key(nnm).reshape(target_batch_size, target_seq_len, self.num_heads, -1)
       v = self.value(nnm).reshape(target_batch_size, target_seq_len, self.num_heads, -1).transpose(1, 2)
 
-      self.cached_value = [k,v]
+      self.cached_value = [k, v]
     return self.cached_value[0], self.cached_value[1]
 
   def forward(self, x):
@@ -102,7 +105,7 @@ class NNMemory(nn.Module):
       x = F.scaled_dot_product_attention(q, k, v, is_causal=False)
     else:
       # This also opens up how mha works to make it easier to play with parts of it.
-      #It may also be slightly faster than the pytorch implementation on cpu? At least it was at one point.
+      # It may also be slightly faster than the pytorch implementation on cpu? At least it was at one point.
       k = k.permute(0, 2, 3, 1)
       # This is where the 'scaled' is implemented!
       attn = torch.matmul(q, k) / math.sqrt(q.size(-1))
@@ -115,16 +118,18 @@ class NNMemory(nn.Module):
     # y.shape == (batch_size, seq_len, embed_dim)
     return x
 
+
 class NNMemoryLayer(nn.Module):
   def __init__(self,
-               nnm:NNMemory,
+               nnm: NNMemory,
                in_features=None,
                out_features=None,
-               linear = nn.Linear,
+               linear=nn.Linear,
                proj_dropout: Optional[float] = 0.1,
+               shadow=False,
                **kwargs):
     super().__init__()
-    self. nnm = [nnm]
+    self.nnm = [nnm]
     if in_features is None:
       in_features = nnm.embedding_dim
     if out_features is None:
@@ -132,25 +137,39 @@ class NNMemoryLayer(nn.Module):
     self.value = create_linear(linear, 'nnm_q', in_features, nnm.embedding_dim, **kwargs)
     self.proj = create_linear(linear, 'nnm_proj', nnm.embedding_dim, out_features, **kwargs)
     self.proj_dropout = nn.Dropout(proj_dropout)
+    if shadow:
+      self.shadow = linear(in_features, out_features, **kwargs)
+    else:
+      self.register_module('shadow', None)
 
   def forward(self, v):
+    if not self.shadow is None:
+      v_s = self.shadow(v)
+    else:
+      v_s = None
     v = self.value(v)
     v = self.nnm[0](v)
-    v = self.proj_dropout(self.proj(v))
+    v = self.proj(v)
+    if not v_s is None:
+      v = v + v_s
+    v = self.proj_dropout(v)
     return v
+
 
 class Block(nn.Module):
   """Your basic encoder block implementation! Nothing crazy in here.
 
   """
+
   def __init__(self,
                max_len: int,
                num_heads: int,
                embed_dim: int,
-               nnm:NNMemory|NNMemoryLayer,
+               nnm: NNMemory | NNMemoryLayer,
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
-               linear=nn.Linear,  #Passing in the class we want for a linear layer since this can be swapped for different exp
+               linear=nn.Linear,
+               # Passing in the class we want for a linear layer since this can be swapped for different exp
                ln_attn=True,
                ln_mlp=True,
                nnm_ff=True,
@@ -164,25 +183,25 @@ class Block(nn.Module):
       if not nnm_only:
         self.ln1 = nn.LayerNorm(embed_dim)
       else:
-        self.ln1 = lambda x:x
+        self.ln1 = lambda x: x
       self.ln1_nnm = nn.LayerNorm(embed_dim)
     else:
-      self.ln1 = lambda x:x
-      self.ln1_nnm = lambda x:x
+      self.ln1 = lambda x: x
+      self.ln1_nnm = lambda x: x
     if ln_mlp and not nnm_only:
       self.ln2 = nn.LayerNorm(embed_dim)
     else:
-      self.ln2 = lambda x:x
+      self.ln2 = lambda x: x
 
     if nnm_ff:
       self.ln2_nnm = nn.LayerNorm(embed_dim)
       self.ff_nnm = nn.Sequential(create_linear(linear, 'block_ff_nnm_1', embed_dim, embed_dim * 4),
-                              nn.GELU(),
-                              create_linear(linear, 'block_ff_nnm_2', embed_dim * 4, embed_dim),
-                              nn.Dropout(ff_dropout))
+                                  nn.GELU(),
+                                  create_linear(linear, 'block_ff_nnm_2', embed_dim * 4, embed_dim),
+                                  nn.Dropout(ff_dropout))
 
     else:
-      self.ln2_nnm = lambda x:x
+      self.ln2_nnm = lambda x: x
       self.register_module('ff_nnm', None)
     self.nnm = [nnm]
 
@@ -194,7 +213,6 @@ class Block(nn.Module):
                                      ff_dropout=ff_dropout,
                                      linear=linear)
 
-
       self.ff = nn.Sequential(create_linear(linear, 'block_ff_1', embed_dim, embed_dim * 4),
                               nn.GELU(),
                               create_linear(linear, 'block_ff_2', embed_dim * 4, embed_dim),
@@ -203,11 +221,9 @@ class Block(nn.Module):
       self.register_module('attn', None)
       self.register_module('ff', None)
 
-
-
-  def forward(self, x, cache:Optional[list]=None):
-    #A simple 'block' that uses residual connections and gives attn + pure logic both a chance to modify the hidden layer
-    #the 'cache' is the kv cache and is only needed for inference, not training.
+  def forward(self, x, cache: Optional[list] = None):
+    # A simple 'block' that uses residual connections and gives attn + pure logic both a chance to modify the hidden layer
+    # the 'cache' is the kv cache and is only needed for inference, not training.
 
     if self.nnm_first:
       if self.nnm_attn_residual:
