@@ -656,7 +656,7 @@ class BasicModelRunner(LMRunnerBase):
 
     model_args = model_args if model_args else dict()
     for k, v in parameters.items():
-      if k not in model_args:
+      if k not in model_args or v == "version":
         model_args[k] = v
     if not self.overrides is None:
       for k, v in self.overrides.items():
