@@ -43,11 +43,12 @@ def rc(*args, **kwargs):
                           **kwargs)
 
 #
-@expose_runner('nnm1_5', description="Trying a stripped down 6 total layers (3 + 3) to be more comparible to a 6L model. This is fewer parameters/compute than a standard 6L model.")
+@expose_runner('nnm1_5', description="Trying a stripped down 6 total layers (3 + 3) to be more comparable to a 6L model. This is fewer parameters/compute than a standard 6L model.")
 def rc(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(num_blocks = 3),
+                          overrides=dict(num_blocks = 3,
+                                         shared_nnm=False),
                           **kwargs)
 #
 @expose_runner('nnm1_6', "Playing with connections to see if it boosts performance.")
