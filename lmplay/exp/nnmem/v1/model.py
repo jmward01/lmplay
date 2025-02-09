@@ -5,7 +5,6 @@ from typing import Optional, List
 from .modules import Block, NNMemory, NNMemoryLayer
 import tiktoken
 from lmplay.base.base_model import LMBase
-from functools import partial
 
 
 def _p(v) -> str:
