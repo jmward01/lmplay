@@ -26,7 +26,7 @@ class RMBase(MBase):
     #While training some will finish before others. We only generate for those that are finished
     gen_map = tuple(i for i in range(x.shape[0]))
     #We don't send in the last one because that would generate one too many results
-    x_out = torch.empty((x.shape[0], truths.shape[1], self.tokenizer.n_vocab), device=x.device)
+    x_out = None
     for i in range(x.shape[-1] - 1):
       remake_batch = False
       #Check to see if we can prune out a sample or not.
@@ -64,7 +64,8 @@ class RMBase(MBase):
       packed_xi = x[gen_map,i:i+1]
       packed_xi_out, cache, r = self(packed_xi, r, cache)
       #We keep the initial batch size and insert the result into it but we only generate for the still active samples.
-
+      if x_out is None:
+        x_out = torch.empty((x.shape[0], truths.shape[1], self.tokenizer.n_vocab), device=x.device, dtype = packed_xi_out.dtype)
       x_out[gen_map,i,:] = packed_xi_out[:,0,:]
     #From here on out should be the same as a normal LM
     results = []
