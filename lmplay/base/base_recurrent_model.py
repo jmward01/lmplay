@@ -12,6 +12,8 @@ def _prune_cache(cache:list, batch_idx:int):
         select_idxs = [idx for idx in range(t.shape[0]) if idx != batch_idx]
       t = t[select_idxs]
       entry[i] = t
+
+
 class RMBase(MBase):
   def train_prompts(self, prompts: Sequence[dict]) -> (Sequence[str], torch.Tensor):
     # We want to pad them together so that the truths will line up with the prompts.
@@ -21,48 +23,49 @@ class RMBase(MBase):
     cache = []
     #recurrent state starts off as None. The model can store a starting state if it wants one.
     r = None
-    x_out = []
     #While training some will finish before others. We only generate for those that are finished
     gen_map = tuple(i for i in range(x.shape[0]))
     #We don't send in the last one because that would generate one too many results
+    x_out = torch.empty((x.shape[0], truths.shape[1], self.tokenizer.n_vocab), device=x.device)
     for i in range(x.shape[-1] - 1):
-      packed_xi = []
-      new_gen_map = []
-      xi = 0
-      if r is None:
-        #No recurrent state, just prune samples that have ended
-        for batch_idx, j in enumerate(gen_map):
-          if predictions_ends[j] >= i:
-            new_gen_map.append(j)
-            packed_xi.append(x[j,i:i+1])
-            xi += 1
-          else:
-            #We need to prune the cache
-            _prune_cache(cache, batch_idx)
-      else:
-        #We have a recurrent state we need to make sure we prune it along with the running samples
-        new_r = []
-        for batch_idx, (j, ri)  in enumerate(zip(gen_map, r)):
-          if predictions_ends[j] >= i:
-            new_gen_map.append(j)
-            packed_xi.append(x[j,i:i+1])
-            xi += 1
-            new_r.append(ri)
-          else:
-            #We need to prune the cache
-            _prune_cache(cache, batch_idx)
-        r = torch.stack(new_r)
+      remake_batch = False
+      #Check to see if we can prune out a sample or not.
+      for batch_idx, j in enumerate(gen_map):
+        if predictions_ends[j] < i:
+          remake_batch = True
+          break
+      if remake_batch:
+        new_gen_map = []
+        xi = 0
+        if r is None:
+          #No recurrent state, just prune samples that have ended
+          for batch_idx, j in enumerate(gen_map):
+            if predictions_ends[j] >= i:
+              new_gen_map.append(j)
+              xi += 1
+            else:
+              #We need to prune the cache
+              _prune_cache(cache, batch_idx)
+        else:
+          #We have a recurrent state we need to make sure we prune it along with the running samples
+          new_r = []
+          for batch_idx, (j, ri)  in enumerate(zip(gen_map, r)):
+            if predictions_ends[j] >= i:
+              new_gen_map.append(j)
+              #packed_xi.append(x[j,i:i+1])
+              xi += 1
+              new_r.append(ri)
+            else:
+              #We need to prune the cache
+              _prune_cache(cache, batch_idx)
+          r = torch.stack(new_r)
 
-      gen_map = new_gen_map
-      packed_xi = torch.stack(packed_xi)
+        gen_map = new_gen_map
+      packed_xi = x[gen_map,i:i+1]
       packed_xi_out, cache, r = self(packed_xi, r, cache)
       #We keep the initial batch size and insert the result into it but we only generate for the still active samples.
-      xi_out = torch.empty((x.shape[0], packed_xi_out.shape[-1]), device=x.device)
-      for j, xi in enumerate(gen_map):
-        xi_out[xi] = packed_xi_out[j]
-      x_out.append(xi_out)
-    #put it all back together.
-    x_out = torch.stack(x_out, 1)
+
+      x_out[gen_map,i,:] = packed_xi_out[:,0,:]
     #From here on out should be the same as a normal LM
     results = []
     # num classes is always second. For, reasons?
