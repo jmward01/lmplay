@@ -4,13 +4,10 @@ from typing import Optional, Sequence, List
 from abc import abstractmethod
 import torch.nn.functional as F
 
-def _prune_cache(cache:list, batch_idx:int):
+def _prune_cache(cache:list, keep_map):
   for entry in cache:
-    select_idxs = None
     for i, t in enumerate(entry):
-      if select_idxs is None:
-        select_idxs = [idx for idx in range(t.shape[0]) if idx != batch_idx]
-      t = t[select_idxs]
+      t = t[keep_map]
       entry[i] = t
 
 
@@ -30,36 +27,18 @@ class RMBase(MBase):
     for i in range(x.shape[-1] - 1):
       remake_batch = False
       #Check to see if we can prune out a sample or not.
+      keep_map = []
+      new_gen_map = []
       for batch_idx, j in enumerate(gen_map):
         if predictions_ends[j] < i:
           remake_batch = True
-          break
-      if remake_batch:
-        new_gen_map = []
-        xi = 0
-        if r is None:
-          #No recurrent state, just prune samples that have ended
-          for batch_idx, j in enumerate(gen_map):
-            if predictions_ends[j] >= i:
-              new_gen_map.append(j)
-              xi += 1
-            else:
-              #We need to prune the cache
-              _prune_cache(cache, batch_idx)
         else:
-          #We have a recurrent state we need to make sure we prune it along with the running samples
-          new_r = []
-          for batch_idx, (j, ri)  in enumerate(zip(gen_map, r)):
-            if predictions_ends[j] >= i:
-              new_gen_map.append(j)
-              #packed_xi.append(x[j,i:i+1])
-              xi += 1
-              new_r.append(ri)
-            else:
-              #We need to prune the cache
-              _prune_cache(cache, batch_idx)
-          r = torch.stack(new_r)
-
+          keep_map.append(batch_idx)
+          new_gen_map.append(j)
+      if remake_batch:
+        _prune_cache(cache, keep_map)
+        if not r is None:
+          r = r[keep_map]
         gen_map = new_gen_map
       packed_xi = x[gen_map,i:i+1]
       packed_xi_out, cache, r = self(packed_xi, r, cache)
