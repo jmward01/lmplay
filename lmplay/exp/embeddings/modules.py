@@ -149,10 +149,15 @@ class UnifiedEmbedding(nn.Module):
     if f'{prefix}weight' in state_dict:
       self.initialize(state_dict[f'{prefix}weight'])
 
-  def forward(self, idxs: torch.Tensor, allow_reorder=True) -> torch.Tensor:
+  def forward(self, idxs: torch.Tensor = None, allow_reorder=True) -> torch.Tensor:
+    #If they send in 'none' then we will send back all embeddings.
     tok_embed_device = self.tok_embed.weight.device
-    output_device = idxs.device
-    if allow_reorder and idxs.size(1) > 1:
+    if not idxs is None:
+      output_device = idxs.device
+    else:
+      output_device = tok_embed_device
+
+    if not idxs is None and allow_reorder and idxs.size(1) > 1:
       #This greatly saves computation/CPU transfer costs but clearly adds a little complexity.
       #It doesn't appear to hurt training (it shouldn't but quick tests were done and showed similar training curves)
       #Basically, we find all the unique idxs used, look just those up then do the integration layers and re-scatter the results.
@@ -193,17 +198,26 @@ class UnifiedEmbedding(nn.Module):
         #This probably means the embeddings are on CPU to save memory.
         #Autocast doesn't like mixed devices
         with torch.amp.autocast(enabled=False, device_type=tok_embed_device.type):
-          x = self.emb_activation(self.tok_embed(idxs))
+          if idxs is None:
+            #They want them all!
+            x = self.emb_activation(self.tok_embed.weight)
+          else:
+            x = self.emb_activation(self.tok_embed(idxs))
 
           if not self.integration1 is None:
             x = self.integration1(x)
           x = x.to(output_device)
       else:
-        x = self.emb_activation(self.tok_embed(idxs))
+        if idxs is None:
+          #They want them all!
+          x = self.emb_activation(self.tok_embed.weight)
+        else:
+          x = self.emb_activation(self.tok_embed(idxs))
 
         if not self.integration1 is None:
           x = self.integration1(x)
-      x = self.integration1_5(F.gelu(x))
+      if not self.integration1_5 is None:
+        x = self.integration1_5(F.gelu(x))
       #x = self.integration1(x)
       if not self.integration2 is None:
         x = self.integration2(F.gelu(x))

@@ -37,7 +37,7 @@ class OptimizerWarmupLRScheduler(LRScheduler):
     return self.current_lrs
 
 
-class LMBase(nn.Module):
+class MBase(nn.Module):
   def __init__(self, name: str, *init_args, **init_kwargs):
     super().__init__()
     self.name = name.replace('.', '_')
@@ -113,7 +113,7 @@ class LMBase(nn.Module):
     return self._apply(convert)
 
   @abstractmethod
-  def forward(self, x: torch.Tensor, cache: Optional[List] = None):
+  def forward(self,*args, **kwargs):
     pass
 
   def train_prompts(self, prompts: Sequence[dict]) -> (Sequence[str], torch.Tensor):
@@ -177,6 +177,11 @@ class LMBase(nn.Module):
         p_count *= s
       pc += p_count
     return pc
+
+class LMBase(MBase):
+  @abstractmethod
+  def forward(self, x: torch.Tensor, cache: Optional[List] = None) -> torch.Tensor:
+    pass
 
 
 def detect_freeze(module: nn.Module):
@@ -656,7 +661,7 @@ class BasicModelRunner(LMRunnerBase):
 
     model_args = model_args if model_args else dict()
     for k, v in parameters.items():
-      if k not in model_args:
+      if k not in model_args or k == "version":
         model_args[k] = v
     if not self.overrides is None:
       for k, v in self.overrides.items():

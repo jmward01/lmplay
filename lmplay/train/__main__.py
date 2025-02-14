@@ -9,7 +9,9 @@ from lmplay.base.base_model import LMRunnerBase
 from lmplay.train.datasets.plan import steps, get_first_step_name, get_step_names
 from lmplay.train.datasets.plan_configs import DEFAULT_PLANS
 
-def render_pbar(ms: ModelStats, current_step:str) -> str:
+def render_pbar(exp:str, device, ms: ModelStats, current_step:str) -> str:
+  if device is None:
+    device = ""
   if ms.total_train_samples > 0:
     train_loss = f"{ms.train_loss():0.4f}"
     train_acc = f"{ms.train_accuracy():0.4f}"
@@ -22,7 +24,7 @@ def render_pbar(ms: ModelStats, current_step:str) -> str:
   else:
     validate_loss = "TBD"
     validate_acc = "TBD"
-  return f"{current_step}-train l:{train_loss}, a:{train_acc}/val l:{validate_loss}, a:{validate_acc}"
+  return f"{exp}-{device}-{current_step}-train l:{train_loss}, a:{train_acc}/val l:{validate_loss}, a:{validate_acc}"
 
 
 def calc_next(interval: int, current: int):
@@ -188,7 +190,8 @@ def main():
                 reset_history=args.reset_history,
                 first_step=first_step_name,
                 grad_clip=args.grad_clip,
-                check_grads=args.check_grads)
+                check_grads=args.check_grads,
+                version=args.exp)
 
   early_exit = False
   for step_name, epochs, train, validation in steps(training_plan, current_step=mr.current_step):
@@ -241,7 +244,7 @@ def main():
             pbar.set_description("Saving weights...")
             mr.save(save_location)
             next_save = calc_next(save_interval, mr.get_step_stats().total_train_samples)
-          pbar.set_description(render_pbar(mr.get_step_stats(), mr.current_step))
+          pbar.set_description(render_pbar(args.exp, device, mr.get_step_stats(), mr.current_step))
           pbar.update(new_train_samples_read)
       except KeyboardInterrupt:
         print(f"User canceled training.")

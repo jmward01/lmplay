@@ -14,7 +14,7 @@ from functools import partial
 def _p(v) -> str:
   if v is None:
     return 'N'
-  return int(v)
+  return str(int(v))
 
 
 class GPT2(LMBase):

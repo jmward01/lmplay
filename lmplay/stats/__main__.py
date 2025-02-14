@@ -10,6 +10,7 @@ def main():
   args.add_argument('--out-type', help="type of plot to make either jpg, png. default is png", default='png')
   args.add_argument('--max-files', help="Max files to gather stats from. default is 20", default=20, type=int)
   args.add_argument('--target', help="What result to target. Only applies to the diff plots. default will use the longest available.", default=None)
+  args.add_argument('--plot-raw', help="Plot the raw scatter info as well as the trend lines.", action="store_true")
   args = args.parse_args()
   if args.plot_train:
     stats_type = "train"
@@ -54,8 +55,8 @@ def main():
   file_data = get_file_data(*found_files)
   outfile_log_loss = f"./log_loss.{file_type}"
   outfile_log_acc = f"./log_accuracy.{file_type}"
-  plot(outfile_log_loss, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, average_count=average_count)
-  plot(outfile_log_acc, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, plot_targets=('accuracy',), average_count=average_count)
+  plot(outfile_log_loss, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, average_count=average_count, plot_raw=args.plot_raw)
+  plot(outfile_log_acc, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, plot_targets=('accuracy',), average_count=average_count, plot_raw=args.plot_raw)
 
   #outfile_loss = f"./loss.{file_type}"
   #outfile_acc = f"./accuracy.{file_type}"
@@ -64,8 +65,8 @@ def main():
 
   outfile_log_norm_loss = f"./log_diff_loss.{file_type}"
   outfile_log_norm_acc = f"./log_diff_accuracy.{file_type}"
-  plot(outfile_log_norm_loss, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, diff_to_target=True, average_count=average_count, target=args.target)
-  plot(outfile_log_norm_acc, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, plot_targets=('accuracy',), diff_to_target=True, average_count=average_count, target=args.target)
+  plot(outfile_log_norm_loss, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, diff_to_target=True, average_count=average_count, target=args.target, plot_raw=args.plot_raw)
+  plot(outfile_log_norm_acc, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, plot_targets=('accuracy',), diff_to_target=True, average_count=average_count, target=args.target, plot_raw=args.plot_raw)
 
 
 

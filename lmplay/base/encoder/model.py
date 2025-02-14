@@ -4,10 +4,11 @@ from typing import Optional, List
 
 from .modules import Block
 import tiktoken
-from lmplay.base.base_model import LMBase
+from lmplay.base.base_model import LMBase, MBase
+from lmplay.base.base_recurrent_model import RLMBase
 
 
-class GPT2(LMBase):
+class _GPT2(MBase):
   def __init__(self,
                max_len=1024,
                num_heads=12,
@@ -16,8 +17,9 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
+               basename="GPT2ish",
                **ignore):
-    super().__init__(f"GPT2ish_{num_blocks}L_{max_len}",
+    super().__init__(f"{basename}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -66,3 +68,18 @@ class GPT2(LMBase):
       return x, cache
     return x
 
+class GPT2(_GPT2, LMBase):
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+
+
+class RGPT2(_GPT2, RLMBase):
+  """Just here to have a ref implementation of recurrent that should perform exactly like GPT2
+
+  """
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, basename="RGPT2ish", **kwargs)
+
+  def forward(self, x:torch.Tensor, s:torch.Tensor, cache:List):
+    x, cache = super().forward(x, cache=cache)
+    return x, cache, None

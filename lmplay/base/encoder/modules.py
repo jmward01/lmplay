@@ -27,7 +27,8 @@ class MultiheadAttention(nn.Module):
                norm_v=False,
                norm_k=False,
                norm_q=False,
-               linear=nn.Linear): #Passing in the class we want for a linear layer since this can be swapped for different exp
+               linear=nn.Linear,
+               causal=True): #Passing in the class we want for a linear layer since this can be swapped for different exp
     """
     :param max_len: Max sequence generation length. Needed for mask generation. Better implementations don't need this.
     :param num_heads: Guess
@@ -72,7 +73,10 @@ class MultiheadAttention(nn.Module):
     self.proj_dropout = nn.Dropout(ff_dropout)
 
     # not needed for ref version
-    self.register_buffer("mask", gen_mask(max_len))
+    if causal:
+      self.register_buffer("mask", gen_mask(max_len))
+    else:
+      self.register_buffer("mask", None)
     self.force_ref = force_ref
 
   def _kv_cache_prep(self, cache: Optional[list]) -> bool:
@@ -87,17 +91,26 @@ class MultiheadAttention(nn.Module):
       return False
     return True
 
-  def forward(self, x, cache: Optional[list] = None) -> torch.Tensor:
+  def forward(self, x, x_cross = None, cache: Optional[list] = None) -> torch.Tensor:
     """ Runns mha!
     :param x: How mysterious!
     :param cache: modified in place. The caller shouldn't touch it!
     :return:
     """
+
+    if not x_cross is None:
+      assert self.mask is None, f"Attn created with a causal mask but passed cross attn inputs"
+      #There is a strong argument to support x_attn k,v but I'm not implementing it yet
+      assert cache is None, f"Cached k, v aren't supported for x attn"
+      x_target = x_cross.unsqueeze(0)
+    else:
+      x_target = x
     # Useful for later ops
     batch_size, seq_len, embed_dim = x.shape
+    target_batch_size, target_seq_len, target_embed_dim = x_target.shape
     if self.force_ref or torch.cuda.is_available():
-      k = self.key_norm(self.key(x).reshape(batch_size, seq_len, self.num_heads, -1)).transpose(1, 2)
-      v = self.value_norm(self.value(x).reshape(batch_size, seq_len, self.num_heads, -1)).transpose(1, 2)
+      k = self.key_norm(self.key(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).transpose(1, 2)
+      v = self.value_norm(self.value(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).transpose(1, 2)
       q = self.query_norm(self.query(x).reshape(batch_size, seq_len, self.num_heads, -1)).transpose(1, 2)
       # Not adding dropout to match the cpu version
       # y = F.scaled_dot_product_attention(q, k, v, dropout_p=self.attn_dropout, is_causal=self.casual)
@@ -109,8 +122,8 @@ class MultiheadAttention(nn.Module):
         cache[0] = k
         cache[1] = v
 
-      if seq_len > 1:
-        # We are either generating the prompt or are in training so we need the casual mask
+      if seq_len > 1 and not self.mask is None:
+        # We are either generating the prompt or are in training with causal attn so we need the casual mask
         x = F.scaled_dot_product_attention(q, k, v, is_causal=True)
       else:
         # No need to mask since we are just generating the next token.
@@ -120,8 +133,8 @@ class MultiheadAttention(nn.Module):
       # This appears to be a little faster on non-cuda hardware for training than the pytorch ref implementation.
       # This also opens up how mha works to make it easier to play with parts of it.
 
-      k = self.key_norm(self.key(x).reshape(batch_size, seq_len, self.num_heads, -1)).permute(0, 2, 3, 1)
-      v = self.value_norm(self.value(x).reshape(batch_size, seq_len, self.num_heads, -1)).transpose(1, 2)
+      k = self.key_norm(self.key(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).permute(0, 2, 3, 1)
+      v = self.value_norm(self.value(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).transpose(1, 2)
       q = self.query_norm(self.query(x).reshape(batch_size, seq_len, self.num_heads, -1)).transpose(1, 2)
 
       if self._kv_cache_prep(cache):
@@ -135,7 +148,7 @@ class MultiheadAttention(nn.Module):
       # This is where the 'scaled' is implemented!
       attn = torch.matmul(q, k) / math.sqrt(q.size(-1))
       # No need to mask for seq len 1 since we are just generating the next token.
-      if seq_len > 1:
+      if seq_len > 1 and not self.mask is None:
         mask = self.mask[:, :, :seq_len, :seq_len]
         attn = attn.masked_fill(mask == 0, float("-inf"))
 

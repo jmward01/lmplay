@@ -5,7 +5,7 @@ from typing import Optional, Any
 from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
-from .modules import UnifiedEmbedding, ConvertableEmbedding
+from ..modules import UnifiedEmbedding, ConvertableEmbedding
 
 class GPT2(LMBase):
   def __init__(self,

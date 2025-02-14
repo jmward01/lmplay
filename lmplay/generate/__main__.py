@@ -37,7 +37,7 @@ def main():
   if args.max_len is None:
     args.max_len = mr._model.max_len
   total_parameters = mr._model.parameter_count()
-  print(f"\nGenerating {mr._model.name} with {total_parameters}({total_parameters/10e9:0.3f}b) parameters.\n")
+  print(f"\nGenerating {mr._model.name} with {total_parameters}({total_parameters/1e9:0.3f}b) parameters.\n")
   prompt = args.prompt
   if not ' ' in args.prompt:
     if os.path.exists(os.path.expanduser(args.prompt)):
