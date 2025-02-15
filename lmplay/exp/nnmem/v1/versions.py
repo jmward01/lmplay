@@ -10,7 +10,7 @@ def rc(*args, **kwargs):
                           overrides=dict(),
                           **kwargs)
 
-#Looks like it is better than 1.1 but not as good as 1.2 (so far in step 1)
+#Looks like it is better than 1.0 but not as good as 1.2 (so far in step 1)
 @expose_runner('nnm1_1', description="Tests having individual nnm layer adapters per layer.")
 def rc(*args, **kwargs):
   return BasicModelRunner(GPT2,
@@ -97,4 +97,14 @@ def rc(*args, **kwargs):
                           *args,
                           overrides=dict(nnm_emb_mul=0,
                                          nnm_emb_mul2=8),
+                          **kwargs)
+
+@expose_runner('nnm1_12', description="Putting hte best of 1.2, 1.4 and 1.11 together!")
+def rc(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(shared_nnm=False,
+                                         nnm_emb_mul=0,
+                                         nnm_emb_mul2=8,
+                                         extra_nnm_only_blocks = 1),
                           **kwargs)
