@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import init
+import torch.nn.functional as F
 
 
 class NNEmbedding(nn.Module):
@@ -28,6 +29,6 @@ class NNELinear(nn.Module):
     self.nne = NNEmbedding(cells, out_features)
 
   def forward(self, x):
-    x = self.w(x)
+    x = self.w(F.gelu(x))
     x = x + self.nne(x)
     return x
