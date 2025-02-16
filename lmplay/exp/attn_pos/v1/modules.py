@@ -38,7 +38,7 @@ class MultiheadAttention(nn.Module):
                norm_q=False,
                linear=nn.Linear,
                causal=True,
-               mul=True): #Passing in the class we want for a linear layer since this can be swapped for different exp
+               mul=False): #Mul looks like it works better but take a lot more mem in training.
     """
     :param max_len: Max sequence generation length. Needed for mask generation. Better implementations don't need this.
     :param num_heads: Guess
@@ -142,7 +142,7 @@ class MultiheadAttention(nn.Module):
 
       #pos needs to be rearranged now.
       #get the gather indicies
-      pos_indices = self.apos_indices[:seq_len, :seq_len].expand(batch_size, self.num_heads, -1, -1)
+      pos_indices = self.apos_indices[:seq_len, :seq_len].expand(1, 1, -1, -1)
       pos = torch.gather(pos, 3, pos_indices)
 
       mask = self.mask[:, :, :seq_len, :seq_len]
