@@ -6,6 +6,10 @@ from .modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase
 
+def _p(v) -> str:
+  if v is None:
+    return 'N'
+  return str(int(v))
 
 class GPT2(LMBase):
   def __init__(self,
@@ -17,8 +21,9 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                version="1",
+               mul=False,
                **ignore):
-    super().__init__(f"{version}_{num_blocks}L_{max_len}",
+    super().__init__(f"{version}_{_p(mul)}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -26,7 +31,8 @@ class GPT2(LMBase):
                      attn_dropout=attn_dropout,
                      ff_dropout=ff_dropout,
                      embed_dropout=embed_dropout,
-                     version=version)
+                     version=version,
+                     mul=mul)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -38,7 +44,8 @@ class GPT2(LMBase):
                                         num_heads,
                                         embed_dim,
                                         attn_dropout=attn_dropout,
-                                        ff_dropout=ff_dropout) for _ in range(num_blocks)])
+                                        ff_dropout=ff_dropout,
+                                        mul=mul) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 

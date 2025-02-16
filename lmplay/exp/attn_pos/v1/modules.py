@@ -37,7 +37,8 @@ class MultiheadAttention(nn.Module):
                norm_k=False,
                norm_q=False,
                linear=nn.Linear,
-               causal=True): #Passing in the class we want for a linear layer since this can be swapped for different exp
+               causal=True,
+               mul=False): #Passing in the class we want for a linear layer since this can be swapped for different exp
     """
     :param max_len: Max sequence generation length. Needed for mask generation. Better implementations don't need this.
     :param num_heads: Guess
@@ -52,6 +53,7 @@ class MultiheadAttention(nn.Module):
     super().__init__()
     self.max_len = max_len
     assert embed_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
+    self.mul = mul
     self.num_heads = num_heads
     self.head_size = int(embed_dim/num_heads)
     # k&v are what are 'attended' to and will be cached for generation.
@@ -147,7 +149,10 @@ class MultiheadAttention(nn.Module):
 
       mask = self.mask[:, :, :seq_len, :seq_len]
       #add pos so that the softmax will now take into account pos and k
-      attn = attn + pos
+      if self.mul:
+        attn = attn * pos
+      else:
+        attn = attn + pos
       attn = attn.masked_fill(mask == 0, float("-inf"))
 
     # This dropout caused issues on CPU. Didn't spend a lot of time debugging and it isn't critical to the logic of mha.
@@ -178,7 +183,8 @@ class Block(nn.Module):
                ff_dropout: Optional[float] = 0.1,
                linear=nn.Linear, #Passing in the class we want for a linear layer since this can be swapped for different exp
                ln_attn=True,
-               ln_mlp=True):
+               ln_mlp=True,
+               mul=False):
     super().__init__()
     if ln_attn:
       self.ln1 = nn.LayerNorm(embed_dim)
@@ -193,7 +199,8 @@ class Block(nn.Module):
                                    embed_dim,
                                    attn_dropout=attn_dropout,
                                    ff_dropout=ff_dropout,
-                                   linear=linear)
+                                   linear=linear,
+                                   mul=mul)
     self.ff = nn.Sequential(create_linear(linear, 'block_ff_1', embed_dim, embed_dim * 4),
                             nn.GELU(),
                             create_linear(linear, 'block_ff_2', embed_dim * 4, embed_dim),

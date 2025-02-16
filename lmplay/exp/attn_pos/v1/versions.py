@@ -9,3 +9,10 @@ def rc(*args, **kwargs):
                           *args,
                           overrides=dict(),
                           **kwargs)
+
+@expose_runner('apos1_1', "Trying a mul instead of an add to allow position to have a bigger impact.")
+def rc(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(mul=True),
+                          **kwargs)
