@@ -26,7 +26,7 @@ class NNELinear(nn.Module):
   def __init__(self, cells:int, in_features: int, out_features: int, **kwargs):
     super().__init__()
     self.w = nn.Linear(in_features, out_features, **kwargs)
-    self.nne = NNEmbedding(cells, in_features)
+    self.nne = NNEmbedding(cells, in_features, out_features)
 
   def forward(self, x):
     #x = self.w(x)
