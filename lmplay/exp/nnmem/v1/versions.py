@@ -99,7 +99,7 @@ def rc(*args, **kwargs):
                                          nnm_emb_mul2=8),
                           **kwargs)
 
-@expose_runner('nnm1_12', description="Putting hte best of 1.2, 1.4 and 1.11 together!")
+@expose_runner('nnm1_12', description="Putting the best of 1.2, 1.4 and 1.11 together! Similar in cost to an 18l GPT2ish model.")
 def rc(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
