@@ -18,5 +18,6 @@ import lmplay.exp.attn_norm.normv.model
 
 import lmplay.exp.nnmem.v1.versions
 import lmplay.exp.nnmem.v2.versions
+import lmplay.exp.nnmem.v3.versions
 
 import lmplay.exp.attn_pos.v1.versions

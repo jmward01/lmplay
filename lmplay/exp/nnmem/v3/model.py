@@ -2,10 +2,11 @@ import torch
 from torch import nn
 from typing import Optional, List
 
-from .modules import Block as PABlock
+from .modules import NNELinear
 from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase
+from functools import partial
 
 
 def _p(v) -> str:
@@ -24,12 +25,9 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                version="1",
-               mul=False,  # Mul looks like it takes more mem and works worse in the long run
-               final_apos=None,
+               cells=10,
                **ignore):
-    if final_apos is None:
-      final_apos = num_blocks
-    super().__init__(f"{version}_{_p(mul)}_{final_apos}_{num_blocks}L_{max_len}",
+    super().__init__(f"{version}_{cells}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -38,9 +36,7 @@ class GPT2(LMBase):
                      ff_dropout=ff_dropout,
                      embed_dropout=embed_dropout,
                      version=version,
-                     mul=mul,
-                     final_apos=final_apos)
-    assert final_apos <= num_blocks
+                     cells=cells)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -48,17 +44,13 @@ class GPT2(LMBase):
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
+    linear = partial(NNELinear, cells)
     blocks = [Block(max_len,
                     num_heads,
                     embed_dim,
                     attn_dropout=attn_dropout,
-                    ff_dropout=ff_dropout) for _ in range(num_blocks - final_apos)]
-    blocks.extend([PABlock(max_len,
-                           num_heads,
-                           embed_dim,
-                           attn_dropout=attn_dropout,
-                           ff_dropout=ff_dropout,
-                           mul=mul) for _ in range(final_apos)])
+                    ff_dropout=ff_dropout,
+                    linear=linear) for _ in range(num_blocks)]
     self.blocks = nn.Sequential(*blocks)
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
