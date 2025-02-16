@@ -29,6 +29,6 @@ class NNELinear(nn.Module):
     self.nne = NNEmbedding(cells, out_features)
 
   def forward(self, x):
-    x = self.w(x)
-    x = x + self.nne(F.gelu(x))
+    #x = self.w(x)
+    x = self.w(x) + self.nne(x)
     return x
