@@ -7,7 +7,7 @@ from lmplay.base.runner_list import expose_runner
 def rc(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(),
+                          overrides=dict(mul=False),
                           **kwargs)
 
 @expose_runner('apos1_1', "Trying a mul instead of an add to allow position to have a bigger impact.")

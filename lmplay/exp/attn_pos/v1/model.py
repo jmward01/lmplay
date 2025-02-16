@@ -21,7 +21,7 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                version="1",
-               mul=False,
+               mul=True,
                **ignore):
     super().__init__(f"{version}_{_p(mul)}_{num_blocks}L_{max_len}",
                      max_len=max_len,

@@ -38,7 +38,7 @@ class MultiheadAttention(nn.Module):
                norm_q=False,
                linear=nn.Linear,
                causal=True,
-               mul=False): #Passing in the class we want for a linear layer since this can be swapped for different exp
+               mul=True): #Passing in the class we want for a linear layer since this can be swapped for different exp
     """
     :param max_len: Max sequence generation length. Needed for mask generation. Better implementations don't need this.
     :param num_heads: Guess
@@ -184,7 +184,7 @@ class Block(nn.Module):
                linear=nn.Linear, #Passing in the class we want for a linear layer since this can be swapped for different exp
                ln_attn=True,
                ln_mlp=True,
-               mul=False):
+               mul=True):
     super().__init__()
     if ln_attn:
       self.ln1 = nn.LayerNorm(embed_dim)
