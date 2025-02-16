@@ -5,12 +5,12 @@ import torch.nn.functional as F
 
 
 class NNEmbedding(nn.Module):
-  def __init__(self, cells, embedding_dim, linear=nn.Linear, **kwargs):
+  def __init__(self, cells, in_features, embedding_dim, linear=nn.Linear, **kwargs):
     super().__init__()
     self.cell_count = cells
     self.embedding_dim = embedding_dim
     self.embedding = nn.Parameter(torch.empty((1, 1, cells, embedding_dim), **kwargs))
-    self.selector = linear(embedding_dim, cells, **kwargs)
+    self.selector = linear(in_features, cells, **kwargs)
     init.normal_(self.embedding)
 
   def forward(self, x):
