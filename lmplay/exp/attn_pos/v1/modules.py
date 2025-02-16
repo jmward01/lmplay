@@ -142,7 +142,7 @@ class MultiheadAttention(nn.Module):
 
       #pos needs to be rearranged now.
       #get the gather indicies
-      pos_indices = self.apos_indices[:seq_len, :seq_len].expand(1, 1, -1, -1)
+      pos_indices = self.apos_indices[:seq_len, :seq_len].expand(batch_size, self.num_heads, -1, -1)
       pos = torch.gather(pos, 3, pos_indices)
 
       mask = self.mask[:, :, :seq_len, :seq_len]
