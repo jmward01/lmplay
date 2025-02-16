@@ -48,7 +48,7 @@ I currently don't have plans to release trained model weights. The models here a
 
 
 ## Code/idea attribution
-If you end up using any of the experiment ideas in this repo please attribute me and this repo. I would like to work on a more academic writeup of the ideas in here, but for now I am just getting things built and playing.   
+If you end up using any of the experiment ideas in this repo please attribute me and this repo. I would like to work on a more academic writeup of the ideas in here, but for now I am just getting things built and playing. Also, I would appreciate you contacting me and letting me know if my ideas made it into something. This isn't required, but it would be nice to see these ideas get implemented, especially in some of the big LLMs.   
 
 ## Project structure
 ### lmp_trainer
