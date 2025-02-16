@@ -300,7 +300,7 @@ class LMRunnerBase(ABC):
 
     if len(locations) > 0:
       location = locations[0]
-      weight_data = torch.load(location, map_location=device)
+      weight_data = torch.load(location, map_location=device, weights_only=False)
       self._model, self._model_args, missing, unexpected = self._construct_model(device,
                                                                                  model_weights=weight_data.get('model',
                                                                                                                None),
