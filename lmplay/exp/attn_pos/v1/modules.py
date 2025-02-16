@@ -132,16 +132,14 @@ class MultiheadAttention(nn.Module):
       cache[0] = k
       cache[1] = v
 
-    # This is where the 'scaled' is implemented!
-    attn = torch.matmul(q, k) / math.sqrt(q.size(-1))
-    #Get the section of the position we care about then expand it for the whole batch
-    pos = self.pos_embed[:,:,:seq_len].expand(batch_size, -1, -1, -1)
-    #MHA! This should be exactly the same dim as the attn at the end of this
-    pos = torch.matmul(q, pos)
     # No need to mask for seq len 1 since we are just generating the next token.
     if seq_len > 1 and not self.mask is None:
-      if seq_len != self.max_len:
-        here = "here"
+
+      #Get the section of the position we care about then expand it for the whole batch
+      pos = self.pos_embed[:,:,:seq_len].expand(batch_size, -1, -1, -1)
+      #MHA! This should be exactly the same dim as the attn at the end of this
+      pos = torch.matmul(q, pos) / math.sqrt(q.size(-1))
+
       #pos needs to be rearranged now.
       #get the gather indicies
       pos_indices = self.apos_indices[:seq_len, :seq_len].expand(batch_size, self.num_heads, -1, -1)
@@ -150,10 +148,16 @@ class MultiheadAttention(nn.Module):
       mask = self.mask[:, :, :seq_len, :seq_len]
       #add pos so that the softmax will now take into account pos and k
       if self.mul:
-        attn = attn * pos
+        attn = torch.matmul(q, k) / math.sqrt(q.size(-1)) * pos
       else:
-        attn = attn + pos
+        attn = torch.matmul(q, k) / math.sqrt(q.size(-1)) + pos
       attn = attn.masked_fill(mask == 0, float("-inf"))
+    else:
+      #THIS WILL BREAK WHEN DOING GENERATION
+      #seq_len needs to be based on the k length in the pos calculation.
+      #got more work to do here for sure.
+
+      attn = torch.matmul(q, k) / math.sqrt(q.size(-1))
 
     # This dropout caused issues on CPU. Didn't spend a lot of time debugging and it isn't critical to the logic of mha.
     # If you are building something that will really be prod ready you should consider forcing ref and adding attn_droupout back
