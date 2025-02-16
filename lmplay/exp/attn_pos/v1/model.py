@@ -4,10 +4,10 @@ from typing import Optional, List
 
 from .modules import Block
 import tiktoken
-from lmplay.base.base_model import LMBase, MBase
+from lmplay.base.base_model import LMBase
 
 
-class _GPT2(MBase):
+class GPT2(LMBase):
   def __init__(self,
                max_len=1024,
                num_heads=12,
@@ -16,16 +16,17 @@ class _GPT2(MBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
-               basename="GPT2ish",
+               version="1",
                **ignore):
-    super().__init__(f"{basename}_{num_blocks}L_{max_len}",
+    super().__init__(f"{version}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
                      embed_dim=embed_dim,
                      attn_dropout=attn_dropout,
                      ff_dropout=ff_dropout,
-                     embed_dropout=embed_dropout)
+                     embed_dropout=embed_dropout,
+                     version=version)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -66,7 +67,3 @@ class _GPT2(MBase):
     if not cache is None:
       return x, cache
     return x
-
-class GPT2(_GPT2, LMBase):
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
