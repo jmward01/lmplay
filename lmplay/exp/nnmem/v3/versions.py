@@ -10,9 +10,9 @@ def rc(*args, **kwargs):
                           overrides=dict(),
                           **kwargs)
 
-@expose_runner('nnm3_1', "Seing what happens with more cells (64 instead of 10).")
+@expose_runner('nnm3_1', "Seing what happens with more cells (20 instead of 10).")
 def rc(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(cells=64),
+                          overrides=dict(cells=20),
                           **kwargs)
