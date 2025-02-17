@@ -29,6 +29,8 @@ def rc(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(ff_linear=False,
+                                         key_linear=True,
+                                         query_linear=True,
                                          proj_linear=False,
-                                         value_linear=False),
+                                         value_linear=True),
                           **kwargs)
