@@ -26,6 +26,7 @@ class GPT2(LMBase):
                embed_dropout: Optional[float] = 0.1,
                version="1",
                cells=10,
+               nn_num_heads=3,
                ff_linear=True,
                mha_linear=True,
                query_linear=None,
@@ -34,7 +35,7 @@ class GPT2(LMBase):
                proj_linear=None,
                **ignore):
     super().__init__(
-      f"{version}_{_p(ff_linear)}{_p(mha_linear)}{_p(query_linear)}{_p(value_linear)}{_p(key_linear)}{_p(proj_linear)}_{cells}_{num_blocks}L_{max_len}",
+      f"{version}_{_p(ff_linear)}{_p(mha_linear)}{_p(query_linear)}{_p(value_linear)}{_p(key_linear)}{_p(proj_linear)}_{cells}_{nn_num_heads}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,
@@ -49,7 +50,8 @@ class GPT2(LMBase):
       query_linear=query_linear,
       value_linear=value_linear,
       key_linear=key_linear,
-      proj_linear=proj_linear, )
+      proj_linear=proj_linear,
+    nn_num_heads=nn_num_heads)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -58,41 +60,42 @@ class GPT2(LMBase):
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
 
+    nnm_linear = partial(NNELinear, cells, nn_num_heads)
     if ff_linear == True:
-      ff_linear = partial(NNELinear, cells)
+      ff_linear = nnm_linear
     else:
       ff_linear = nn.Linear
 
     if mha_linear == True:
-      mha_linear = partial(NNELinear, cells)
+      mha_linear = nnm_linear
     else:
       mha_linear = nn.Linear
 
     if query_linear is None:
       query_linear = mha_linear
     elif query_linear == True:
-      query_linear = partial(NNELinear, cells)
+      query_linear = nnm_linear
     else:
       query_linear = nn.Linear
 
     if key_linear is None:
       key_linear = mha_linear
     elif key_linear == True:
-      key_linear = partial(NNELinear, cells)
+      key_linear = nnm_linear
     else:
       key_linear = nn.Linear
 
     if proj_linear is None:
       proj_linear = mha_linear
     elif proj_linear == True:
-      proj_linear = partial(NNELinear, cells)
+      proj_linear = nnm_linear
     else:
       proj_linear = nn.Linear
 
     if value_linear is None:
       value_linear = mha_linear
     elif value_linear == True:
-      value_linear = partial(NNELinear, cells)
+      value_linear = nnm_linear
     else:
       value_linear = nn.Linear
 
