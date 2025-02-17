@@ -7,14 +7,17 @@ import torch.nn.functional as F
 class NNEmbedding(nn.Module):
   def __init__(self, cells, in_features, embedding_dim, linear=nn.Linear, **kwargs):
     super().__init__()
+    mid_features = int((in_features + cells)/2)
     self.cell_count = cells
     self.embedding_dim = embedding_dim
     self.embedding = nn.Parameter(torch.empty((1, 1, cells, embedding_dim), **kwargs))
-    self.selector = linear(in_features, cells, **kwargs)
+    self.selector_1 = linear(in_features, mid_features, **kwargs)
+    self.selector_2 = linear(mid_features, cells, **kwargs)
     init.normal_(self.embedding)
 
   def forward(self, x):
-    s = self.selector(x).unsqueeze(-1)
+    s = self.selector_1(x)
+    s = self.selector_2(F.gelu(s)).unsqueeze(-1)
     s = torch.softmax(s, dim=-2)
     e = self.embedding * s
     e = torch.sum(e, dim=-2)
