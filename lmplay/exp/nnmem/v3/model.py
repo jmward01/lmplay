@@ -28,19 +28,28 @@ class GPT2(LMBase):
                cells=10,
                ff_linear=True,
                mha_linear=True,
+               query_linear=None,
+               value_linear=None,
+               key_linear=None,
+               proj_linear=None,
                **ignore):
-    super().__init__(f"{version}_{_p(ff_linear)}{_p(mha_linear)}_{cells}_{num_blocks}L_{max_len}",
-                     max_len=max_len,
-                     num_heads=num_heads,
-                     num_blocks=num_blocks,
-                     embed_dim=embed_dim,
-                     attn_dropout=attn_dropout,
-                     ff_dropout=ff_dropout,
-                     embed_dropout=embed_dropout,
-                     version=version,
-                     cells=cells,
-                     ff_linear=ff_linear,
-                     mha_linear=mha_linear)
+    super().__init__(
+      f"{version}_{_p(ff_linear)}{_p(mha_linear)}{_p(query_linear)}{_p(value_linear)}{_p(key_linear)}{_p(proj_linear)}_{cells}_{num_blocks}L_{max_len}",
+      max_len=max_len,
+      num_heads=num_heads,
+      num_blocks=num_blocks,
+      embed_dim=embed_dim,
+      attn_dropout=attn_dropout,
+      ff_dropout=ff_dropout,
+      embed_dropout=embed_dropout,
+      version=version,
+      cells=cells,
+      ff_linear=ff_linear,
+      mha_linear=mha_linear,
+      query_linear=query_linear,
+      value_linear=value_linear,
+      key_linear=key_linear,
+      proj_linear=proj_linear, )
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -59,13 +68,45 @@ class GPT2(LMBase):
     else:
       mha_linear = nn.Linear
 
+    if query_linear is None:
+      query_linear = mha_linear
+    elif query_linear == True:
+      query_linear = partial(NNELinear, cells)
+    else:
+      query_linear = nn.Linear
+
+    if key_linear is None:
+      key_linear = mha_linear
+    elif key_linear == True:
+      key_linear = partial(NNELinear, cells)
+    else:
+      key_linear = nn.Linear
+
+    if proj_linear is None:
+      proj_linear = mha_linear
+    elif proj_linear == True:
+      proj_linear = partial(NNELinear, cells)
+    else:
+      proj_linear = nn.Linear
+
+    if value_linear is None:
+      value_linear = mha_linear
+    elif value_linear == True:
+      value_linear = partial(NNELinear, cells)
+    else:
+      value_linear = nn.Linear
+
     blocks = [Block(max_len,
                     num_heads,
                     embed_dim,
                     attn_dropout=attn_dropout,
                     ff_dropout=ff_dropout,
                     ff_linear=ff_linear,
-                    mha_linear=mha_linear) for _ in range(num_blocks)]
+                    mha_linear=mha_linear,
+                    query_linear=query_linear,
+                    key_linear=key_linear,
+                    value_linear=value_linear,
+                    proj_linear=proj_linear) for _ in range(num_blocks)]
     self.blocks = nn.Sequential(*blocks)
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)

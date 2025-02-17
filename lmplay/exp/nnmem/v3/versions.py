@@ -24,9 +24,11 @@ def rc(*args, **kwargs):
                           overrides=dict(mha_linear=False),
                           **kwargs)
 
-@expose_runner('nnm3_3', "Trying mha linear only.")
+@expose_runner('nnm3_3', "Trying mha linear only without proj and value.")
 def rc(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(ff_linear=False),
+                          overrides=dict(ff_linear=False,
+                                         proj_linear=False,
+                                         value_linear=False),
                           **kwargs)
