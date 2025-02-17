@@ -16,3 +16,10 @@ def rc(*args, **kwargs):
                           *args,
                           overrides=dict(cells=20),
                           **kwargs)
+
+@expose_runner('nnm3_2', "Trying nnmlinear on just the ff in the block.")
+def rc(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(ff_only=True),
+                          **kwargs)

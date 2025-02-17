@@ -8,8 +8,8 @@ from typing import Optional
 from lmplay.utils import create_linear
 
 
-def gen_mask(max_len:int) -> torch.Tensor:
-    return  torch.tril(torch.ones(max_len, max_len)).unsqueeze(0).unsqueeze(0)
+def gen_mask(max_len: int) -> torch.Tensor:
+  return torch.tril(torch.ones(max_len, max_len)).unsqueeze(0).unsqueeze(0)
 
 
 class MultiheadAttention(nn.Module):
@@ -21,14 +21,15 @@ class MultiheadAttention(nn.Module):
                max_len: int,
                num_heads: int,
                embed_dim: int,
-               attn_dropout: Optional[float] = 0.1, #This was giving me problems. I probably was using it wrong. Maybe I will fix this in the future. For now it is ignored.
+               attn_dropout: Optional[float] = 0.1,
+               # This was giving me problems. I probably was using it wrong. Maybe I will fix this in the future. For now it is ignored.
                ff_dropout: Optional[float] = 0.1,
                force_ref=False,
                norm_v=False,
                norm_k=False,
                norm_q=False,
                linear=nn.Linear,
-               causal=True): #Passing in the class we want for a linear layer since this can be swapped for different exp
+               causal=True):  # Passing in the class we want for a linear layer since this can be swapped for different exp
     """
     :param max_len: Max sequence generation length. Needed for mask generation. Better implementations don't need this.
     :param num_heads: Guess
@@ -49,18 +50,17 @@ class MultiheadAttention(nn.Module):
     if norm_v:
       self.value_norm = nn.LayerNorm(int(embed_dim / num_heads))
     else:
-      self.value_norm = lambda x:x
+      self.value_norm = lambda x: x
 
     if norm_k:
       self.key_norm = nn.LayerNorm(int(embed_dim / num_heads))
     else:
-      self.key_norm = lambda x:x
+      self.key_norm = lambda x: x
 
     if norm_q:
       self.query_norm = nn.LayerNorm(int(embed_dim / num_heads))
     else:
-      self.query_norm = lambda x:x
-
+      self.query_norm = lambda x: x
 
     self.query = create_linear(linear, 'mha_query', embed_dim, embed_dim)
 
@@ -91,7 +91,7 @@ class MultiheadAttention(nn.Module):
       return False
     return True
 
-  def forward(self, x, x_cross = None, cache: Optional[list] = None) -> torch.Tensor:
+  def forward(self, x, x_cross=None, cache: Optional[list] = None) -> torch.Tensor:
     """ Runns mha!
     :param x: How mysterious!
     :param cache: modified in place. The caller shouldn't touch it!
@@ -100,7 +100,7 @@ class MultiheadAttention(nn.Module):
 
     if not x_cross is None:
       assert self.mask is None, f"Attn created with a causal mask but passed cross attn inputs"
-      #There is a strong argument to support x_attn k,v but I'm not implementing it yet
+      # There is a strong argument to support x_attn k,v but I'm not implementing it yet
       assert cache is None, f"Cached k, v aren't supported for x attn"
       x_target = x_cross.unsqueeze(0)
     else:
@@ -109,8 +109,10 @@ class MultiheadAttention(nn.Module):
     batch_size, seq_len, embed_dim = x.shape
     target_batch_size, target_seq_len, target_embed_dim = x_target.shape
     if self.force_ref or torch.cuda.is_available():
-      k = self.key_norm(self.key(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).transpose(1, 2)
-      v = self.value_norm(self.value(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).transpose(1, 2)
+      k = self.key_norm(self.key(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).transpose(1,
+                                                                                                                     2)
+      v = self.value_norm(
+        self.value(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).transpose(1, 2)
       q = self.query_norm(self.query(x).reshape(batch_size, seq_len, self.num_heads, -1)).transpose(1, 2)
       # Not adding dropout to match the cpu version
       # y = F.scaled_dot_product_attention(q, k, v, dropout_p=self.attn_dropout, is_causal=self.casual)
@@ -133,8 +135,10 @@ class MultiheadAttention(nn.Module):
       # This appears to be a little faster on non-cuda hardware for training than the pytorch ref implementation.
       # This also opens up how mha works to make it easier to play with parts of it.
 
-      k = self.key_norm(self.key(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).permute(0, 2, 3, 1)
-      v = self.value_norm(self.value(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).transpose(1, 2)
+      k = self.key_norm(self.key(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).permute(0, 2,
+                                                                                                                   3, 1)
+      v = self.value_norm(
+        self.value(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).transpose(1, 2)
       q = self.query_norm(self.query(x).reshape(batch_size, seq_len, self.num_heads, -1)).transpose(1, 2)
 
       if self._kv_cache_prep(cache):
@@ -172,38 +176,48 @@ class Block(nn.Module):
   """Your basic encoder block implementation! Nothing crazy in here.
 
   """
+
   def __init__(self,
                max_len: int,
                num_heads: int,
                embed_dim: int,
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
-               linear=nn.Linear, #Passing in the class we want for a linear layer since this can be swapped for different exp
+               linear=nn.Linear,
+               # Passing in the class we want for a linear layer since this can be swapped for different exp
+               ff_linear=None,
+               mha_linear=None,
                ln_attn=True,
-               ln_mlp=True):
+               ln_mlp=True,
+               **kwargs):
     super().__init__()
+    if ff_linear is None:
+      ff_linear = linear
+    if mha_linear is None:
+      mha_linear = linear
     if ln_attn:
       self.ln1 = nn.LayerNorm(embed_dim)
     else:
-      self.ln1 = lambda x:x
+      self.ln1 = lambda x: x
     if ln_mlp:
       self.ln2 = nn.LayerNorm(embed_dim)
     else:
-      self.ln2 = lambda x:x
+      self.ln2 = lambda x: x
     self.attn = MultiheadAttention(max_len,
                                    num_heads,
                                    embed_dim,
                                    attn_dropout=attn_dropout,
                                    ff_dropout=ff_dropout,
-                                   linear=linear)
-    self.ff = nn.Sequential(create_linear(linear, 'block_ff_1', embed_dim, embed_dim * 4),
+                                   linear=mha_linear,
+                                   **kwargs)
+    self.ff = nn.Sequential(create_linear(ff_linear, 'block_ff_1', embed_dim, embed_dim * 4),
                             nn.GELU(),
-                            create_linear(linear, 'block_ff_2', embed_dim * 4, embed_dim),
+                            create_linear(ff_linear, 'block_ff_2', embed_dim * 4, embed_dim),
                             nn.Dropout(ff_dropout))
 
-  def forward(self, x, cache:Optional[list]=None):
-    #A simple 'block' that uses residual connections and gives attn + pure logic both a chance to modify the hidden layer
-    #the 'cache' is the kv cache and is only needed for inference, not training.
+  def forward(self, x, cache: Optional[list] = None):
+    # A simple 'block' that uses residual connections and gives attn + pure logic both a chance to modify the hidden layer
+    # the 'cache' is the kv cache and is only needed for inference, not training.
     x = x + self.attn(self.ln1(x), cache=cache)
     x = x + self.ff(self.ln2(x))
     return x
