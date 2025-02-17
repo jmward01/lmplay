@@ -21,5 +21,12 @@ def rc(*args, **kwargs):
 def rc(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(ff_only=True),
+                          overrides=dict(mha_linear=False),
+                          **kwargs)
+
+@expose_runner('nnm3_3', "Trying mha linear only.")
+def rc(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(ff_linear=False),
                           **kwargs)

@@ -26,9 +26,10 @@ class GPT2(LMBase):
                embed_dropout: Optional[float] = 0.1,
                version="1",
                cells=10,
-               ff_only=False,
+               ff_linear=True,
+               mha_linear=True,
                **ignore):
-    super().__init__(f"{version}_{_p(ff_only)}_{cells}_{num_blocks}L_{max_len}",
+    super().__init__(f"{version}_{_p(ff_linear)}{_p(mha_linear)}_{cells}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -38,7 +39,8 @@ class GPT2(LMBase):
                      embed_dropout=embed_dropout,
                      version=version,
                      cells=cells,
-                     ff_only=ff_only)
+                     ff_linear=ff_linear,
+                     mha_linear=mha_linear)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -47,11 +49,15 @@ class GPT2(LMBase):
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
 
-    ff_linear = partial(NNELinear, cells)
-    if ff_only:
-      mha_linear = nn.Linear
+    if ff_linear == True:
+      ff_linear = partial(NNELinear, cells)
     else:
-      mha_linear = ff_linear
+      ff_linear = nn.Linear
+
+    if mha_linear == True:
+      mha_linear = partial(NNELinear, cells)
+    else:
+      mha_linear = nn.Linear
 
     blocks = [Block(max_len,
                     num_heads,
