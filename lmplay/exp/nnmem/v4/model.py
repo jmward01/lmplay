@@ -53,8 +53,10 @@ class GPT2(LMBase):
                     embed_dim,
                     attn_dropout=attn_dropout,
                     ff_dropout=ff_dropout,)
-      nnmb = NNMBlock(nn_num_heads, cells, embed_dim)
       blocks.append(ab)
+      nnmb = NNMBlock(nn_num_heads, cells, embed_dim)
+      blocks.append(nnmb)
+      nnmb = NNMBlock(nn_num_heads, cells, embed_dim)
       blocks.append(nnmb)
     self.blocks = nn.Sequential(*blocks)
     self.ln = nn.LayerNorm(embed_dim)
