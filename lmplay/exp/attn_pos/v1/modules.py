@@ -138,7 +138,8 @@ class MultiheadAttention(nn.Module):
       #Get the section of the position we care about then expand it for the whole batch
       pos = self.pos_embed[:,:,:seq_len].expand(batch_size, -1, -1, -1)
       #MHA! This should be exactly the same dim as the attn at the end of this
-      pos = torch.matmul(q, pos) / math.sqrt(q.size(-1))
+
+      pos = torch.matmul(q, pos)
 
       #pos needs to be rearranged now.
       #get the gather indicies
@@ -148,9 +149,10 @@ class MultiheadAttention(nn.Module):
       mask = self.mask[:, :, :seq_len, :seq_len]
       #add pos so that the softmax will now take into account pos and k
       if self.mul:
-        attn = torch.matmul(q, k) / math.sqrt(q.size(-1)) * pos
+        attn = torch.matmul(q, k) * pos
       else:
-        attn = torch.matmul(q, k) / math.sqrt(q.size(-1)) + pos
+        attn = torch.matmul(q, k) + pos
+      attn = attn / math.sqrt(q.size(-1))
       attn = attn.masked_fill(mask == 0, float("-inf"))
     else:
       #THIS WILL BREAK WHEN DOING GENERATION
