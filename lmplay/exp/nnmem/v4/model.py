@@ -26,6 +26,7 @@ class GPT2(LMBase):
                version="1",
                cells=256,
                nn_num_heads=6,
+               nn_ln=True,
                **ignore):
     super().__init__(
       f"{version}_{cells}_{nn_num_heads}_{num_blocks}L_{max_len}",
@@ -38,7 +39,8 @@ class GPT2(LMBase):
       embed_dropout=embed_dropout,
       version=version,
       cells=cells,
-      nn_num_heads=nn_num_heads)
+      nn_num_heads=nn_num_heads,
+      nn_ln=nn_ln)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -49,14 +51,14 @@ class GPT2(LMBase):
     blocks = []
     for i in range(num_blocks):
       ab = Block(max_len,
-                    num_heads,
-                    embed_dim,
-                    attn_dropout=attn_dropout,
-                    ff_dropout=ff_dropout,)
+                 num_heads,
+                 embed_dim,
+                 attn_dropout=attn_dropout,
+                 ff_dropout=ff_dropout, )
       blocks.append(ab)
-      nnmb = NNMBlock(nn_num_heads, cells, embed_dim)
+      nnmb = NNMBlock(nn_num_heads, cells, embed_dim, nn_ln=nn_ln)
       blocks.append(nnmb)
-      nnmb = NNMBlock(nn_num_heads, cells, embed_dim)
+      nnmb = NNMBlock(nn_num_heads, cells, embed_dim, nn_ln=nn_ln)
       blocks.append(nnmb)
     self.blocks = nn.Sequential(*blocks)
     self.ln = nn.LayerNorm(embed_dim)

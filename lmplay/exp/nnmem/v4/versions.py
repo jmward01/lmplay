@@ -9,3 +9,10 @@ def rc(*args, **kwargs):
                           *args,
                           overrides=dict(),
                           **kwargs)
+
+@expose_runner('nnm4_1', "nn_ln set to False to be closer to the old nnm1.0")
+def rc(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(nn_ln=False),
+                          **kwargs)
