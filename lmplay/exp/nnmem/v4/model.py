@@ -6,12 +6,17 @@ from .modules import NNMBlock
 from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase
-
+from functools import partial
 
 def _p(v) -> str:
   if v is None:
     return 'N'
   return str(int(v))
+
+def get_bp(block_pattern):
+  while True:
+    for bp in block_pattern.split('-'):
+      yield bp
 
 
 class GPT2(LMBase):
@@ -28,9 +33,10 @@ class GPT2(LMBase):
                nn_num_heads=6,
                nn_ln=True,
                softmax=True,
+               block_pattern="BNN",
                **ignore):
     super().__init__(
-      f"{version}_{_p(nn_ln)}{_p(softmax)}_{cells}_{nn_num_heads}_{num_blocks}L_{max_len}",
+      f"{version}_{_p(nn_ln)}{_p(softmax)}_{cells}_{nn_num_heads}_{block_pattern}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,
@@ -50,18 +56,22 @@ class GPT2(LMBase):
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
+    nnm_block = partial(NNMBlock, nn_num_heads, cells, embed_dim, ln_attn=nn_ln, softmax=softmax)
+    block = partial(Block, max_len, num_heads, embed_dim, attn_dropout=attn_dropout, ff_dropout=ff_dropout)
     blocks = []
-    for i in range(num_blocks):
-      ab = Block(max_len,
-                 num_heads,
-                 embed_dim,
-                 attn_dropout=attn_dropout,
-                 ff_dropout=ff_dropout, )
-      blocks.append(ab)
-      nnmb = NNMBlock(nn_num_heads, cells, embed_dim, ln_attn=nn_ln, softmax=softmax)
-      blocks.append(nnmb)
-      nnmb = NNMBlock(nn_num_heads, cells, embed_dim, ln_attn=nn_ln, softmax=softmax)
-      blocks.append(nnmb)
+    i = 0
+    for bp in get_bp(block_pattern):
+      for block_type in bp:
+        if block_type == 'B':
+          blocks.append(block())
+        elif block_type == 'N':
+          blocks.append(nnm_block())
+        else:
+          raise ValueError(f"Unknown block type {block_type}")
+      i += 1
+      if i == num_blocks:
+        break
+
     self.blocks = nn.Sequential(*blocks)
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
