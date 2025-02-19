@@ -31,9 +31,16 @@ def rc(*args, **kwargs):
                           overrides=dict(softmax=False),
                           **kwargs)
 
-@expose_runner('nnm4_4', "Trying a block pattern of B-B-BNN-BNN-BNN-B")
+@expose_runner('nnm4_4', "Trying a block pattern of B-B-B-BNNNN-B")
 def rc(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(block_pattern="B-B-BNN-BNN-BNN-B"),
+                          overrides=dict(block_pattern="B-B-B-BNNNN-B-B"),
+                          **kwargs)
+
+@expose_runner('nnm4_5', "Trying a block pattern of BNN-BNN-BNN-BNN-BNN-B")
+def rc(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(block_pattern="BNN-BNN-BNN-BNN-BNN-B"),
                           **kwargs)
