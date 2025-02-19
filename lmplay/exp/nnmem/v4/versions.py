@@ -16,3 +16,10 @@ def rc(*args, **kwargs):
                           *args,
                           overrides=dict(nn_ln=False),
                           **kwargs)
+
+@expose_runner('nnm4_2', "512 vs 256 cells")
+def rc(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(cells=512),
+                          **kwargs)
