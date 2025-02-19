@@ -23,3 +23,10 @@ def rc(*args, **kwargs):
                           *args,
                           overrides=dict(cells=512),
                           **kwargs)
+
+@expose_runner('nnm4_3', "Do we actually need a softmax?")
+def rc(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(softmax=False),
+                          **kwargs)

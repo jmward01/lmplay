@@ -5,8 +5,9 @@ import torch.nn.functional as F
 from typing import Optional
 
 class NNEmbedding(nn.Module):
-  def __init__(self, cells, num_heads, in_features, embedding_dim, linear=nn.Linear, **kwargs):
+  def __init__(self, cells, num_heads, in_features, embedding_dim, linear=nn.Linear, softmax=True, **kwargs):
     super().__init__()
+    self.softmax = softmax
     #Way too much costly logc in here.
     self.head_size = int(embedding_dim/num_heads)
     mid_features = int((in_features + cells)/2)
@@ -28,7 +29,8 @@ class NNEmbedding(nn.Module):
     s = self.selector_2(F.gelu(s)).reshape(batch_size, seq_len, self.num_heads, -1).transpose(1, 2)
     #s = self.selector(x).reshape(batch_size, seq_len, self.num_heads, -1).transpose(1, 2)
     #embedding = 1 num_heads, cell_count, head_size
-    s = F.softmax(s, dim=-1)
+    if self.softmax:
+      s = F.softmax(s, dim=-1)
     x = torch.matmul(s, self.embedding)
 
     x = x.transpose(1, 2)
@@ -70,7 +72,7 @@ class NNMBlock(nn.Module):
     else:
       self.ln2 = lambda x: x
 
-    self.attn = NNEmbedding(cells, num_heads, embed_dim, embed_dim)
+    self.attn = NNEmbedding(cells, num_heads, embed_dim, embed_dim, **kwargs)
     self.ff = nn.Sequential(create_linear(ff_linear, 'block_ff_1', embed_dim, embed_dim * 4),
                             nn.GELU(),
                             create_linear(ff_linear, 'block_ff_2', embed_dim * 4, embed_dim),

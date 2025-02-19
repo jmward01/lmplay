@@ -27,9 +27,10 @@ class GPT2(LMBase):
                cells=256,
                nn_num_heads=6,
                nn_ln=True,
+               softmax=True,
                **ignore):
     super().__init__(
-      f"{version}_{cells}_{nn_num_heads}_{num_blocks}L_{max_len}",
+      f"{version}_{_p(nn_ln)}{_p(softmax)}_{cells}_{nn_num_heads}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,
