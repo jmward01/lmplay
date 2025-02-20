@@ -20,11 +20,11 @@ class LRAdd(nn.Module):
       self.c = nn.Parameter(torch.zeros(c_dim))
 
   def forward(self, x, y):
-    a = F.sigmoid(self.alpha)
-
+    a = F.sigmoid(self.alpha)*2
+    b = 2.0 - a
     if not self.c is None:
-      return x + y*a + self.c
-    return x + y*a
+      return x*a + y*b + self.c
+    return x*a + y*b
 
 class Block(nn.Module):
   """Your basic encoder block implementation! Nothing crazy in here.
