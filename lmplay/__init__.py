@@ -22,3 +22,5 @@ import lmplay.exp.nnmem.v3.versions
 import lmplay.exp.nnmem.v4.versions
 
 import lmplay.exp.attn_pos.v1.versions
+
+import lmplay.exp.connections.lra.v1.versions
