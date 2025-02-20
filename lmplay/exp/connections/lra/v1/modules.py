@@ -13,18 +13,18 @@ class LRAdd(nn.Module):
   def __init__(self, c_dim=None, **kwargs):
     super().__init__(**kwargs)
     #Start at 0 so we are balanced
-    self.alpha = nn.Parameter(torch.zeros((1,), **kwargs), **kwargs)
+    self.alpha = nn.Parameter(torch.zeros((2,), **kwargs), **kwargs)
     if c_dim is None:
       self.register_buffer('c', None)
     else:
       self.c = nn.Parameter(torch.zeros(c_dim))
 
   def forward(self, x, y):
-    a = F.sigmoid(self.alpha)*2
-    b = 2.0 - a
+    alpha = F.sigmoid(self.alpha)*2
+
     if not self.c is None:
-      return x*a + y*b + self.c
-    return x*a + y*b
+      return x*alpha[0] + y*alpha[1] + self.c
+    return x*alpha[0] + y*alpha[1]
 
 class Block(nn.Module):
   """Your basic encoder block implementation! Nothing crazy in here.
