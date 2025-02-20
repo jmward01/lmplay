@@ -21,10 +21,10 @@ class LRAdd(nn.Module):
 
   def forward(self, x, y):
     a = F.sigmoid(self.alpha)
-    b = 1.0 - a
+
     if not self.c is None:
-      return x*a + y*b + self.c
-    return x*a + y*b
+      return x + y*a + self.c
+    return x + y*a
 
 class Block(nn.Module):
   """Your basic encoder block implementation! Nothing crazy in here.
