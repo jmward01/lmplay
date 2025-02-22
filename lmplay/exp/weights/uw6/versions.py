@@ -7,8 +7,7 @@ from lmplay.base.runner_list import expose_runner
 def uw6_0(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(version="6.0",
-                                         exp_mul=32, #<- big 6.0 diff
+                          overrides=dict(exp_mul=32, #<- big 6.0 diff
                                          mmlp=True,
                                          share_layers=1,
                                          last_activation=False,
@@ -20,8 +19,7 @@ def uw6_0(*args, **kwargs):
 def uw6_1(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(version="6.1",
-                                         mmlp=True,
+                          overrides=dict(mmlp=True,
                                          share_layers=1,
                                          last_activation=False,
                                          dl_fc=False),
@@ -32,8 +30,7 @@ def uw6_1(*args, **kwargs):
 def uw6_2(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(version="6.2",
-                                         mmlp=True,
+                          overrides=dict(mmlp=True,
                                          share_layers=1,
                                          last_activation=False,
                                          dl_fc=None), #<- big 6.2 diff
@@ -43,8 +40,7 @@ def uw6_2(*args, **kwargs):
 def uw6_3(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(version="6.3",
-                                         predict_bias=None, #<- big 6.3 diff
+                          overrides=dict(predict_bias=None, #<- big 6.3 diff
                                          exp_mul=32, #<- big 6.3 diff
                                          mmlp=True,
                                          share_layers=1,
@@ -56,8 +52,7 @@ def uw6_3(*args, **kwargs):
 def uw6_4(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(version="6.4",
-                                         exp_mul=32,
+                          overrides=dict(exp_mul=32,
                                          mmlp=True,
                                          share_layers=1,
                                          last_activation=False,
@@ -69,8 +64,7 @@ def uw6_4(*args, **kwargs):
 def uw6_5(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(version="6.5",
-                                         exp_mul=32,
+                          overrides=dict(exp_mul=32,
                                          mmlp=True,
                                          share_layers=1,
                                          last_activation=False,
@@ -82,8 +76,7 @@ def uw6_5(*args, **kwargs):
 def uw6_6(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(version="6.6",
-                                         exp_mul=32,
+                          overrides=dict(exp_mul=32,
                                          mmlp=True,
                                          share_layers=1,
                                          last_activation=False,

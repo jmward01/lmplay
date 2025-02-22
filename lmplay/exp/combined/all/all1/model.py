@@ -44,7 +44,7 @@ class GPT2(LMBase):
     # This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
     # This specific version combines the changes from unified embeddings 1.3 (sort of) and unified weights 2.1
     super().__init__(
-      f"sac_v{version}_{_p(ln_attn)}{_p(ln_mlp)}{_p(ue_sduw)}{_p(t_sduw)}{_p(ignore_purpose)}{_p(dl_fc)}{_p(max_predict)}{_p(mha_lradd)}{_p(ff_lradd)}{_p(norm_v)}_{num_blocks}L_{max_len}",
+      f"{version}_{_p(ln_attn)}{_p(ln_mlp)}{_p(ue_sduw)}{_p(t_sduw)}{_p(ignore_purpose)}{_p(dl_fc)}{_p(max_predict)}{_p(mha_lradd)}{_p(ff_lradd)}{_p(norm_v)}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,

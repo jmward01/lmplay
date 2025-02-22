@@ -1,7 +1,7 @@
 from lmplay.base.runner_list import MODEL_RUNNERS
 
 #gotta force the classes to load so that the model runner list will populate with them. This needs to be somewhere so why not centralized here?
-import lmplay.base.encoder.versions
+
 import lmplay.exp.weights.unified_weights_v1_0.model
 import lmplay.exp.weights.unified_weights_v2_0.model
 import lmplay.exp.weights.unified_weights_v2_1.model
@@ -26,3 +26,6 @@ import lmplay.exp.attn_pos.v1.versions
 import lmplay.exp.connections.lra.v1.versions
 
 import lmplay.exp.combined.all.all1.versions
+
+import lmplay.exp.gpt2ish.versions
+import lmplay.exp.rgpt2ish.versions

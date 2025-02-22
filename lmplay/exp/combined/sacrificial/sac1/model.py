@@ -28,12 +28,12 @@ class GPT2(LMBase):
                for_train=True,
                keep_embed_on_cpu=False,
                sulinear=False,
-               version="1.0",
+               version="sac_1",
                **ignore):
     # First in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
     # This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
     # This specific version combines the changes from unified embeddings 1.3 and unified weights 1.0
-    super().__init__(f"sac_v{version}_{front_embed_mul}_{_p(sulinear)}_{num_blocks}L_{max_len}",
+    super().__init__(f"{version}_{front_embed_mul}_{_p(sulinear)}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,

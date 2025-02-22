@@ -7,7 +7,7 @@ from lmplay.base.runner_list import expose_runner
 def sac2_0(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(version="2.0"),
+                          overrides=dict(),
                           **kwargs)
 
 
@@ -15,8 +15,7 @@ def sac2_0(*args, **kwargs):
 def sac2_0med(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(version="2.0.1",
-                                         num_heads=20,#<-big diff
+                          overrides=dict(num_heads=20,#<-big diff
                                          embed_dim=1280),#<-big diff
                           **kwargs)
 
@@ -25,8 +24,7 @@ def sac2_0med(*args, **kwargs):
 def sac2_1(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(version="2.1",
-                                         ue_sduw=True),#<-big diff
+                          overrides=dict(ue_sduw=True),#<-big diff
                           **kwargs)
 
 
@@ -34,16 +32,14 @@ def sac2_1(*args, **kwargs):
 def sac2_2(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(version="2.2",
-                                         t_sduw=False),#<-big diff
+                          overrides=dict(t_sduw=False),#<-big diff
                           **kwargs)
 
 @expose_runner('sac2_3', description="sac2 but with the UE and final fc using a memory efficient shared deep unified setup and purpose linked shared sacrifical networks.")
 def sac2_3(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(version="2.3",
-                                         max_predict=True,
+                          overrides=dict(max_predict=True,
                                          ue_sduw=True, #<-big diff
                                          ignore_purpose=False, #<-big diff
                                          dl_fc=True),#<-big diff
@@ -53,8 +49,7 @@ def sac2_3(*args, **kwargs):
 def sac2_4(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(version="2.4",
-                                         max_predict=True,
+                          overrides=dict(max_predict=True,
                                          ue_sduw=True,
                                          ignore_purpose=False),
                           **kwargs)
