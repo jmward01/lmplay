@@ -80,7 +80,7 @@ class MultiheadAttention(nn.Module):
     # proj to clean things up after
     self.proj = create_linear(proj_linear, 'mha_proj', embed_dim, embed_dim)
     if learn_scale:
-      self.scale = nn.Parameter(torch.tensor([math.sqrt(head_size)]))
+      self.scale = nn.Parameter(torch.tensor([0.0]))
     else:
       self.scale = None
     # I had implementation issues with this dropout so I just... dropped it out.
@@ -169,7 +169,8 @@ class MultiheadAttention(nn.Module):
       if self.scale is None:
         attn = torch.matmul(q, k) / math.sqrt(q.size(-1))
       else:
-        attn = torch.matmul(q, k) / self.scale
+        scale = F.sigmoid(self.scale) * (2 * math.sqrt(q.size(-1)))
+        attn = torch.matmul(q, k) / scale
       # No need to mask for seq len 1 since we are just generating the next token.
       if seq_len > 1 and not self.mask is None:
         mask = self.mask[:, :, :seq_len, :seq_len]
