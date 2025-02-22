@@ -31,7 +31,8 @@ class MultiheadAttention(nn.Module):
                key_linear=None,
                proj_linear=None,
                value_linear=None,
-               causal=True):  # Passing in the class we want for a linear layer since this can be swapped for different exp
+               causal=True,
+               learn_scale=False):  # Passing in the class we want for a linear layer since this can be swapped for different exp
     """
     :param max_len: Max sequence generation length. Needed for mask generation. Better implementations don't need this.
     :param num_heads: Guess
@@ -58,18 +59,19 @@ class MultiheadAttention(nn.Module):
     # k&v are what are 'attended' to and will be cached for generation.
     self.key = create_linear(key_linear, 'mha_key', embed_dim, embed_dim)
     self.value = create_linear(value_linear, 'mha_value', embed_dim, embed_dim)
+    head_size = int(embed_dim / num_heads)
     if norm_v:
-      self.value_norm = nn.LayerNorm(int(embed_dim / num_heads))
+      self.value_norm = nn.LayerNorm(head_size)
     else:
       self.value_norm = lambda x: x
 
     if norm_k:
-      self.key_norm = nn.LayerNorm(int(embed_dim / num_heads))
+      self.key_norm = nn.LayerNorm(head_size)
     else:
       self.key_norm = lambda x: x
 
     if norm_q:
-      self.query_norm = nn.LayerNorm(int(embed_dim / num_heads))
+      self.query_norm = nn.LayerNorm(head_size)
     else:
       self.query_norm = lambda x: x
 
@@ -77,7 +79,10 @@ class MultiheadAttention(nn.Module):
 
     # proj to clean things up after
     self.proj = create_linear(proj_linear, 'mha_proj', embed_dim, embed_dim)
-
+    if learn_scale:
+      self.scale = nn.Parameter(torch.tensor([math.sqrt(head_size)]))
+    else:
+      self.scale = None
     # I had implementation issues with this dropout so I just... dropped it out.
     # It isn't critical to the concept of MHA so this is the easy route.
     # self.attn_dropout = nn.Dropout(attn_dropout)
@@ -119,7 +124,7 @@ class MultiheadAttention(nn.Module):
     # Useful for later ops
     batch_size, seq_len, embed_dim = x.shape
     target_batch_size, target_seq_len, target_embed_dim = x_target.shape
-    if self.force_ref or torch.cuda.is_available():
+    if self.scale is None and (self.force_ref or torch.cuda.is_available()):
       k = self.key_norm(self.key(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).transpose(1,
                                                                                                                      2)
       v = self.value_norm(
@@ -161,7 +166,10 @@ class MultiheadAttention(nn.Module):
         cache[1] = v
 
       # This is where the 'scaled' is implemented!
-      attn = torch.matmul(q, k) / math.sqrt(q.size(-1))
+      if self.scale is None:
+        attn = torch.matmul(q, k) / math.sqrt(q.size(-1))
+      else:
+        attn = torch.matmul(q, k) / self.scale
       # No need to mask for seq len 1 since we are just generating the next token.
       if seq_len > 1 and not self.mask is None:
         mask = self.mask[:, :, :seq_len, :seq_len]
