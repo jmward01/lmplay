@@ -12,15 +12,21 @@ class LRAdd(nn.Module):
     #c_dim looks lik it hurts. NBD.
     super().__init__(**kwargs)
     #Start at 0 so we are balanced
-    self.alpha = nn.Parameter(torch.zeros((2,), **kwargs), **kwargs)
-    if c_dim is None:
-      self.register_buffer('c', None)
+    self.full=not c_dim is None
+    if not self.full:
+      self.alpha = nn.Parameter(torch.zeros((2,), **kwargs), **kwargs)
     else:
-      self.c = nn.Parameter(torch.zeros(c_dim))
+      self.alpha = nn.Linear(c_dim * 2, 2, **kwargs)
 
   def forward(self, x, y):
-    alpha = F.sigmoid(self.alpha)*2
 
-    if not self.c is None:
-      return x*alpha[0] + y*alpha[1] + self.c
+
+    if self.full:
+      alpha = torch.concat((x,y), -1)
+      alpha = F.sigmoid(self.alpha(alpha))*2
+      r =  x*alpha[:,:,0:1] + y*alpha[:,:,1:2]
+      return r
+    alpha = self.alpha
+    alpha = F.sigmoid(alpha)*2
+
     return x*alpha[0] + y*alpha[1]
