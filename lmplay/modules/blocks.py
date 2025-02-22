@@ -41,12 +41,12 @@ class Block(nn.Module):
     else:
       self.ln2 = lambda x: x
     if ff_lradd:
-      self.ff_lradd = LRAdd()
+      self.ff_lradd = LRAdd(c_dim=embed_dim)
     else:
       self.ff_lradd = lambda x,y: x + y
 
     if mha_lradd:
-      self.mha_lradd = LRAdd()
+      self.mha_lradd = LRAdd(c_dim=embed_dim)
     else:
       self.mha_lradd = lambda x,y: x + y
 
