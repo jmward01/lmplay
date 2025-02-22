@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from typing import Optional, List
 
-from .modules import Block
+from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, MBase
 from lmplay.base.base_recurrent_model import RLMBase

@@ -1,6 +1,6 @@
 from torch import nn
 from typing import Optional
-from lmplay.base.encoder.modules import MultiheadAttention
+from lmplay.modules import MultiheadAttention
 
 
 class Block(nn.Module):

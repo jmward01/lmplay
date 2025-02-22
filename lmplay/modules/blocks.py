@@ -1,14 +1,12 @@
-
-
 from torch import nn
 from typing import Optional
-from lmplay.modules import MultiheadAttention, LRAdd
 
-
+from .attn import MultiheadAttention
+from .general import LRAdd
 from lmplay.utils import create_linear
 
 
-
+__all__ = ['Block']
 class Block(nn.Module):
   """Your basic encoder block implementation! Nothing crazy in here.
 
@@ -23,10 +21,11 @@ class Block(nn.Module):
                linear=nn.Linear,
                # Passing in the class we want for a linear layer since this can be swapped for different exp
                ff_linear=None,
+               ff_lradd=False,
                mha_linear=None,
+               mha_lradd=False,
                ln_attn=True,
                ln_mlp=True,
-               add_c=False,
                **kwargs):
     super().__init__()
     if ff_linear is None:
@@ -41,12 +40,16 @@ class Block(nn.Module):
       self.ln2 = nn.LayerNorm(embed_dim)
     else:
       self.ln2 = lambda x: x
-    if add_c:
-      self.attn_add = LRAdd(c_dim=embed_dim)
-      self.ff_add = LRAdd(c_dim=embed_dim)
+    if ff_lradd:
+      self.ff_lradd = LRAdd()
     else:
-      self.attn_add = LRAdd()
-      self.ff_add = LRAdd()
+      self.ff_lradd = lambda x,y: x + y
+
+    if mha_lradd:
+      self.mha_lradd = LRAdd()
+    else:
+      self.mha_lradd = lambda x,y: x + y
+
     self.attn = MultiheadAttention(max_len,
                                    num_heads,
                                    embed_dim,
@@ -62,6 +65,6 @@ class Block(nn.Module):
   def forward(self, x, cache: Optional[list] = None):
     # A simple 'block' that uses residual connections and gives attn + pure logic both a chance to modify the hidden layer
     # the 'cache' is the kv cache and is only needed for inference, not training.
-    x = self.attn_add(x, self.attn(self.ln1(x), cache=cache))
-    x = self.ff_add(x, self.ff(self.ln2(x)))
+    x = self.mha_lradd(x, self.attn(self.ln1(x), cache=cache))
+    x = self.ff_lradd(x, self.ff(self.ln2(x)))
     return x

@@ -3,7 +3,7 @@ from torch import nn
 from typing import Optional, Any, List
 
 from lmplay.exp.weights.unified_weights_v2_1.modules import SULinear
-from lmplay.base.encoder.modules import Block
+from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
 from functools import partial

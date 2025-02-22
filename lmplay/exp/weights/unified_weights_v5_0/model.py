@@ -4,7 +4,7 @@ from typing import Optional, Any, List
 
 from lmplay.exp.weights.modules import ULinear , DULinear
 #from .modules import DULinear
-from lmplay.base.encoder.modules import Block
+from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
 from functools import partial

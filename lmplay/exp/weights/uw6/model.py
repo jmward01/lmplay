@@ -3,7 +3,7 @@ from torch import nn
 from typing import Optional, List
 
 from lmplay.exp.weights.modules import SDULinear, SimpleMLP, ULinear, MultiMLP, accepts_purpose
-from lmplay.base.encoder.modules import Block
+from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase
 from functools import partial
