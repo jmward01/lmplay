@@ -8,7 +8,6 @@ from lmplay.base.base_model import LMBase
 from lmplay.modules import SDULinear, ULinear, UnifiedEmbedding, MultiMLP, accepts_purpose
 from functools import partial
 
-
 def _p(v) -> str:
   if v is None:
     return 'N'
@@ -36,13 +35,14 @@ class GPT2(LMBase):
                dl_fc=False,
                max_predict=True,
                version="all1",
-               min_b=0.4,
+               lradd_floor=None,
+               lradd_ceil=None,
                **ignore):
     # Second in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
     # This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
     # This specific version combines the changes from unified embeddings 1.3 (sort of) and unified weights 2.1
     super().__init__(
-      f"{version}_{_p(ln_attn)}{_p(ln_mlp)}{_p(ue_sduw)}{_p(t_sduw)}{_p(ignore_purpose)}{_p(dl_fc)}{_p(max_predict)}_{min_b}_{num_blocks}L_{max_len}",
+      f"{version}_{_p(ln_attn)}{_p(ln_mlp)}{_p(ue_sduw)}{_p(t_sduw)}{_p(ignore_purpose)}{_p(dl_fc)}{_p(max_predict)}_{_p(lradd_floor)}_{_p(lradd_ceil)}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,
@@ -62,7 +62,7 @@ class GPT2(LMBase):
       ignore_purpose=ignore_purpose,
       dl_fc=dl_fc,
       max_predict=max_predict,
-      min_b=min_b,
+      min_b=lradd_floor,
       **ignore)
     if max_predict == True:
       max_predict_size = embed_dim*4
@@ -116,9 +116,10 @@ class GPT2(LMBase):
                                         linear=t_linear,
                                         ln_attn=ln_attn,
                                         ln_mlp=ln_mlp,
-                                        mha_lradd=True,
-                                        ff_lradd=True,
-                                        min_b=min_b) for _ in range(num_blocks)])
+                                        lradd=True,
+                                        lradd_simple=True,
+                                        lradd_floor=lradd_floor,
+                                        lradd_ceil=lradd_ceil) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     if dl_fc == True:
       self.fc = SDULinear(embed_dim,

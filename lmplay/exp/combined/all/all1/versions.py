@@ -10,10 +10,3 @@ def sac2_0(*args, **kwargs):
                           overrides=dict(),
                           **kwargs)
 
-
-@expose_runner('all1_1', description="All1_1 but with a different b_min.")
-def sac2_0(*args, **kwargs):
-  return BasicModelRunner(GPT2,
-                          *args,
-                          overrides=dict(min_b=0.6),
-                          **kwargs)
