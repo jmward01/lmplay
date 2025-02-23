@@ -30,7 +30,8 @@ class LRAdd(nn.Module):
       alpha = self.alpha
     #alpha = F.sigmoid(alpha)*2
     if not self.min_b is None:
-      alpha = F.elu(alpha - self.min_b) + self.min_b
+      #alpha = F.elu(alpha - self.min_b) + self.min_b
+      alpha = F.elu(alpha) + self.min_b
     else:
       alpha = F.sigmoid(alpha)*2
     a = alpha[...,0:1]
