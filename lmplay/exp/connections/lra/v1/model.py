@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from typing import Optional
 
-from .modules import Block
+from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase
 
@@ -22,9 +22,12 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                version="1",
-               add_c=False,
+               simple=False,
+               predict=True,
+               floor=0.4,
+               ceil=1.5,
                **ignore):
-    super().__init__(f"{version}_{_p(add_c)}_{num_blocks}L_{max_len}",
+    super().__init__(f"{version}_{_p(simple)}{_p(predict)}_{floor}_{ceil}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -33,7 +36,10 @@ class GPT2(LMBase):
                      ff_dropout=ff_dropout,
                      embed_dropout=embed_dropout,
                      version=version,
-                     add_c=add_c)
+                     simple=simple,
+                     predict=predict,
+                     floor=floor,
+                     ceil=ceil)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -46,7 +52,12 @@ class GPT2(LMBase):
                                         embed_dim,
                                         attn_dropout=attn_dropout,
                                         ff_dropout=ff_dropout,
-                                        add_c=add_c) for _ in range(num_blocks)])
+                                        lradd=True,
+                                        lradd_simple=simple,
+                                        lradd_predict=predict,
+                                        lradd_floor=floor,
+                                        lradd_ceil=ceil,
+                                        ) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 

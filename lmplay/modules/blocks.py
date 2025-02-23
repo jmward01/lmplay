@@ -21,10 +21,12 @@ class Block(nn.Module):
                linear=nn.Linear,
                # Passing in the class we want for a linear layer since this can be swapped for different exp
                ff_linear=None,
-               ff_lradd=False,
                mha_linear=None,
-               mha_lradd=False,
-               min_b=None,
+               lradd=False,
+               lradd_simple=None, #only matters is lradd=True
+               lradd_predict=None, #only matters is lradd=True
+               lradd_floor=None, #only matters is lradd=True
+               lradd_ceil=None, #only matters is lradd=True
                ln_attn=True,
                ln_mlp=True,
                **kwargs):
@@ -41,13 +43,13 @@ class Block(nn.Module):
       self.ln2 = nn.LayerNorm(embed_dim)
     else:
       self.ln2 = lambda x: x
-    if ff_lradd:
-      self.ff_lradd = LRAdd(c_dim=embed_dim, min_b=min_b)
+    if lradd:
+      self.ff_lradd = LRAdd(embed_dim, simple=lradd_simple, predict=lradd_predict, floor=lradd_floor, ceil=lradd_ceil)
     else:
       self.ff_lradd = lambda x,y: x + y
 
-    if mha_lradd:
-      self.mha_lradd = LRAdd(c_dim=embed_dim, min_b=min_b)
+    if lradd:
+      self.mha_lradd = LRAdd(embed_dim, simple=lradd_simple, predict=lradd_predict, floor=lradd_floor, ceil=lradd_ceil)
     else:
       self.mha_lradd = lambda x,y: x + y
 

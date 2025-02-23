@@ -8,34 +8,66 @@ __all__ = ['LRAdd']
 
 
 class LRAdd(nn.Module):
-  def __init__(self, c_dim=None, min_b=None, **kwargs):
+  def __init__(self,
+               features:int,
+               floor=0.4,
+               ceil=1.5,
+               simple=True,
+               predict=True,
+               **kwargs):
     #c_dim looks lik it hurts. NBD.
     super().__init__(**kwargs)
-    #Start at 0 so we are balanced
-    self.full=not c_dim is None
-    self.min_b = min_b
-    if not self.full:
-      #if min_b is None:
-      self.alpha = nn.Parameter(torch.zeros((2,), **kwargs), **kwargs)
-      #else:
-      #  self.alpha = nn.Parameter(torch.ones((2,), **kwargs), **kwargs)
+    if floor is None:
+      floor = 0.4
+    if ceil is None:
+      ceil = 1.5
+    if simple is None:
+      simple = True
+    if predict is None:
+      predict = True
+
+    self.features = features
+    self.floor=floor
+    self.ceil=ceil
+    self.predict = predict
+    self.simple = simple
+    if self.simple:
+      self.out_features = 2
     else:
-      self.alpha = nn.Linear(c_dim * 2, 2, **kwargs)
+      self.out_features = 2*features
+
+    if self.predict:
+      self.weights = nn.Linear(features * 2, self.out_features, **kwargs)
+    else:
+      self.weights = nn.Parameter(torch.zeros((self.out_features,), **kwargs), **kwargs)
+
 
   def forward(self, x, y):
-    if self.full:
-      alpha = torch.concat((x,y), -1)
-      alpha = self.alpha(alpha)
+    if self.predict:
+      weights = torch.concat((x,y), -1)
+      weights = self.weights(weights)
     else:
-      alpha = self.alpha
-    #Get alpha between 0 and 2. We want to allow going above 1
-    alpha = F.sigmoid(alpha)*2
-    if not self.min_b is None:
-      #This is less a min and more a point that encourages going up.
-      alpha = F.elu(alpha - self.min_b) + self.min_b
-      #alpha = F.elu(alpha) + self.min_b
-    #else:
-    #  alpha = F.sigmoid(alpha)*2
-    a = alpha[...,0:1]
-    b = alpha[...,1:2]
-    return x*a + y*b
+      weights = self.weights
+      #no batch or sequence
+      weights = weights.reshape(1, 1, -1)
+    #at this point alpha is: batch, seq, weights.
+    #Let's apply the floor/ceil/target logic
+    scale = self.ceil - self.floor
+    weights = F.sigmoid(weights)*scale + self.floor
+    batch, sequence, features = weights.shape
+    weights = weights.reshape(batch, sequence, 2, -1)
+    alpha = weights[:,:,0,:]
+    beta = weights[:,:,1,:]
+
+    ##Now we split between the alpha and beta
+    ##Get alpha between 0 and 2. We want to allow going above 1
+    #weights = F.sigmoid(weights)*2
+    #if not self.min_b is None:
+    #  #This is less a min and more a point that encourages going up.
+    #  weights = F.elu(weights - self.min_b) + self.min_b
+    #  #alpha = F.elu(alpha) + self.min_b
+    ##else:
+    ##  alpha = F.sigmoid(alpha)*2
+    #a = weights[...,0:1]
+    #b = weights[...,1:2]
+    return x*alpha + y*beta

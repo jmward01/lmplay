@@ -13,9 +13,26 @@ def gpt2ish(*args, **kwargs):
                           **kwargs)
 
 @expose_runner('lra1_1',
-               description='Trying an added bias since the bias on the l and r are in flux.')
+               description='Trying the non-predict full version')
 def gpt2ish(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(add_c=True),
+                          overrides=dict(predict=False),
+                          **kwargs)
+
+@expose_runner('lra1_2',
+               description='Trying the predict simple version')
+def gpt2ish(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(simple=True),
+                          **kwargs)
+
+@expose_runner('lra1_3',
+               description='Trying the non-predict simple version')
+def gpt2ish(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(simple=True,
+                                         predict=False),
                           **kwargs)
