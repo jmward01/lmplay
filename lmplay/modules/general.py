@@ -15,7 +15,7 @@ class LRAdd(nn.Module):
     self.full=not c_dim is None
     self.min_b = min_b
     if not self.full:
-      self.alpha = nn.Parameter(torch.zeros((2,), **kwargs), **kwargs)
+      self.alpha = nn.Parameter(torch.ones((2,), **kwargs), **kwargs)
     else:
       self.alpha = nn.Linear(c_dim * 2, 2, **kwargs)
 
@@ -25,7 +25,7 @@ class LRAdd(nn.Module):
       alpha = self.alpha(alpha)
     else:
       alpha = self.alpha
-    alpha = F.sigmoid(alpha)*2
+    #alpha = F.sigmoid(alpha)*2
     if not self.min_b is None:
       alpha = F.elu(alpha - self.min_b) + self.min_b
     a = alpha[...,0:1]
