@@ -11,6 +11,8 @@ from functools import partial
 def _p(v) -> str:
   if v is None:
     return 'N'
+  if isinstance(v, str):
+    return v
   return str(int(v))
 
 
