@@ -24,7 +24,7 @@ class Block(nn.Module):
                ff_lradd=False,
                mha_linear=None,
                mha_lradd=False,
-               mha_min_b=None,
+               min_b=None,
                ln_attn=True,
                ln_mlp=True,
                **kwargs):
@@ -42,12 +42,12 @@ class Block(nn.Module):
     else:
       self.ln2 = lambda x: x
     if ff_lradd:
-      self.ff_lradd = LRAdd(c_dim=embed_dim, min_b=mha_min_b)
+      self.ff_lradd = LRAdd(c_dim=embed_dim, min_b=min_b)
     else:
       self.ff_lradd = lambda x,y: x + y
 
     if mha_lradd:
-      self.mha_lradd = LRAdd(c_dim=embed_dim, min_b=mha_min_b)
+      self.mha_lradd = LRAdd(c_dim=embed_dim, min_b=min_b)
     else:
       self.mha_lradd = lambda x,y: x + y
 
