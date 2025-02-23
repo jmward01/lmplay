@@ -36,3 +36,11 @@ def gpt2ish(*args, **kwargs):
                           overrides=dict(simple=True,
                                          predict=False),
                           **kwargs)
+
+@expose_runner('lra1_4',
+               description='Trying the mlp predict with full')
+def gpt2ish(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(predict="mlp"),
+                          **kwargs)

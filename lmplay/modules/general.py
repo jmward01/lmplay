@@ -36,8 +36,13 @@ class LRAdd(nn.Module):
     else:
       self.out_features = 2*features
 
-    if self.predict:
+    if self.predict == True:
       self.weights = nn.Linear(features * 2, self.out_features, **kwargs)
+    elif self.predict == "mlp":
+      mid_features = features
+      self.weights = nn.Sequential(nn.Linear(features * 2, mid_features, **kwargs),
+                                   nn.ReLU(),
+                                   nn.Linear(mid_features, self.out_features, **kwargs))
     else:
       self.weights = nn.Parameter(torch.zeros((self.out_features,), **kwargs), **kwargs)
 
