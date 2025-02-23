@@ -18,7 +18,7 @@ def sac1_0(*args, **kwargs):
                           overrides=dict(front_embed_mul=16),
                           **kwargs)
 
-@expose_runner('sac1_1', description="Same as sac1_0 but with a 16x front embed")
+@expose_runner('sac1_1', description="Same as sac1_0 but with a 16x front embed and sulinear turned on.")
 def sac1_0(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,

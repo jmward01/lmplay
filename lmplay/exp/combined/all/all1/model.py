@@ -28,12 +28,13 @@ class GPT2(LMBase):
                for_train=True,
                keep_embed_on_cpu=False,
                sulinear=False,
+               min_b=1.1,
                version="all_1",
                **ignore):
     # First in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
     # This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
     # This specific version combines the changes from unified embeddings 1.3 and unified weights 1.0
-    super().__init__(f"{version}_{front_embed_mul}_{_p(sulinear)}_{num_blocks}L_{max_len}",
+    super().__init__(f"{version}_{front_embed_mul}_{_p(sulinear)}_{min_b}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -41,7 +42,9 @@ class GPT2(LMBase):
                      attn_dropout=attn_dropout,
                      ff_dropout=ff_dropout,
                      embed_dropout=embed_dropout,
-                     front_embed_mul=front_embed_mul)
+                     front_embed_mul=front_embed_mul,
+                     sulinear=sulinear,
+                     min_b=min_b)
     # same as 1.0 but the linear is now a ULinear!
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")
@@ -70,7 +73,7 @@ class GPT2(LMBase):
                                         linear=linear,
                                         mha_lradd=True,
                                         ff_lradd=True,
-                                        min_b=1.1) for _ in range(num_blocks)])
+                                        min_b=min_b) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = linear(embed_dim, vocab_size)
 

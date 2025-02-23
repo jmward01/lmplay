@@ -41,7 +41,8 @@ class GPT2(LMBase):
                      attn_dropout=attn_dropout,
                      ff_dropout=ff_dropout,
                      embed_dropout=embed_dropout,
-                     front_embed_mul=front_embed_mul)
+                     front_embed_mul=front_embed_mul,
+                     sulinear=sulinear)
     # same as 1.0 but the linear is now a ULinear!
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")
