@@ -27,7 +27,7 @@ class GPT2(LMBase):
                front_embed_mul=16,
                for_train=True,
                keep_embed_on_cpu=False,
-               sulinear=False,
+               sulinear=True,
                version="all_1",
                **ignore):
     # First in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
