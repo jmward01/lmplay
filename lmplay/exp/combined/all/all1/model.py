@@ -36,7 +36,7 @@ class GPT2(LMBase):
                dl_fc=False,
                max_predict=True,
                version="all1",
-               min_b=0.1,
+               min_b=0.4,
                **ignore):
     # Second in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
     # This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
