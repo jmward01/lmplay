@@ -15,5 +15,5 @@ def sac2_0(*args, **kwargs):
 def sac2_0(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(min_b=0.1),
+                          overrides=dict(min_b=0.3),
                           **kwargs)
