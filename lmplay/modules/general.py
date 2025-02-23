@@ -28,7 +28,7 @@ class LRAdd(nn.Module):
       a = alpha[:,:,0:1]
       b = alpha[:,:,1:2]
       if not self.min_b is None:
-        b = F.relu(b - self.min_b) + self.min_b
+        b = F.elu(b - self.min_b) + self.min_b
       return x*a  + y*b
 
     alpha = self.alpha
@@ -36,5 +36,5 @@ class LRAdd(nn.Module):
     a = alpha[0]
     b = alpha[1]
     if not self.min_b is None:
-      b = F.relu(b - self.min_b) + self.min_b
+      b = F.elu(b - self.min_b) + self.min_b
     return x*a + b*b
