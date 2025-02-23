@@ -25,10 +25,11 @@ class LRAdd(nn.Module):
     if self.full:
       alpha = torch.concat((x,y), -1)
       alpha = F.sigmoid(self.alpha(alpha))*2
+      if not self.min_b is None:
+        alpha = F.elu(alpha - self.min_b) + self.min_b
       a = alpha[:,:,0:1]
       b = alpha[:,:,1:2]
-      if not self.min_b is None:
-        b = F.elu(b - self.min_b) + self.min_b
+        #b = F.elu(b - self.min_b) + self.min_b
       return x*a  + y*b
 
     alpha = self.alpha
