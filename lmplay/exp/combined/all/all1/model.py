@@ -69,7 +69,8 @@ class GPT2(LMBase):
                                         ff_dropout=ff_dropout,
                                         linear=linear,
                                         mha_lradd=True,
-                                        ff_lradd=True) for _ in range(num_blocks)])
+                                        ff_lradd=True,
+                                        mha_min_b=0.8) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = linear(embed_dim, vocab_size)
 
