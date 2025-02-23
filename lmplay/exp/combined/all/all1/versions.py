@@ -10,3 +10,11 @@ def sac2_0(*args, **kwargs):
                           overrides=dict(),
                           **kwargs)
 
+
+@expose_runner('all1_1', description="Trying out MHA with full.")
+def sac2_0(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(lradd_predict="mha",
+                                         lradd_simple=False),
+                          **kwargs)
