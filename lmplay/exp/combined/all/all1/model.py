@@ -70,7 +70,7 @@ class GPT2(LMBase):
                                         linear=linear,
                                         mha_lradd=True,
                                         ff_lradd=True,
-                                        mha_min_b=0.8) for _ in range(num_blocks)])
+                                        mha_min_b=1.0) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = linear(embed_dim, vocab_size)
 
