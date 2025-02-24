@@ -11,10 +11,10 @@ def sac2_0(*args, **kwargs):
                           **kwargs)
 
 
-@expose_runner('all1_1', description="Trying out MHA with full.")
+@expose_runner('all1_1', description="Trying out mlp with full.")
 def sac2_0(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(lradd_predict="mha",
+                          overrides=dict(lradd_predict="mlp",
                                          lradd_simple=False),
                           **kwargs)

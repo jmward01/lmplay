@@ -43,8 +43,10 @@ class LRAdd(nn.Module):
       self.weights = nn.Sequential(nn.Linear(features * 2, mid_features, **kwargs),
                                    nn.ReLU(),
                                    nn.Linear(mid_features, self.out_features, **kwargs))
-    else:
+    elif self.predict == False:
       self.weights = nn.Parameter(torch.zeros((self.out_features,), **kwargs), **kwargs)
+    else:
+      raise ValueError(f"Unknown predict type {self.predict}")
 
 
   def forward(self, x, y):
