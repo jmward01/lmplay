@@ -4,7 +4,7 @@ from lmplay.base.runner_list import expose_runner
 
 
 @expose_runner('all1_0', description="Combines UE 1.0 16x, UW 6.0, LRAdd and vnorm")
-def sac2_0(*args, **kwargs):
+def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(),
@@ -12,9 +12,19 @@ def sac2_0(*args, **kwargs):
 
 
 @expose_runner('all1_1', description="Trying out mlp with full.")
-def sac2_0(*args, **kwargs):
+def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(lradd_predict="mlp",
                                          lradd_simple=False),
+                          **kwargs)
+
+@expose_runner('all1_2', description="Trying a higher lradd_floor")
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(lradd_predict="mlp",
+                                         lradd_simple=False,
+                                         lradd_floor=0.6,
+                                         lradd_ceil=2.0),
                           **kwargs)
