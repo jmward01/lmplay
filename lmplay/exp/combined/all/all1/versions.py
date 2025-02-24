@@ -26,5 +26,5 @@ def runner(*args, **kwargs):
                           overrides=dict(lradd_predict="mlp",
                                          lradd_simple=False,
                                          lradd_floor=0.6,
-                                         lradd_ceil=2.0),
+                                         lradd_ceil=1.2),
                           **kwargs)
