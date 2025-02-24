@@ -47,7 +47,7 @@ class GPT2(LMBase):
     # Second in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
     # This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
     # This specific version combines the changes from unified embeddings 1.3 (sort of) and unified weights 2.1
-    name = f"{version}_{_p(ln_attn)}{_p(ln_mlp)}{_p(ue_sduw)}{_p(t_sduw)}{_p(ignore_purpose)}{_p(dl_fc)}{_p(max_predict)}{_p(lradd_predict)}{_p(lradd_simple)}_{_p(lradd_floor)}_{_p(lradd_ceil)}_{num_blocks}L_{max_len}"
+    name = f"{version}_{_p(ln_attn)}{_p(lradd_predict)}{_p(lradd_simple)}_{_p(lradd_floor)}_{_p(lradd_ceil)}_{num_blocks}L_{max_len}"
     super().__init__(
       name,
       max_len=max_len,
