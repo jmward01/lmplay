@@ -5,7 +5,7 @@ from typing import Optional, Any
 from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
-from ..modules import UnifiedEmbedding, ConvertableEmbedding
+from lmplay.exp.embeddings.modules import UnifiedEmbedding, ConvertableEmbedding
 
 class GPT2(LMBase):
   def __init__(self,
@@ -19,7 +19,7 @@ class GPT2(LMBase):
                front_embed_mul=8.0,
                for_train=True,
                keep_embed_on_cpu=False,
-               version="1.0",
+               version="1.2",
                **ignore):
     super().__init__(f"ue_v{version}_{front_embed_mul}_{num_blocks}L_{max_len}",
                      max_len=max_len,
@@ -30,6 +30,7 @@ class GPT2(LMBase):
                      ff_dropout=ff_dropout,
                      embed_dropout=embed_dropout,
                      front_embed_mul=front_embed_mul)
+    #same as 1.0 but ln=True
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
@@ -39,7 +40,7 @@ class GPT2(LMBase):
       #this will convert any UE into a normal embedding. After this, if the model is saved, it can be re-loaded by the baseline model.
       self.tok_embed = ConvertableEmbedding(vocab_size, embed_dim, front_embed_mul)
     else:
-      self.tok_embed = UnifiedEmbedding(vocab_size, embed_dim, front_embed_mul, keep_embed_on_cpu=keep_embed_on_cpu)
+      self.tok_embed = UnifiedEmbedding(vocab_size, embed_dim, front_embed_mul, keep_embed_on_cpu=keep_embed_on_cpu, ln=True)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
     self.blocks = nn.Sequential(*[Block(max_len,
@@ -76,9 +77,6 @@ class GPT2(LMBase):
       return x, cache
     return x
 
-from lmplay.base.runner_list import expose_runner
-
-@expose_runner('ue8x', description="Unified Embeddings with an 8x front embedding multiplier. A Unified Embedding puts FF in front of a large 'front' embedding.")
 class ModelRunner(LMRunnerBase):
   def __init__(self, max_batch_size=25):
     super().__init__(max_batch_size=max_batch_size)

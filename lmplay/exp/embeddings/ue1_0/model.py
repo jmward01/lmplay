@@ -5,8 +5,7 @@ from typing import Optional, Any
 from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
-from lmplay.modules import ULinear
-from lmplay.exp.embeddings.unified_embeddings_v1_0.modules import UnifiedEmbedding, ConvertableEmbedding
+from ..modules import UnifiedEmbedding, ConvertableEmbedding
 
 class GPT2(LMBase):
   def __init__(self,
@@ -20,9 +19,9 @@ class GPT2(LMBase):
                front_embed_mul=8.0,
                for_train=True,
                keep_embed_on_cpu=False,
-               version="1.3",
+               version="1.0",
                **ignore):
-    super().__init__(f"ue_v{version}_{front_embed_mul}_{num_blocks}L_{max_len}",
+    super().__init__(f"{version}_{front_embed_mul}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -31,7 +30,6 @@ class GPT2(LMBase):
                      ff_dropout=ff_dropout,
                      embed_dropout=embed_dropout,
                      front_embed_mul=front_embed_mul)
-    #same as 1.0 but the linear is now a ULinear!
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
@@ -41,7 +39,7 @@ class GPT2(LMBase):
       #this will convert any UE into a normal embedding. After this, if the model is saved, it can be re-loaded by the baseline model.
       self.tok_embed = ConvertableEmbedding(vocab_size, embed_dim, front_embed_mul)
     else:
-      self.tok_embed = UnifiedEmbedding(vocab_size, embed_dim, front_embed_mul, keep_embed_on_cpu=keep_embed_on_cpu, linear=ULinear)
+      self.tok_embed = UnifiedEmbedding(vocab_size, embed_dim, front_embed_mul, keep_embed_on_cpu=keep_embed_on_cpu)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
     self.blocks = nn.Sequential(*[Block(max_len,
@@ -78,24 +76,5 @@ class GPT2(LMBase):
       return x, cache
     return x
 
-class ModelRunner(LMRunnerBase):
-  def __init__(self, max_batch_size=25):
-    super().__init__(max_batch_size=max_batch_size)
+from lmplay.base.runner_list import expose_runner
 
-  def _construct_model(self,
-                       device,
-                       model_weights: dict = None,
-                       model_args=None,
-                       strict=False,
-                       **parameters) -> (LMBase, Any):
-    model_args = model_args if model_args else dict()
-    for k,v in parameters.items():
-      if k not in model_args:
-        model_args[k] = v
-    model = GPT2(for_train=self.for_train, **model_args)
-    if model_weights is not None:
-      missing, unexpected = model.load_state_dict(model_weights, strict=strict)
-      model.to(device)
-      return model, model.init_kwargs, missing, unexpected
-    model.to(device)
-    return model, model.init_kwargs

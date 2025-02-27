@@ -11,8 +11,7 @@ import lmplay.exp.combined.sacrificial.sac1.versions
 import lmplay.exp.combined.sacrificial.sac2.versions
 
 
-import lmplay.exp.embeddings.unified_embeddings_v1_0.model
-import lmplay.exp.embeddings.unified_embeddings_v1_1.model
+import lmplay.exp.embeddings.ue1_0.versions
 
 import lmplay.exp.attn_norm.normv.model
 
