@@ -11,11 +11,14 @@ def runner(*args, **kwargs):
                           **kwargs)
 
 
-@expose_runner('all1_1', description="Trying out mlp.")
+@expose_runner('all1_1', description="Trying out mlp and different floor ceil.")
 def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(lradd_predict="mlp"),
+                          overrides=dict(lradd_predict="mlp",
+                                         lradd_simple=False,
+                                         lradd_floor=0.3,
+                                         lradd_ceil=1.6),
                           **kwargs)
 
 @expose_runner('all1_2', description="Trying a higher lradd_floor")
