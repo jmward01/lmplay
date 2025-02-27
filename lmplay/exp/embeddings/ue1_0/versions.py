@@ -18,7 +18,5 @@ def runner(*args, **kwargs):
 def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(front_embed_mul=16.0,
-                                         num_blocks=24,
-                                         embed_dim=1024),
+                          overrides=dict(front_embed_mul=16.0),
                           **kwargs)
