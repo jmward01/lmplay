@@ -37,8 +37,10 @@ def steps(step_def: dict, save_dataset=False, current_step: str = None) -> (str,
                                          **dataset_info.get('kwargs', dict())))
 
       if len(full_datasets) > 1:
-        train = interleave_datasets([dataset['train'] for dataset in full_datasets])
-        validation = interleave_datasets([dataset['validation'] for dataset in full_datasets])
+        #"first_exhausted", "all_exhausted"
+        interleve_stopping_strategy = step.get('interleve_stopping_strategy', "first_exhausted")
+        train = interleave_datasets([dataset['train'] for dataset in full_datasets], stopping_strategy=interleve_stopping_strategy)
+        validation = interleave_datasets([dataset['validation'] for dataset in full_datasets], stopping_strategy=interleve_stopping_strategy)
       else:
         train = full_datasets[0]['train']
         validation = full_datasets[0]['validation']

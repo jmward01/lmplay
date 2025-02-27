@@ -12,7 +12,7 @@ def _prune_cache(cache:list, keep_map):
 
 
 class RMBase(MBase):
-  def train_prompts(self, prompts: Sequence[dict]) -> (Sequence[str], torch.Tensor):
+  def train_prompts(self, prompts: Sequence[dict], include_prompts=True) -> (Sequence[str], torch.Tensor):
     # We want to pad them together so that the truths will line up with the prompts.
     x, predictions_starts, predictions_ends = self._tokenize_batch(prompts)
     # Truth doesn't have the first EOT char. It needs to start on prediction start
@@ -52,7 +52,10 @@ class RMBase(MBase):
     target_loss = F.cross_entropy(x_out.permute(0, 2, 1), truths, reduction="none")
     total_target_loss = 0.0
     for tl, prediction_start, prediction_end in zip(target_loss, predictions_starts, predictions_ends):
-      tl = tl[prediction_start:prediction_end]
+      if not include_prompts:
+        tl = tl[prediction_start:prediction_end]
+      else:
+        prediction_start = 0
       tl = tl.sum()
       token_count = max(prediction_end - prediction_start, 1)
       # norm by number of tokens in the truth
