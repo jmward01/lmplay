@@ -17,8 +17,8 @@ def runner(*args, **kwargs):
                           *args,
                           overrides=dict(lradd_predict="mlp",
                                          lradd_simple=False,
-                                         lradd_floor=0.3,
-                                         lradd_ceil=1.6),
+                                         lradd_floor=0.7,
+                                         lradd_ceil=1.3),
                           **kwargs)
 
 @expose_runner('all1_2', description="Trying a higher lradd_floor")
