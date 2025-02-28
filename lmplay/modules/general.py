@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 
 
-__all__ = ['LRAdd']
+__all__ = ['LRAdd', 'hide_net', 'NopModule']
 
 
 
@@ -78,3 +78,13 @@ class LRAdd(nn.Module):
     #a = weights[...,0:1]
     #b = weights[...,1:2]
     return x*alpha + y*beta
+
+
+class NopModule(nn.Module):
+  def forward(self, *args, **kwargs):
+    return None
+
+
+def hide_net(net: nn.Module):
+  # just need to hold onto something that PyTorch won't try to serialize/deserialize
+  return lambda *args, **kwargs: net(*args, **kwargs)

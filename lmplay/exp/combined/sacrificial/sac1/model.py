@@ -2,12 +2,11 @@ import torch
 from torch import nn
 from typing import Optional
 
-from lmplay.modules import Block
+from lmplay.modules import Block, ULinear
 import tiktoken
 from lmplay.base.base_model import LMBase
-from lmplay.modules import ULinear
 from lmplay.modules import UnifiedEmbedding, ConvertableEmbedding
-from lmplay.exp.weights.unified_weights_v2_1.modules import SULinear
+from lmplay.modules import SULinear
 from functools import partial
 
 def _p(v) -> str:

@@ -2,9 +2,9 @@ from lmplay.base.runner_list import MODEL_RUNNERS
 
 #gotta force the classes to load so that the model runner list will populate with them. This needs to be somewhere so why not centralized here?
 
-import lmplay.exp.weights.unified_weights_v1_0.model
-import lmplay.exp.weights.unified_weights_v2_0.model
-import lmplay.exp.weights.unified_weights_v2_1.model
+import lmplay.exp.weights.uw1.versions
+import lmplay.exp.weights.uw2.versions
+import lmplay.exp.weights.uw2.unified_weights_v2_1.model
 import lmplay.exp.weights.uw6.versions
 
 import lmplay.exp.combined.sacrificial.sac1.versions

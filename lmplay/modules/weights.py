@@ -2,13 +2,15 @@ import math
 
 import torch
 from torch import nn
-import torch.nn.functional as F
-from torch.nn import init
+from torch.nn import init, functional as F
+
+from lmplay.modules.general import NopModule, hide_net
+from lmplay.utils import set_accepts_purpose
 
 DEFAULT_BOUND = 0.01
-
 DEFAULT_CACHEABLE = False
 
+__all__ = ["ULinear", "DULinear", "SimpleMLP", "MultiMLP", "SPredictor", "SDULinear", "SULinear"]
 
 class ULinear(nn.Module):
   # Modified from pytorch source
@@ -32,7 +34,7 @@ class ULinear(nn.Module):
       self.bias = nn.Parameter(torch.empty(out_features, **factory_kwargs))
       self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     else:
-      # this is needed because?????? Won't work in some frameworks without it because they are constructing the models and not the model code.
+      # this is needed because?????? Won't work in some frameworks without it because they are constructing the models and not the model code?
       self.register_parameter("bias", None)
     self.reset_parameters()
     self.cached_weights = None
@@ -290,11 +292,6 @@ class DULinear(nn.Module):
     return f'in_features={self.in_features}, out_features={self.out_features}'
 
 
-def hide_net(net: nn.Module):
-  # just need to hold onto something that PyTorch won't try to serialize/deserialize
-  return lambda *args, **kwargs: net(*args, **kwargs)
-
-
 class SimpleMLP(nn.Module):
   def __init__(self,
                in_features: int,
@@ -425,6 +422,7 @@ class MultiMLP(nn.Module):
 
     result = self.get_results()[name][r_idx]
     return result
+
 
 class SPredictor(nn.Module):
   def __init__(self,
@@ -609,17 +607,6 @@ class SPredictor2(nn.Module):
     return value
 
 
-class NopModule(nn.Module):
-  def forward(self, *args, **kwargs):
-    return None
-
-
-def accepts_purpose(o, v: bool = True):
-  if not hasattr(o, 'accepts_purpose'):
-    setattr(o, 'accepts_purpose', v)
-  return o
-
-
 class SDULinear(nn.Module):
   # Sharable Deep Unified Linear
   def __init__(self,
@@ -794,4 +781,46 @@ class SDULinear(nn.Module):
     return f'in_features={self.in_features}, out_features={self.out_features}'
 
 
-SDULinear = accepts_purpose(SDULinear)
+SDULinear = set_accepts_purpose(SDULinear)
+
+
+class SULinear(nn.Module):
+  def __init__(self,
+               shared_mid_weights: nn.Linear,
+               in_features: int,
+               out_features: int,
+               device=None,
+               dtype=None) -> None:
+    factory_kwargs = {'device': device, 'dtype': dtype}
+    super().__init__()
+    self.in_features = in_features
+    self.out_features = out_features
+    self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
+    #Hack to avoid storing copies of the mid weights everywhere
+    self.shared_mid_weights = [shared_mid_weights]
+    self.expansion_data = nn.Parameter(torch.empty(shared_mid_weights.in_features))
+    self.bias_weights = nn.Linear(shared_mid_weights.out_features, out_features)
+    self.mbias = nn.Parameter(torch.ones(out_features, **factory_kwargs))
+    self.mbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+    self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+    self.reset_parameters()
+
+  def reset_parameters(self) -> None:
+    # This uses the pytorch init, different inits may be valuable with the mbias in place.
+    # Setting a=sqrt(5) in kaiming_uniform is the same as initializing with
+    # uniform(-1/sqrt(in_features), 1/sqrt(in_features)). For details, see
+    # https://github.com/pytorch/pytorch/issues/57109
+    init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+    fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
+    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+    init.uniform_(self.expansion_data, -bound, bound)
+
+  def forward(self, input: torch.Tensor) -> torch.Tensor:
+    result = F.linear(input, self.weight, None)
+    bias = self.shared_mid_weights[0](self.expansion_data)
+    bias = self.bias_weights(F.gelu(bias))
+    result = result * (self.mbias + self.mbias_bias) + (bias + self.bias_bias)
+    return result
+
+  def extra_repr(self) -> str:
+    return f'in_features={self.in_features}, out_features={self.out_features}'

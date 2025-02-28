@@ -2,10 +2,11 @@ import torch
 from torch import nn
 from typing import Optional, Any
 
-from lmplay.modules import Block
+from lmplay.modules import Block, ULinear, MultiMLP, SDULinear
+from lmplay.utils import set_accepts_purpose
 import tiktoken
 from lmplay.base.base_model import LMBase
-from lmplay.modules import SDULinear, ULinear, UnifiedEmbedding, MultiMLP, accepts_purpose
+from lmplay.modules import UnifiedEmbedding
 from functools import partial
 
 def _p(v) -> str:
@@ -94,7 +95,7 @@ class GPT2(LMBase):
                        ignore_purpose=ignore_purpose,
                        cacheable=True,
                        max_predict_size=max_predict_size)
-      linear = accepts_purpose(linear)
+      linear = set_accepts_purpose(linear)
     else:
       linear = nn.Linear
     if ue_sduw == True:

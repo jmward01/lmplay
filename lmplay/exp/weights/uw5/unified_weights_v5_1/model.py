@@ -2,14 +2,20 @@ import torch
 from torch import nn
 from typing import Optional, Any, List
 
-from .modules import SULinear
-from lmplay.modules import Block
+# from .modules import DULinear
+from lmplay.modules import Block, ULinear, DULinear
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
 from functools import partial
 
 
-#This version predicts mbias information using a shared set of weights but unique embedding.
+# See the ULinear in the modules for more info on how this works.
+
+def _p(v) -> str:
+  if v is None:
+    return 'N'
+  return int(v)
+
 class GPT2(LMBase):
   def __init__(self,
                max_len=1024,
@@ -19,20 +25,32 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
-               version="2.1",
-
+               version="5.1",
+               exp_mul=6.0,
+               mid_mul=1.0,
+               predict_bias=True,
+               predict_mbias=True,
+               predict_mbias2=True,
+               predict_mbias_a=False,  #Without a better init for the weights we can't set this to True
+               predict_mbias2_a=False, #Without a better init for the weights we can't set this to True
+               ln_attn=False,
+               ln_mlp=False,
+               ln_fc=True,
+               dl_fc=True,
+               expansion_weights=True,
                **ignore):
-    super().__init__(f"uw_v{version}_{num_blocks}L_{max_len}",
-                     max_len=max_len,
-                     num_heads=num_heads,
-                     num_blocks=num_blocks,
-                     embed_dim=embed_dim,
-                     attn_dropout=attn_dropout,
-                     ff_dropout=ff_dropout,
-                     embed_dropout=embed_dropout,
-                     version=version,
-                     **ignore)
-
+    super().__init__(
+      f"uw_v{version}_{_p(predict_bias)}{_p(predict_mbias)}{_p(predict_mbias2)}{_p(predict_mbias_a)}{_p(predict_mbias2_a)}{_p(ln_attn)}{_p(ln_mlp)}{_p(ln_fc)}{_p(dl_fc)}{_p(expansion_weights)}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
+      max_len=max_len,
+      num_heads=num_heads,
+      num_blocks=num_blocks,
+      embed_dim=embed_dim,
+      attn_dropout=attn_dropout,
+      ff_dropout=ff_dropout,
+      embed_dropout=embed_dropout,
+      version=version,
+      **ignore)
+    # Testing standard DULinear on just the blocks.
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -40,18 +58,33 @@ class GPT2(LMBase):
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
-
-    self.shared_mid_weights = nn.Linear(embed_dim, embed_dim)
-    #This version combines UW 1.0 and UW 2.0
-    shared_mid_linear = partial(SULinear, self.shared_mid_weights)
+    # add in the DULinear to the block definition
+    dulinear = partial(DULinear,
+                       exp_mul=exp_mul,
+                       mid_mul=mid_mul,
+                       predict_bias=predict_bias,
+                       predict_mbias=predict_mbias,
+                       predict_mbias2=predict_mbias2,
+                       predict_mbias_a=predict_mbias_a,
+                       predict_mbias2_a=predict_mbias2_a,
+                       expansion_weights=True,
+                       linear=nn.Linear)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
                                         attn_dropout=attn_dropout,
                                         ff_dropout=ff_dropout,
-                                        linear=shared_mid_linear) for _ in range(num_blocks)])
-    self.ln = nn.LayerNorm(embed_dim)
-    self.fc = shared_mid_linear(embed_dim, vocab_size)
+                                        linear=dulinear,
+                                        ln_attn=ln_attn,
+                                        ln_mlp=ln_mlp) for _ in range(num_blocks)])
+    if ln_fc:
+      self.ln = nn.LayerNorm(embed_dim)
+    else:
+      self.ln = lambda x:x
+    if dl_fc:
+      self.fc = dulinear(embed_dim, vocab_size)
+    else:
+      self.fc = nn.Linear(embed_dim, vocab_size)
 
   def forward(self, x: torch.Tensor, cache: Optional[List] = None):
     seq_len = x.size(1)
@@ -80,9 +113,6 @@ class GPT2(LMBase):
     return x
 
 
-from lmplay.base.runner_list import expose_runner
-
-@expose_runner('uw2_1', description="Unifeid Weights using a shared sacrificial network but unique expansion data")
 class ModelRunner(LMRunnerBase):
   def __init__(self, max_batch_size=25):
     super().__init__(max_batch_size=max_batch_size)

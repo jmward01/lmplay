@@ -2,8 +2,8 @@ import torch
 from torch import nn
 from typing import Optional, Any, List
 
-from lmplay.exp.weights.modules import DULinear
-from lmplay.modules import Block
+#from .modules import DULinear
+from lmplay.modules import Block, ULinear, DULinear
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
 from functools import partial
@@ -18,9 +18,11 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
-               version="4.1",
+               version="5.0",
+               exp_mul=16.0,
+               mid_mul=1.0,
                **ignore):
-    super().__init__(f"uw_v{version}_{num_blocks}L_{max_len}",
+    super().__init__(f"uw_v{version}_{exp_mul}_{mid_mul}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -30,7 +32,7 @@ class GPT2(LMBase):
                      embed_dropout=embed_dropout,
                      version=version,
                      **ignore)
-    #Trying predicting the mbias again. It didn't help before but with a exp_mul and separate sacrificial net it might.
+    #throwing more parameters! mbias and mbias2 to hit the weights two ways. Totally crazy.
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -40,9 +42,9 @@ class GPT2(LMBase):
     self.dropout = nn.Dropout(embed_dropout)
     #add in the DULinear to the block definition
     dulinear = partial(DULinear,
-                       predict_mbias2=False,
-                       predict_bas2=False,
-                       predict_mbias=False)
+                       exp_mul=exp_mul,
+                       mid_mul=mid_mul,
+                       linear=ULinear)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,

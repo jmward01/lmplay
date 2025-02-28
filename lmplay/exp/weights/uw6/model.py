@@ -2,8 +2,8 @@ import torch
 from torch import nn
 from typing import Optional, List
 
-from lmplay.exp.weights.modules import SDULinear, SimpleMLP, ULinear, MultiMLP, accepts_purpose
-from lmplay.modules import Block
+from lmplay.modules import Block, ULinear, SimpleMLP, MultiMLP, SDULinear
+from lmplay.utils import set_accepts_purpose
 import tiktoken
 from lmplay.base.base_model import LMBase
 from functools import partial
@@ -117,7 +117,7 @@ class GPT2(LMBase):
                        linear=linear,
                        ignore_purpose=ignore_purpose,
                        cacheable=cacheable)
-    dulinear = accepts_purpose(dulinear)
+    dulinear = set_accepts_purpose(dulinear)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,

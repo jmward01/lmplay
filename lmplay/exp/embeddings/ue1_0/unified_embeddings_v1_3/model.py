@@ -2,10 +2,9 @@ import torch
 from torch import nn
 from typing import Optional, Any
 
-from lmplay.modules import Block
+from lmplay.modules import Block, ULinear
 import tiktoken
 from lmplay.base.base_model import LMBase, LMRunnerBase
-from lmplay.modules import ULinear
 from lmplay.exp.embeddings.modules import UnifiedEmbedding, ConvertableEmbedding
 
 class GPT2(LMBase):
