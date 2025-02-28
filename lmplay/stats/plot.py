@@ -30,6 +30,33 @@ def find_stat_files(path: str) -> (tuple, tuple):
     reversed(tuple(sorted(found_baseline_files, key=found_baseline_files.get, reverse=True))))
   return found_files, found_baseline_files
 
+def max_toss_outliers(d:np.ndarray|list[float], prev_max:float|None, worst_mul=10.0) -> float:
+  if isinstance(d, list):
+    d = np.array(d)
+  d = np.sort(d)
+  start_idx = int(d.shape[0]*.8)
+  end_idx = int(d.shape[0]*.9)
+  full_slope = (d[end_idx] - d[start_idx])/(end_idx-start_idx)
+  worst_max = float(full_slope*int(d.shape[0]*.1)*worst_mul + d[end_idx])
+  cleaned_max = min(worst_max, float(d[-1]))
+  if not prev_max is None:
+    cleaned_max = max(prev_max, cleaned_max)
+  return cleaned_max
+
+
+def min_toss_outliers(d:np.ndarray|list[float], prev_min:float|None, worst_mul=10.0) -> float:
+  if isinstance(d, list):
+    d = np.array(d)
+  d = np.sort(d)
+  start_idx = int(d.shape[0]*.1)
+  end_idx = int(d.shape[0]*.2)
+  full_slope = (d[start_idx] - d[end_idx])/(end_idx-start_idx)
+  worst_min = float(full_slope*int(d.shape[0]*.1)*worst_mul + d[start_idx])
+  cleaned_min = max(worst_min, float(d[0]))
+  if not prev_min is None:
+    cleaned_min = min(prev_min, cleaned_min)
+  return cleaned_min
+
 
 def _plot_worker(out_file,
                  file_data: dict,
@@ -47,7 +74,7 @@ def _plot_worker(out_file,
                  plot_raw: bool,
                  average_count: Optional[int],
                  satart_ac=5,
-                 ac_inc=1):
+                 ac_inc=6):
   # with plt.xkcd():
   acs = dict()
   #This is horrible nog good bad code. Sorry. Please don't think of this as something to use.
@@ -63,16 +90,17 @@ def _plot_worker(out_file,
   #    acs[i] = ac
   #  return acs[i]
 
-  def get_ac(i):
-    if i not in acs:
+  def get_ac(i, center):
+    if (i,center) not in acs:
       ac = []
-      center = int(i / 2)
+      #center = int(i / 2)
       for j in range(i):
         weight = (1.0 - abs(j - center) / i) ** 2
         ac.append(weight)
       ac = numpy.array(ac)
-      acs[i] = ac
-    return acs[i]
+      ac = ac / np.sum(ac)
+      acs[(i,center)] = ac
+    return acs[(i,center)]
 
 
   # ac = ac/np.sum(ac)
@@ -109,11 +137,11 @@ def _plot_worker(out_file,
           current_average_count = min(average_count, current_average_count + ac_inc)
         #ac = get_ac(current_average_count)
         # Start and end are centered around i
-        d_end = min(i + current_average_count, len(d))
-        d_start = max(0, d_end - current_average_count * 2)
-        d_end = min(len(d), d_start + current_average_count * 2)
+        #d_end = min(i + current_average_count, len(d))
+        d_start = max(0, i - current_average_count)
+        d_end = min(len(d), i + current_average_count)
         count = d_end - d_start
-        ac = get_ac(count)
+        ac = get_ac(count, i - d_start)
         # count = min(i - d_start, d_end - i - 1)
         # d_start = i - count
         # d_end = i + count + 1
@@ -126,20 +154,26 @@ def _plot_worker(out_file,
         avg = d_sect * ac_sect
         avg = np.sum(avg)
         avgs[i] = avg
-      if abs_avg_min_value is None:
-        abs_avg_min_value = min(avgs[first_d:])
-        abs_avg_max_value = max(avgs[first_d:])
 
+      t_min = min(d[first_d:])
+      t_max = max(d[first_d:])
+      abs_avg_max_value = max_toss_outliers(avgs[first_d:], abs_avg_max_value)
+      abs_avg_min_value = min_toss_outliers(avgs[first_d:], abs_avg_min_value)
+      abs_max_value = max_toss_outliers(d[first_d:], abs_max_value)
+      abs_min_value = min_toss_outliers(d[first_d:], abs_min_value)
 
-      else:
-        abs_avg_min_value = min(min(avgs[first_d:]), abs_avg_min_value)
-        abs_avg_max_value = max(max(avgs[first_d:]), abs_avg_max_value)
-      if abs_min_value is None:
-        abs_min_value = float(d[first_d:].min())
-        abs_max_value = float(d[first_d:].max())
-      else:
-        abs_min_value = min(abs_min_value, float(d[first_d:].min()))
-        abs_max_value = max(abs_max_value, float(d[first_d:].max()))
+      #if abs_avg_min_value is None:
+      #  abs_avg_min_value = min(avgs[first_d:])
+      #  abs_avg_max_value = max(avgs[first_d:])
+      #else:
+      #  abs_avg_min_value = min(min(avgs[first_d:]), abs_avg_min_value)
+      #  abs_avg_max_value = max(max(avgs[first_d:]), abs_avg_max_value)
+      #if abs_min_value is None:
+      #  abs_min_value = float(d[first_d:].min())
+      #  abs_max_value = float(d[first_d:].max())
+      #else:
+      #  abs_min_value = min(abs_min_value, float(d[first_d:].min()))
+      #  abs_max_value = max(abs_max_value, float(d[first_d:].max()))
       if abs_max_value == abs_min_value:
         abs_max_value = None
         abs_min_value = None
