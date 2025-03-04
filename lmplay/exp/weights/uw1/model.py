@@ -25,8 +25,10 @@ class GPT2(LMBase):
                embed_dropout: Optional[float] = 0.1,
                version="1.0",
                imbias=False,
+               iambias=False,
+               ambias=False,
                **ignore):
-    super().__init__(f"{version}_{num_blocks}L_{max_len}",
+    super().__init__(f"{version}_{_p(imbias)}{_p(iambias)}{_p(ambias)}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -36,6 +38,8 @@ class GPT2(LMBase):
                      embed_dropout=embed_dropout,
                      version=version,
                      imbias=imbias,
+                     iambias=iambias,
+                     ambias=ambias,
                      **ignore)
 
     self.tokenizer = tiktoken.get_encoding("gpt2")
@@ -45,10 +49,7 @@ class GPT2(LMBase):
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
-    if imbias:
-      linear = partial(ULinear, imbias=imbias)
-    else:
-      linear = ULinear
+    linear = partial(ULinear, imbias=imbias, iambias=iambias, ambias=ambias)
     #add in the ULinear to the block definition
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,

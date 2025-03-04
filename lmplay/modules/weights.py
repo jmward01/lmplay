@@ -19,6 +19,8 @@ class ULinear(nn.Module):
                out_features: int,
                bias=True,
                imbias=False,
+               iambias=False,
+               ambias=False,
                device=None,
                dtype=None,
                cacheable=True) -> None:
@@ -42,6 +44,16 @@ class ULinear(nn.Module):
       self.imbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
     else:
       self.register_parameter("imbias", None)
+    if ambias == True:
+      self.ambias = nn.Parameter(torch.zeros(out_features, **factory_kwargs))
+      self.ambias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+    else:
+      self.register_parameter("ambias", None)
+    if iambias == True:
+      self.iambias = nn.Parameter(torch.zeros(in_features, **factory_kwargs))
+      self.iambias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+    else:
+      self.register_parameter("iambias", None)
     self.reset_parameters()
     self.cached_weights = None
     self.register_full_backward_hook(self.clear_cache)
@@ -80,12 +92,17 @@ class ULinear(nn.Module):
       #Depending on how you train this will be slower or faster than the alternative.
       # Also, this makes it clear that these weights can be frozen as regular weights and all the sacrificial weights dropped.
       weight = self.weight.t() * (self.mbias + self.mbias_bias)
+      if not self.ambias is None:
+        weight = weight + (self.ambias + self.ambias_bias)
       weight = weight.t()
       if not self.imbias is None:
         #This should be functionally equivalent to input * (self.imbias + self.imbias_bias)
         #Depending on how you train this will be slower or faster than the alternative.
         # Also, this makes it clear that these weights can be frozen as regular weights and all the sacrificial weights dropped.
         weight = weight * (self.imbias + self.imbias_bias)
+
+      if not self.iambias is None:
+        weight = weight + (self.iambias + self.iambias_bias)
 
       if self.cacheable:
         self.cached_weights = (weight, bias)
