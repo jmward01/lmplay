@@ -82,6 +82,9 @@ class ULinear(nn.Module):
       weight = self.weight.t() * (self.mbias + self.mbias_bias)
       weight = weight.t()
       if not self.imbias is None:
+        #This should be functionally equivalent to input * (self.imbias + self.imbias_bias)
+        #Depending on how you train this will be slower or faster than the alternative.
+        # Also, this makes it clear that these weights can be frozen as regular weights and all the sacrificial weights dropped.
         weight = weight * (self.imbias + self.imbias_bias)
 
       if self.cacheable:
