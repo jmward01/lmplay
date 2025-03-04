@@ -12,7 +12,7 @@ def _prune_cache(cache:list, keep_map):
 
 
 class RMBase(MBase):
-  def train_prompts(self, prompts: Sequence[dict]) -> (Sequence[str], torch.Tensor):
+  def train_prompts(self, prompts: Sequence[dict], include_prompts=True) -> (Sequence[str], torch.Tensor):
     # We want to pad them together so that the truths will line up with the prompts.
     x, predictions_starts, predictions_ends = self._tokenize_batch(prompts)
     # Truth doesn't have the first EOT char. It needs to start on prediction start
@@ -51,12 +51,20 @@ class RMBase(MBase):
     # num classes is always second. For, reasons?
     target_loss = F.cross_entropy(x_out.permute(0, 2, 1), truths, reduction="none")
     total_target_loss = 0.0
+    total_token_count = 0
     for tl, prediction_start, prediction_end in zip(target_loss, predictions_starts, predictions_ends):
-      tl = tl[prediction_start:prediction_end]
+      if not include_prompts:
+        tl = tl[prediction_start:prediction_end]
+      else:
+        tl = tl[:prediction_end]
+        prediction_start = 0
       tl = tl.sum()
       token_count = max(prediction_end - prediction_start, 1)
+      total_token_count += token_count
       # norm by number of tokens in the truth
-      total_target_loss = tl / token_count + total_target_loss
+      #total_target_loss = tl / token_count + total_target_loss
+      total_target_loss = total_target_loss + tl
+    total_target_loss = total_target_loss/total_token_count
     target_loss = total_target_loss
     # Get the predicted value so we can cut just that out as the result.
     predicted_tokens = torch.argmax(x_out, dim=-1)

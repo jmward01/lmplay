@@ -2,12 +2,11 @@ import torch
 from torch import nn
 from typing import Optional
 
-from lmplay.modules import Block
+from lmplay.modules import Block, ULinear
 import tiktoken
 from lmplay.base.base_model import LMBase
-from lmplay.modules import ULinear
 from lmplay.modules import UnifiedEmbedding, ConvertableEmbedding
-from lmplay.exp.weights.unified_weights_v2_1.modules import SULinear
+from lmplay.modules import SULinear
 from functools import partial
 
 def _p(v) -> str:
@@ -28,12 +27,12 @@ class GPT2(LMBase):
                for_train=True,
                keep_embed_on_cpu=False,
                sulinear=False,
-               version="1.0",
+               version="sac_1",
                **ignore):
     # First in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
     # This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
     # This specific version combines the changes from unified embeddings 1.3 and unified weights 1.0
-    super().__init__(f"sac_v{version}_{front_embed_mul}_{_p(sulinear)}_{num_blocks}L_{max_len}",
+    super().__init__(f"{version}_{front_embed_mul}_{_p(sulinear)}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -41,7 +40,8 @@ class GPT2(LMBase):
                      attn_dropout=attn_dropout,
                      ff_dropout=ff_dropout,
                      embed_dropout=embed_dropout,
-                     front_embed_mul=front_embed_mul)
+                     front_embed_mul=front_embed_mul,
+                     sulinear=sulinear)
     # same as 1.0 but the linear is now a ULinear!
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")

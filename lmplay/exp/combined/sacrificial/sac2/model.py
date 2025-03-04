@@ -2,10 +2,11 @@ import torch
 from torch import nn
 from typing import Optional, Any
 
-from lmplay.modules import Block
+from lmplay.modules import Block, ULinear, MultiMLP, SDULinear
+from lmplay.utils import set_accepts_purpose
 import tiktoken
 from lmplay.base.base_model import LMBase
-from lmplay.modules import SDULinear, ULinear, UnifiedEmbedding, MultiMLP, accepts_purpose
+from lmplay.modules import UnifiedEmbedding
 from functools import partial
 
 
@@ -35,13 +36,13 @@ class GPT2(LMBase):
                ignore_purpose=True,
                dl_fc=False,
                max_predict=False,
-               version="2",
+               version="sac_2",
                **ignore):
     # Second in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
     # This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
     # This specific version combines the changes from unified embeddings 1.3 (sort of) and unified weights 2.1
     super().__init__(
-      f"sac_v{version}_{_p(ln_attn)}{_p(ln_mlp)}{_p(ue_sduw)}{_p(t_sduw)}{_p(ignore_purpose)}{_p(dl_fc)}{_p(max_predict)}_{num_blocks}L_{max_len}",
+      f"{version}_{_p(ln_attn)}{_p(ln_mlp)}{_p(ue_sduw)}{_p(t_sduw)}{_p(ignore_purpose)}{_p(dl_fc)}{_p(max_predict)}_{num_blocks}L_{max_len}",
       max_len=max_len,
       num_heads=num_heads,
       num_blocks=num_blocks,
@@ -82,7 +83,7 @@ class GPT2(LMBase):
                        ignore_purpose=ignore_purpose,
                        cacheable=True,
                        max_predict_size=max_predict_size)
-      linear = accepts_purpose(linear)
+      linear = set_accepts_purpose(linear)
     else:
       linear = nn.Linear
     if ue_sduw == True:

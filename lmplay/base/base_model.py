@@ -116,7 +116,7 @@ class MBase(nn.Module):
   def forward(self,*args, **kwargs):
     pass
 
-  def train_prompts(self, prompts: Sequence[dict]) -> (Sequence[str], torch.Tensor):
+  def train_prompts(self, prompts: Sequence[dict], include_prompts=True) -> (Sequence[str], torch.Tensor):
     # We want to pad them together so that the truths will line up with the prompts.
     x, predictions_starts, predictions_ends = self._tokenize_batch(prompts)
     # Truth doesn't have the first EOT char. It needs to start on prediction start
@@ -129,12 +129,20 @@ class MBase(nn.Module):
     # num classes is always second. For, reasons?
     target_loss = F.cross_entropy(x.permute(0, 2, 1), truths, reduction="none")
     total_target_loss = 0.0
+    total_token_count = 0
     for tl, prediction_start, prediction_end in zip(target_loss, predictions_starts, predictions_ends):
-      tl = tl[prediction_start:prediction_end]
+      if not include_prompts:
+        tl = tl[prediction_start:prediction_end]
+      else:
+        tl = tl[:prediction_end]
+        prediction_start = 0
       tl = tl.sum()
       token_count = max(prediction_end - prediction_start, 1)
+      total_token_count += token_count
       # norm by number of tokens in the truth
-      total_target_loss = tl / token_count + total_target_loss
+      #total_target_loss = tl / token_count + total_target_loss
+      total_target_loss = total_target_loss + tl
+    total_target_loss = total_target_loss/total_token_count
     target_loss = total_target_loss
     # Get the predicted value so we can cut just that out as the result.
     predicted_tokens = torch.argmax(x, dim=-1)
@@ -263,7 +271,9 @@ class LMRunnerBase(ABC):
                  first_step=None,
                  grad_clip=None,
                  check_grads=False,
+                 include_prompts=True,
                  **parameters):
+    self.include_prompts = include_prompts
     self.check_grads = check_grads
     self.grad_clip = grad_clip
     self.for_train = for_train
@@ -447,7 +457,7 @@ class LMRunnerBase(ABC):
         mini_batch.append(prompt)
         if len(mini_batch) >= self.max_batch_size:
           # with self.amp(device_type=self.device_type):
-          mini_batch_results, mini_batch_loss = self._model.train_prompts(mini_batch)
+          mini_batch_results, mini_batch_loss = self._model.train_prompts(mini_batch, include_prompts=self.include_prompts)
           batch_results.extend(mini_batch_results)
           batch_loss = float(mini_batch_loss) + batch_loss
           # mini_batch_loss = mini_batch_loss / (len(mini_batch)/len(prompts))
@@ -462,7 +472,7 @@ class LMRunnerBase(ABC):
           mini_batch = []
       if len(mini_batch) > 0:
         # with self.amp(device_type=self.device_type):
-        mini_batch_results, mini_batch_loss = self._model.train_prompts(mini_batch)
+        mini_batch_results, mini_batch_loss = self._model.train_prompts(mini_batch, include_prompts=self.include_prompts)
         batch_results.extend(mini_batch_results)
         batch_loss = float(mini_batch_loss) + batch_loss
         # mini_batch_loss = mini_batch_loss / (len(mini_batch)/len(prompts))

@@ -120,6 +120,7 @@ def main():
   args.add_argument('--grad-clip', help="Set gradient clipping. A reasonable value is probably 0.1. Default is no grad clipping", default=None, type=float)
   args.add_argument('--check-grads', help="Prints any None gradients found while training.", action="store_true")
   args.add_argument('--describe', help="Prints the model description and exits", action="store_true")
+  args.add_argument('--dont-include-prompts', help="Include prompt in training loss. Default is to include.", action="store_true")
   args = args.parse_args()
 
 
@@ -191,7 +192,8 @@ def main():
                 first_step=first_step_name,
                 grad_clip=args.grad_clip,
                 check_grads=args.check_grads,
-                version=args.exp)
+                version=args.exp,
+                include_prompts=not args.dont_include_prompts)
 
   early_exit = False
   for step_name, epochs, train, validation in steps(training_plan, current_step=mr.current_step):
