@@ -57,7 +57,7 @@ class GPT2(LMBase):
                                         ff_dropout=ff_dropout,
                                         linear=linear) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
-    self.fc = ULinear(embed_dim, vocab_size)
+    self.fc = linear(embed_dim, vocab_size)
 
   def forward(self, x: torch.Tensor, cache: Optional[List] = None):
     seq_len = x.size(1)
