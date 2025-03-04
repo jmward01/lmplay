@@ -10,3 +10,10 @@ def runner(*args, **kwargs):
                           *args,
                           overrides=dict(),
                           **kwargs)
+
+@expose_runner('uw1_1', description="Turning on imbias")
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(imbias=True),
+                          **kwargs)

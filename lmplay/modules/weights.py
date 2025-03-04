@@ -18,6 +18,7 @@ class ULinear(nn.Module):
                in_features: int,
                out_features: int,
                bias=True,
+               imbias=False,
                device=None,
                dtype=None,
                cacheable=True) -> None:
@@ -36,6 +37,11 @@ class ULinear(nn.Module):
     else:
       # this is needed because?????? Won't work in some frameworks without it because they are constructing the models and not the model code?
       self.register_parameter("bias", None)
+    if imbias == True:
+      self.imbias = nn.Parameter(torch.ones(in_features, **factory_kwargs))
+      self.imbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+    else:
+      self.register_parameter("imbias", None)
     self.reset_parameters()
     self.cached_weights = None
     self.register_full_backward_hook(self.clear_cache)
@@ -70,8 +76,14 @@ class ULinear(nn.Module):
         bias = self.bias + self.bias_bias
       else:
         bias = None
+      #This should be functionally equivalent to result * (self.mbias + self.mbias_bias)
+      #Depending on how you train this will be slower or faster than the alternative.
+      # Also, this makes it clear that these weights can be frozen as regular weights and all the sacrificial weights dropped.
       weight = self.weight.t() * (self.mbias + self.mbias_bias)
       weight = weight.t()
+      if not self.imbias is None:
+        weight = weight * (self.imbias + self.imbias_bias)
+
       if self.cacheable:
         self.cached_weights = (weight, bias)
     else:
