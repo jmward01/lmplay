@@ -9,6 +9,7 @@ from lmplay.base.base_model import LMBase
 from lmplay.modules import UnifiedEmbedding
 from functools import partial
 
+
 def _p(v) -> str:
   if v is None:
     return 'N'
@@ -44,11 +45,15 @@ class GPT2(LMBase):
                lradd_ceil=None,
                lradd_predict=None,
                lradd_simple=True,
+               imbias=False,
+               iambias=False,
+               ambias=False,
+               mulinear=False,
                **ignore):
     # Second in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
     # This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
     # This specific version combines the changes from unified embeddings 1.3 (sort of) and unified weights 2.1
-    name = f"{version}_{_p(ln_attn)}{_p(lradd_predict)}{_p(lradd_simple)}_{_p(lradd_floor)}_{_p(lradd_ceil)}_{num_blocks}L_{max_len}"
+    name = f"{version}_{_p(ln_attn)}{_p(lradd_predict)}{_p(lradd_simple)}{_p(imbias)}{_p(iambias)}{_p(ambias)}{_p(mulinear)}_{_p(lradd_floor)}_{_p(lradd_ceil)}_{num_blocks}L_{max_len}"
     super().__init__(
       name,
       max_len=max_len,
@@ -74,9 +79,13 @@ class GPT2(LMBase):
       lradd_ceil=lradd_ceil,
       lradd_predict=lradd_predict,
       lradd_simple=lradd_simple,
+      imbias=imbias,
+      iambias=iambias,
+      ambias=ambias,
+      mulinear=mulinear,
       **ignore)
     if max_predict == True:
-      max_predict_size = embed_dim*4
+      max_predict_size = embed_dim * 4
     else:
       max_predict_size = None
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
@@ -84,14 +93,24 @@ class GPT2(LMBase):
     vocab_size = self.tokenizer.n_vocab
     expansion_size = int(exp_mul * embed_dim)
     # self.shared_net = SimpleMLP(expansion_size, embed_dim, layers=2, bias=False, linear=ULinear)
-    self.shared_net = MultiMLP(expansion_size, embed_dim, last_activation=False, layers=0)
+    ulinear = partial(ULinear,
+                           imbias=imbias,
+                           iambias=iambias,
+                           ambias=ambias)
+    if mulinear == True:
+      mulinear = ulinear
+    else:
+      mulinear = nn.Linear
+    self.shared_net = MultiMLP(expansion_size, embed_dim, last_activation=False, layers=0, linear=mulinear)
+
     self.max_len = max_len
+
     if t_sduw == True or ue_sduw == True:
       linear = partial(SDULinear,
                        share_in=self.shared_net,
                        share_out=self.shared_net,
                        exp_mul=exp_mul,
-                       linear=ULinear,
+                       linear=ulinear,
                        ignore_purpose=ignore_purpose,
                        cacheable=True,
                        max_predict_size=max_predict_size)
@@ -101,14 +120,14 @@ class GPT2(LMBase):
     if ue_sduw == True:
       tok_linear = linear
     elif ue_sduw == False:
-      tok_linear = ULinear
+      tok_linear = ulinear
     else:
       tok_linear = nn.Linear
 
     if t_sduw == True:
       t_linear = linear
     elif ue_sduw == False:
-      t_linear = ULinear
+      t_linear = ulinear
     else:
       t_linear = nn.Linear
 
@@ -150,7 +169,7 @@ class GPT2(LMBase):
                           cacheable=False,
                           max_predict_size=max_predict_size)
     else:
-      self.fc = ULinear(embed_dim, vocab_size)
+      self.fc = ulinear(embed_dim, vocab_size)
 
   def forward(self, x: torch.Tensor, cache: Optional[list] = None):
     seq_len = x.size(1)

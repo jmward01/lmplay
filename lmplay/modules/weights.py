@@ -18,9 +18,11 @@ class ULinear(nn.Module):
                in_features: int,
                out_features: int,
                bias=True,
-               imbias=False,
-               iambias=False,
-               ambias=False,
+               bias_bias=True,
+               mbias=True,
+               imbias=True,
+               iambias=True,
+               ambias=True,
                device=None,
                dtype=None,
                cacheable=True) -> None:
@@ -31,14 +33,21 @@ class ULinear(nn.Module):
     self.in_features = in_features
     self.out_features = out_features
     self.weight = nn.Parameter(torch.empty((out_features, in_features), **factory_kwargs))
-    self.mbias = nn.Parameter(torch.ones(out_features, **factory_kwargs))
-    self.mbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+    if mbias == True:
+      self.mbias = nn.Parameter(torch.ones(out_features, **factory_kwargs))
+      self.mbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+    else:
+      self.register_parameter('mbias', None)
     if self.has_bias == True:
       self.bias = nn.Parameter(torch.empty(out_features, **factory_kwargs))
-      self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+      if bias_bias == True:
+        self.bias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
+      else:
+        self.register_parameter("bias_bias", None)
     else:
       # this is needed because?????? Won't work in some frameworks without it because they are constructing the models and not the model code?
       self.register_parameter("bias", None)
+      self.register_parameter("bias_bias", None)
     if imbias == True:
       self.imbias = nn.Parameter(torch.ones(in_features, **factory_kwargs))
       self.imbias_bias = nn.Parameter(torch.zeros(1, **factory_kwargs))
@@ -85,15 +94,21 @@ class ULinear(nn.Module):
   def forward(self, input: torch.Tensor) -> torch.Tensor:
     if self.cached_weights is None:
       if self.bias is not None:
-        bias = self.bias + self.bias_bias
+        bias = self.bias
+        if not self.bias_bias is None:
+           bias = bias + self.bias_bias
       else:
         bias = None
-      #This should be functionally equivalent to result * (self.mbias + self.mbias_bias)
-      #Depending on how you train this will be slower or faster than the alternative.
-      # Also, this makes it clear that these weights can be frozen as regular weights and all the sacrificial weights dropped.
-      weight = self.weight.t() * (self.mbias + self.mbias_bias)
+      weight = self.weight.t()
+      if not self.mbias is None:
+        #This should be functionally equivalent to result * (self.mbias + self.mbias_bias)
+        #Depending on how you train this will be slower or faster than the alternative.
+        # Also, this makes it clear that these weights can be frozen as regular weights and all the sacrificial weights dropped.
+        weight = weight * (self.mbias + self.mbias_bias)
+
       if not self.ambias is None:
         weight = weight + (self.ambias + self.ambias_bias)
+
       weight = weight.t()
       if not self.imbias is None:
         #This should be functionally equivalent to input * (self.imbias + self.imbias_bias)

@@ -85,7 +85,10 @@ class GPT2(LMBase):
     self.dropout = nn.Dropout(embed_dropout)
 
     if ulinear:
-      linear = ULinear
+      linear = partial(ULinear,
+                       imbias=False,
+                       iambias=False,
+                       ambias=False)
     else:
       linear = nn.Linear
 

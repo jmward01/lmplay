@@ -21,6 +21,7 @@ def runner(*args, **kwargs):
                                          lradd_ceil=1.4),
                           **kwargs)
 
+
 @expose_runner('all1_2', description="Trying a higher lradd_floor")
 def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
@@ -29,4 +30,19 @@ def runner(*args, **kwargs):
                                          lradd_simple=False,
                                          lradd_floor=0.6,
                                          lradd_ceil=1.4),
+                          **kwargs)
+
+
+@expose_runner('all1_3', description="ULinear bumpped up")
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(lradd_predict="mlp",
+                                         lradd_simple=False,
+                                         lradd_floor=0.6,
+                                         lradd_ceil=1.4,
+                                         imbias=True,
+                                         iambias=True,
+                                         ambias=True,
+                                         mulinear=True),
                           **kwargs)
