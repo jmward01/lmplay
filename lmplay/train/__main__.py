@@ -48,7 +48,7 @@ def main():
   # a mini-batch-size of 4 leaves a comfortable amount of extra RAM to try different things with a context length of 1024 and 12GB of RAM on the card.
   args.add_argument('--mini-batch-size', help="Mini batch size to use. Default is 4", default=4, type=int)
   # 50 was mostly arbitrarily picked here. 'larger is better' is the mantra but 50does an ok job of training quickly but still training deeply.
-  args.add_argument('--batch-size', help="Batch size to use. Default is 80", default=80, type=int)
+  args.add_argument('--batch-size', help="Batch size to use. Default is 50", default=50, type=int)
   # Make validation-batch-size larger to get more smoothed out validation. The larger this is though the more compute taken from training.
   args.add_argument('--validation-batch-size', help="Batch size to use for validation. Default is 4", default=4,
                     type=int)
