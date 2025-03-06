@@ -113,7 +113,7 @@ class MBase(nn.Module):
     return self._apply(convert)
 
   @abstractmethod
-  def forward(self,*args, **kwargs):
+  def forward(self, *args, **kwargs):
     pass
 
   def train_prompts(self, prompts: Sequence[dict], include_prompts=True) -> (Sequence[str], torch.Tensor):
@@ -140,10 +140,9 @@ class MBase(nn.Module):
       token_count = max(prediction_end - prediction_start, 1)
       total_token_count += token_count
       # norm by number of tokens in the truth
-      #total_target_loss = tl / token_count + total_target_loss
+      # total_target_loss = tl / token_count + total_target_loss
       total_target_loss = total_target_loss + tl
-    total_target_loss = total_target_loss/total_token_count
-    target_loss = total_target_loss
+
     # Get the predicted value so we can cut just that out as the result.
     predicted_tokens = torch.argmax(x, dim=-1)
     # for result, prediction_start, prediction_end, truth in zip(predicted_tokens, predictions_starts, predictions_ends, truths):
@@ -152,7 +151,7 @@ class MBase(nn.Module):
       # the last value is end of sentence
       results.append(self.tokenizer.decode(result[prediction_start:prediction_end].tolist()))
     # target loss is normalized by example but not by batch. That will be done by the caller.
-    return results, target_loss
+    return results, total_target_loss, total_token_count
 
   def generate_prompts(self, prompts: Sequence[dict], max_len: Optional[int] == None) -> Sequence[str]:
     results = []
@@ -185,6 +184,7 @@ class MBase(nn.Module):
         p_count *= s
       pc += p_count
     return pc
+
 
 class LMBase(MBase):
   @abstractmethod
@@ -449,6 +449,7 @@ class LMRunnerBase(ABC):
     mini_batch = []
     batch_results = []
     batch_loss = 0.0
+    total_tokens = 0
     # Break this into mini-batches that the model can handle
     # amp warns against enclosing the 'backward' but it appears that doing so provides an advantage at least to the optimizer used.
     # leaving it here for now. This should be looked at more in the future.
@@ -457,11 +458,17 @@ class LMRunnerBase(ABC):
         mini_batch.append(prompt)
         if len(mini_batch) >= self.max_batch_size:
           # with self.amp(device_type=self.device_type):
-          mini_batch_results, mini_batch_loss = self._model.train_prompts(mini_batch, include_prompts=self.include_prompts)
+          mini_batch_results, mini_batch_loss, mini_batch_token_count = self._model.train_prompts(mini_batch,
+                                                                                                  include_prompts=self.include_prompts)
           batch_results.extend(mini_batch_results)
           batch_loss = float(mini_batch_loss) + batch_loss
+          total_tokens += mini_batch_token_count
           # mini_batch_loss = mini_batch_loss / (len(mini_batch)/len(prompts))
-          mini_batch_loss = mini_batch_loss / len(prompts)
+          # So, you can imagine we would want to norm loss by the tokens but the problem is we don't know the final number of tokens.
+          # The best we can do is norm by tokens already seen and assume the rest of the batch we are processing will have a similar number per example.
+          # This means batch size does (slightly) impact training but the reality is that it shouldn't be by that much.
+          mini_batch_fraction = len(mini_batch) / len(prompts)
+          mini_batch_loss = (mini_batch_loss * mini_batch_fraction) / mini_batch_token_count
           if train:
             # accumulate the gradients
             if self.scaler is not None:
@@ -472,11 +479,15 @@ class LMRunnerBase(ABC):
           mini_batch = []
       if len(mini_batch) > 0:
         # with self.amp(device_type=self.device_type):
-        mini_batch_results, mini_batch_loss = self._model.train_prompts(mini_batch, include_prompts=self.include_prompts)
+        mini_batch_results, mini_batch_loss, mini_batch_token_count = self._model.train_prompts(mini_batch,
+                                                                                                include_prompts=self.include_prompts)
+        total_tokens += mini_batch_token_count
         batch_results.extend(mini_batch_results)
         batch_loss = float(mini_batch_loss) + batch_loss
         # mini_batch_loss = mini_batch_loss / (len(mini_batch)/len(prompts))
-        mini_batch_loss = mini_batch_loss / len(prompts)
+        mini_batch_fraction = len(mini_batch) / len(prompts)
+        mini_batch_loss = (mini_batch_loss * mini_batch_fraction) / mini_batch_token_count
+
         if train:
           # accumulate the gradients
           if self.scaler is not None:
@@ -484,8 +495,8 @@ class LMRunnerBase(ABC):
           else:
             mini_batch_loss.backward()
 
-    # normalize on total samples. Loss should have come back as a sum of the examples normalized on tokens.
-    batch_loss = batch_loss / len(prompts)
+    # normalize on total tokens.
+    batch_loss = batch_loss / total_tokens
 
     # Get basic accuracy stats so we can update the training stats
     tw, te, tm = self._calculate_stats(prompts, batch_results)
@@ -496,16 +507,31 @@ class LMRunnerBase(ABC):
     else:
       pct_correct = 0
     if train:
-      self.model_stats.update_train(len(prompts), pct_correct, float(batch_loss), actual_samples=actual_samples_read)
-      self.get_step_stats().update_train(len(prompts), pct_correct, float(batch_loss),
+      self.model_stats.update_train(total_tokens,
+                                    len(prompts),
+                                    pct_correct,
+                                    float(batch_loss),
+                                    actual_samples=actual_samples_read)
+      self.get_step_stats().update_train(total_tokens,
+                                         len(prompts),
+                                         pct_correct,
+                                         float(batch_loss),
                                          actual_samples=actual_samples_read)
     else:
-      self.model_stats.update_validate(len(prompts), pct_correct, float(batch_loss), actual_samples=actual_samples_read)
-      self.get_step_stats().update_validate(len(prompts), pct_correct, float(batch_loss),
+      self.model_stats.update_validate(total_tokens,
+                                       len(prompts),
+                                       pct_correct,
+                                       float(batch_loss),
+                                       actual_samples=actual_samples_read)
+      self.get_step_stats().update_validate(total_tokens,
+                                            len(prompts),
+                                            pct_correct,
+                                            float(batch_loss),
                                             actual_samples=actual_samples_read)
-    return batch_results, batch_loss
+    return batch_results, batch_loss, total_tokens
 
-  def train(self, prompts: Sequence[dict], actual_samples_read: Optional[int] = None) -> (Sequence[str], torch.Tensor):
+  def train(self, prompts: Sequence[dict], actual_samples_read: Optional[int] = None) -> (
+  Sequence[str], torch.Tensor, int):
     # The assumption is they have sent in a whole batch that they want loss accumulated over
     # But the model may not support the size they send to us.
     # So we will break it into mini batches and do gradient accumulation.
@@ -514,7 +540,7 @@ class LMRunnerBase(ABC):
     for optimizer in self._optimizers:
       optimizer.zero_grad()
 
-    results, current_loss = self._run_with_truth(prompts, True, actual_samples_read)
+    results, current_loss, total_tokens = self._run_with_truth(prompts, True, actual_samples_read)
     if not self.grad_clip is None:
       if not self.scaler is None:
         self.scaler.unscale_(self._optimizers[0])
@@ -535,16 +561,16 @@ class LMRunnerBase(ABC):
       optimizer.step()
     if self._lr_scheduler:
       self._lr_scheduler.step()
-    return results, current_loss
+    return results, current_loss, total_tokens
 
   def validate(self, prompts: Sequence[dict], actual_samples_read: Optional[int] = None) -> (
-          Sequence[str], torch.Tensor):
+          Sequence[str], torch.Tensor, int):
     self._model.train(False)
     if not actual_samples_read:
       actual_samples_read = len(prompts)
-    results, current_loss = self._run_with_truth(prompts, False, actual_samples_read)
+    results, current_loss, total_tokens = self._run_with_truth(prompts, False, actual_samples_read)
     self._model.train(True)
-    return results, current_loss
+    return results, current_loss, total_tokens
 
   def generate(self, prompts: Sequence[str], max_len: Optional[int] = None):
     prompts = [{'prompt': f"{prompt}\n"} for prompt in prompts]
@@ -655,9 +681,8 @@ class LMRunnerBase(ABC):
     return optimizers[0], optimizer_args, lr_scheduler
 
 
-
 class BasicModelRunner(LMRunnerBase):
-  def __init__(self, model_class, max_batch_size=25, overrides:dict=None, **kwargs):
+  def __init__(self, model_class, max_batch_size=25, overrides: dict = None, **kwargs):
     super().__init__(max_batch_size=max_batch_size, **kwargs)
     self.model_class = model_class
     self.overrides = overrides

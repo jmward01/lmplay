@@ -12,6 +12,8 @@ class ModelStats:
                preserve_validate_history=100,
                total_train_samples=None,
                total_validate_samples=None,
+               total_validate_tokens=0,
+               total_train_tokens=0,
                **other):
     train_filename = f"{model_name}_train_stats"
     validate_filename = f"{model_name}_validate_stats"
@@ -24,7 +26,8 @@ class ModelStats:
     self.validate_plot_filename = os.path.expanduser(os.path.join(basedir, f"{validate_filename}.jpg"))
     self.preserve_train_history = preserve_train_history
     self.preserve_validate_history = preserve_validate_history
-
+    self.total_train_tokens = total_train_tokens
+    self.total_validate_tokens = total_validate_tokens
     if validate_history is None:
       validate_history = []
     if train_history is None:
@@ -42,7 +45,7 @@ class ModelStats:
       if total_train_samples is None:
         total_train_samples = self.train_history[-1][0]
       self.total_train_samples = total_train_samples
-      for _, accuracy, loss in self.train_history[-self._train_accuracy.max_history:]:
+      for _, accuracy, loss, total_tokens in self.train_history[-self._train_accuracy.max_history:]:
         self._train_accuracy.update(accuracy)
         self._train_loss.update(loss)
     else:
@@ -52,7 +55,7 @@ class ModelStats:
       if total_validate_samples is None:
         total_validate_samples = len(self.validate_history)
       self.total_validate_samples = total_validate_samples
-      for _, accuracy, loss in self.validate_history[-self._validate_accuracy.max_history:]:
+      for _, accuracy, loss, total_tokens in self.validate_history[-self._validate_accuracy.max_history:]:
         self._validate_accuracy.update(accuracy)
         self._validate_loss.update(loss)
     else:
@@ -75,14 +78,15 @@ class ModelStats:
   def validate_loss(self, max_history=None):
     return self._validate_loss.estimate(max_history=max_history)
 
-  def update_train(self, samples, accuracy, loss, actual_samples:int=None):
+  def update_train(self, tokens, samples, accuracy, loss, actual_samples:int=None):
     self._train_accuracy.update(accuracy)
     self._train_loss.update(loss)
+    self.total_train_tokens += tokens
     if actual_samples:
       self.total_train_samples += actual_samples
     else:
       self.total_train_samples += samples
-    self.train_history.append((self.total_train_samples, accuracy, loss))
+    self.train_history.append((self.total_train_samples, accuracy, loss, self.total_train_tokens))
     if self.total_train_samples - self.last_train_update >=  self.preserve_train_history:
       #max_history = max(self.total_train_samples - self.last_train_update, 1)
       #self.train_history.append((self.total_train_samples, self.train_accuracy(max_history=max_history), self.train_loss(max_history=max_history)))
@@ -90,14 +94,15 @@ class ModelStats:
       #self._plot(self.train_filename, self.train_plot_filename)
       self.last_train_update = self.total_train_samples - self.total_train_samples % self.preserve_train_history
 
-  def update_validate(self, samples, accuracy, loss, actual_samples:int=None):
+  def update_validate(self, tokens, samples, accuracy, loss, actual_samples:int=None):
+    self.total_validate_tokens += tokens
     self._validate_accuracy.update(accuracy)
     self._validate_loss.update(loss)
     if actual_samples:
       self.total_validate_samples += actual_samples
     else:
       self.total_validate_samples += samples
-    self.validate_history.append((self.total_train_samples, accuracy, loss))
+    self.validate_history.append((self.total_train_samples, accuracy, loss, self.total_train_tokens))
     if self.total_validate_samples - self.last_validate_update >= self.preserve_validate_history:
       #max_history = max(self.total_validate_samples - self.last_validate_update, 1)
       #self.validate_history.append((self.total_train_samples, self.validate_accuracy(max_history=max_history), self.validate_loss(max_history=max_history)))
@@ -109,15 +114,15 @@ class ModelStats:
     if last_write == 0:
       #write whatever we have. This forces an over-write of the existing file.
       with open(location, mode="w+") as out_file:
-        out_file.write("iter,accuracy,loss\n")
-        for iter, accuracy, loss in stats:
-          out_file.write(f"{iter},{accuracy},{loss}\n")
+        out_file.write("iter,accuracy,loss,tokens\n")
+        for iter, accuracy, loss, tokens in stats:
+          out_file.write(f"{iter},{accuracy},{loss},{tokens}\n")
     else:
       #Just append since this isn't our first write.
       with open(location, mode="a") as out_file:
         #out_file.write("iter,accuracy,loss\n")
-        for iter, accuracy, loss in stats[last_write:]:
-          out_file.write(f"{iter},{accuracy},{loss}\n")
+        for iter, accuracy, loss, tokens in stats[last_write:]:
+          out_file.write(f"{iter},{accuracy},{loss},{tokens}\n")
 
   def write_train(self, location: str = None):
     if location is None:
@@ -136,6 +141,8 @@ class ModelStats:
             'train_history': self.train_history,
             'total_validate_samples':self.total_validate_samples,
             'total_train_samples':self.total_train_samples,
+            'total_train_tokens':self.total_train_tokens,
+            'total_validate_tokens':self.total_validate_tokens,
             'other': self.other}
 
   def _plot(self, stats_file, plot_file):

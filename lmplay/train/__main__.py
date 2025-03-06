@@ -9,22 +9,24 @@ from lmplay.base.base_model import LMRunnerBase
 from lmplay.train.datasets.plan import steps, get_first_step_name, get_step_names
 from lmplay.train.datasets.plan_configs import DEFAULT_PLANS
 
-def render_pbar(exp:str, device, ms: ModelStats, current_step:str) -> str:
+def render_pbar(exp:str, device, ms:ModelStats, ss: ModelStats, current_step:str) -> str:
   if device is None:
     device = ""
-  if ms.total_train_samples > 0:
-    train_loss = f"{ms.train_loss():0.4f}"
-    train_acc = f"{ms.train_accuracy():0.4f}"
+  if ss.total_train_samples > 0:
+    train_loss = f"{ss.train_loss():0.4f}"
+    train_acc = f"{ss.train_accuracy():0.4f}"
   else:
     train_loss = "TBD"
     train_acc = "TBD"
-  if ms.total_validate_samples > 0:
-    validate_loss = f"{ms.validate_loss():0.4f}"
-    validate_acc = f"{ms.validate_accuracy():0.4f}"
+  if ss.total_validate_samples > 0:
+    validate_loss = f"{ss.validate_loss():0.4f}"
+    validate_acc = f"{ss.validate_accuracy():0.4f}"
   else:
     validate_loss = "TBD"
     validate_acc = "TBD"
-  return f"{exp}-{device}-{current_step}-train l:{train_loss}, a:{train_acc}/val l:{validate_loss}, a:{validate_acc}"
+  b_step_tokens_trained = ss.total_train_tokens / 10e9
+  b_tokens_trained = ms.total_train_tokens / 10e9
+  return f"{exp}-{device}-{current_step}-train l:{train_loss}, a:{train_acc}/val l:{validate_loss}, a:{validate_acc}, st:{b_step_tokens_trained:0.2f}B, tt:{b_tokens_trained:0.2f}B"
 
 
 def calc_next(interval: int, current: int):
@@ -46,7 +48,7 @@ def main():
   # a mini-batch-size of 4 leaves a comfortable amount of extra RAM to try different things with a context length of 1024 and 12GB of RAM on the card.
   args.add_argument('--mini-batch-size', help="Mini batch size to use. Default is 4", default=4, type=int)
   # 50 was mostly arbitrarily picked here. 'larger is better' is the mantra but 50does an ok job of training quickly but still training deeply.
-  args.add_argument('--batch-size', help="Batch size to use. Default is 50", default=50, type=int)
+  args.add_argument('--batch-size', help="Batch size to use. Default is 80", default=80, type=int)
   # Make validation-batch-size larger to get more smoothed out validation. The larger this is though the more compute taken from training.
   args.add_argument('--validation-batch-size', help="Batch size to use for validation. Default is 4", default=4,
                     type=int)
@@ -228,11 +230,11 @@ def main():
           # Hack because hugging face doesn't have a way to restart where you left off.
           # Trying to preserve order to make testing repeatable but still allow interruptions
           # if train_count > mr.model_stats.total_train_samples:
-          results, _ = mr.train(batch, new_train_samples_read)
+          results, _, total_tokens = mr.train(batch, new_train_samples_read)
 
           if mr.get_step_stats().total_train_samples >= next_validate:
             validation_batch, new_validation_samples_read = next(validation_batcher)
-            results, _ = mr.validate(validation_batch, new_validation_samples_read)
+            results, _, validate_tokens = mr.validate(validation_batch, new_validation_samples_read)
             truth_example: str = validation_batch[-1]['truth']
             prediction_example: str = results[-1]
             prompt = validation_batch[-1]['prompt'].replace('\n', ' ')
@@ -246,7 +248,7 @@ def main():
             pbar.set_description("Saving weights...")
             mr.save(save_location)
             next_save = calc_next(save_interval, mr.get_step_stats().total_train_samples)
-          pbar.set_description(render_pbar(args.exp, device, mr.get_step_stats(), mr.current_step))
+          pbar.set_description(render_pbar(args.exp, device, mr.model_stats, mr.get_step_stats(), mr.current_step))
           pbar.update(new_train_samples_read)
       except KeyboardInterrupt:
         print(f"User canceled training.")
