@@ -14,9 +14,15 @@ def runner(*args, **kwargs):
 
 
 @expose_runner('ue16x', description="Unifeid Embeddings with a 16x front embedding multiplier")
-
 def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(front_embed_mul=16.0),
+                          **kwargs)
+
+@expose_runner('ue1x', description="Unifeid Embeddings with a 1x front embedding multiplier")
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(front_embed_mul=1.0),
                           **kwargs)
