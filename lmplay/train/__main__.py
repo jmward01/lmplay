@@ -24,8 +24,8 @@ def render_pbar(exp:str, device, ms:ModelStats, ss: ModelStats, current_step:str
   else:
     validate_loss = "TBD"
     validate_acc = "TBD"
-  b_step_tokens_trained = ss.total_train_tokens / 10e9
-  b_tokens_trained = ms.total_train_tokens / 10e9
+  b_step_tokens_trained = ss.total_train_tokens / 10e8
+  b_tokens_trained = ms.total_train_tokens / 10e8
   return f"{exp}-{device}-{current_step}-train l:{train_loss}, a:{train_acc}/val l:{validate_loss}, a:{validate_acc}, st:{b_step_tokens_trained:0.2f}B, tt:{b_tokens_trained:0.2f}B"
 
 
