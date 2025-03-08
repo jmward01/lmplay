@@ -6,7 +6,7 @@ from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase
 from lmplay.modules import UnifiedEmbedding, ULinear
-
+import torch.nn.functional as F
 
 def _p(v) -> str:
   if v is None:
@@ -28,11 +28,12 @@ class GPT2(LMBase):
                linear='l',
                tok_embed=True,
                pos_embed=False,
+               emb_activation="g",
                for_train=True,
                keep_embed_on_cpu=False,
                version="1.0",
                **ignore):
-    super().__init__(f"{version}_{front_embed_mul}_{_p(linear)}{_p(tok_embed)}{_p(pos_embed)}_{num_blocks}L_{max_len}",
+    super().__init__(f"{version}_{front_embed_mul}_{_p(linear)}{_p(tok_embed)}{_p(pos_embed)}{_p(emb_activation)}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -43,7 +44,8 @@ class GPT2(LMBase):
                      front_embed_mul=front_embed_mul,
                      linear=linear,
                      tok_embed=tok_embed,
-                     pos_embed=pos_embed)
+                     pos_embed=pos_embed,
+                     emb_activation=emb_activation)
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
@@ -54,17 +56,38 @@ class GPT2(LMBase):
     #  #this will convert any UE into a normal embedding. After this, if the model is saved, it can be re-loaded by the baseline model.
     #  self.tok_embed = ConvertableEmbedding(vocab_size, embed_dim, front_embed_mul)
     #else:
+    if emb_activation == 'g':
+      emb_activation = F.gelu
+    elif emb_activation == 'r':
+      emb_activation = F.relu
+    elif emb_activation == 'e':
+      emb_activation = F.elu
+    else:
+      raise ValueError(f"Unknown emb_activation type {emb_activation}")
+
     if linear == 'l':
       linear = nn.Linear
     elif linear == 'u':
       linear = ULinear
+    else:
+      raise ValueError(f"Unknown linear type {linear}")
 
     if tok_embed:
-      self.tok_embed = UnifiedEmbedding(vocab_size, embed_dim, front_embed_mul, linear=linear, keep_embed_on_cpu=keep_embed_on_cpu)
+      self.tok_embed = UnifiedEmbedding(vocab_size,
+                                        embed_dim,
+                                        front_embed_mul,
+                                        emb_activation=emb_activation,
+                                        linear=linear,
+                                        keep_embed_on_cpu=keep_embed_on_cpu)
     else:
       self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     if pos_embed:
-      self.pos_embed = UnifiedEmbedding(max_len, embed_dim, front_embed_mul, linear=linear, keep_embed_on_cpu=keep_embed_on_cpu)
+      self.pos_embed = UnifiedEmbedding(max_len,
+                                        embed_dim,
+                                        front_embed_mul,
+                                        emb_activation=emb_activation,
+                                        linear=linear,
+                                        keep_embed_on_cpu=keep_embed_on_cpu)
     else:
       self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
