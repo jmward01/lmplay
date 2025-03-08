@@ -42,12 +42,12 @@ def runner(*args, **kwargs):
                                          tok_embed=False),
                           **kwargs)
 
-@expose_runner('ue1_6', description="Front mul 1.0. Mid mul 128.")
+@expose_runner('ue1_6', description="Front mul 4.0. Mid mul 64.")
 def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(front_embed_mul=1.0,
-                                         mid_mul=128.0),
+                          overrides=dict(front_embed_mul=4.0,
+                                         mid_mul=64.0),
                           **kwargs)
 
 @expose_runner('ue1_7', description="Front mul 16.0. Mid mul 4.")
