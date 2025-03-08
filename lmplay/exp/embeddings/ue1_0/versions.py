@@ -49,3 +49,11 @@ def runner(*args, **kwargs):
                           overrides=dict(front_embed_mul=1.0,
                                          mid_mul=32.0),
                           **kwargs)
+
+@expose_runner('ue1_7', description="Trying a mid mul")
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(front_embed_mul=16.0,
+                                         mid_mul=4.0),
+                          **kwargs)
