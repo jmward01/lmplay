@@ -26,3 +26,18 @@ def runner(*args, **kwargs):
                           *args,
                           overrides=dict(front_embed_mul=1.0),
                           **kwargs)
+
+@expose_runner('ue1_4', description="1x front end emb but using a ulinear")
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(front_embed_mul=1.0,
+                                         linear='u'),
+                          **kwargs)
+@expose_runner('ue1_5', description="Position embeddings")
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(pos_embed=True,
+                                         tok_embed=False),
+                          **kwargs)

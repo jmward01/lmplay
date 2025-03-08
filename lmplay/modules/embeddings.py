@@ -5,6 +5,8 @@ import random
 from tqdm import tqdm
 from lmplay.utils import create_linear
 
+__all__ = ['ConvertableEmbedding', 'UnifiedEmbedding']
+
 class ConvertableEmbedding(nn.Embedding):
   """This acts like a normal embedding but when it sees a UE loaded with its name it converts it to a normal embedding and deletes the UE weights.
 
@@ -36,7 +38,8 @@ class UnifiedEmbedding(nn.Module):
                keep_embed_on_cpu=False,
                emb_training_epochs=50,
                ln=False,
-               gelu=False,
+               emb_activation=False,
+               activation=F.gelu,
                integration1_5=False,
                integration2=True,
                linear=nn.Linear):
@@ -96,10 +99,11 @@ class UnifiedEmbedding(nn.Module):
       self.ln = nn.LayerNorm(embed_dim)
     else:
       self.ln = lambda x:x
-    if gelu == True:
-      self.emb_activation = F.gelu
+    if emb_activation == True:
+      self.emb_activation = activation
     else:
       self.emb_activation = lambda x:x
+    self.ff_activation = activation
     self._register_load_state_dict_pre_hook(self.check_initialize)
     self.initialized_from_small_embed = False
 
@@ -149,7 +153,7 @@ class UnifiedEmbedding(nn.Module):
     if f'{prefix}weight' in state_dict:
       self.initialize(state_dict[f'{prefix}weight'])
 
-  def forward(self, idxs: torch.Tensor = None, allow_reorder=True) -> torch.Tensor:
+  def forward(self, idxs: torch.Tensor = None, start_slice = None, end_slice = None, allow_reorder=True) -> torch.Tensor:
     #If they send in 'none' then we will send back all embeddings.
     tok_embed_device = self.tok_embed.weight.device
     if not idxs is None:
@@ -184,23 +188,28 @@ class UnifiedEmbedding(nn.Module):
 
         x = self.integration1(x)
       if not self.integration1_5 is None:
-        x = self.integration1_5(F.gelu(x))
+        x = self.integration1_5(self.ff_activation(x))
 
       #x = self.integration1(x)
       # Minimize the lookup/liner layer costs
       if not self.integration2 is None:
-        x = self.integration2(F.gelu(x))
+        x = self.integration2(self.ff_activation(x))
       # Now we can re-lookup the result
       reorg_idxs = x[torch.tensor(tuple(idx_locations[idx] for idx in local_idxs), dtype=torch.long, device=idxs.device)]
       x = reorg_idxs.view(batch, sequence, -1)
     else:
+      if idxs is None:
+        if end_slice is None:
+          end_slice = self.vocab_size
+        if start_slice is None:
+          start_slice = 0
       if tok_embed_device != output_device:
         #This probably means the embeddings are on CPU to save memory.
         #Autocast doesn't like mixed devices
         with torch.amp.autocast(enabled=False, device_type=tok_embed_device.type):
           if idxs is None:
             #They want them all!
-            x = self.emb_activation(self.tok_embed.weight)
+            x = self.emb_activation(self.tok_embed.weight[start_slice:end_slice])
           else:
             x = self.emb_activation(self.tok_embed(idxs))
 
@@ -210,16 +219,16 @@ class UnifiedEmbedding(nn.Module):
       else:
         if idxs is None:
           #They want them all!
-          x = self.emb_activation(self.tok_embed.weight)
+          x = self.emb_activation(self.tok_embed.weight[start_slice:end_slice])
         else:
           x = self.emb_activation(self.tok_embed(idxs))
 
         if not self.integration1 is None:
           x = self.integration1(x)
       if not self.integration1_5 is None:
-        x = self.integration1_5(F.gelu(x))
+        x = self.integration1_5(self.ff_activation(x))
       #x = self.integration1(x)
       if not self.integration2 is None:
-        x = self.integration2(F.gelu(x))
+        x = self.integration2(self.ff_activation(x))
 
     return self.ln(x)
