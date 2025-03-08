@@ -47,5 +47,5 @@ def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(front_embed_mul=1.0,
-                                         mid_mul=8.0),
+                                         mid_mul=32.0),
                           **kwargs)
