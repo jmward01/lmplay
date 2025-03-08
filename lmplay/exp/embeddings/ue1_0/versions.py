@@ -42,10 +42,10 @@ def runner(*args, **kwargs):
                                          tok_embed=False),
                           **kwargs)
 
-@expose_runner('ue1_6', description="Trying an relu instead of a gelu")
+@expose_runner('ue1_6', description="Trying a mid mul")
 def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(front_embed_mul=1.0,
-                                         emb_activation='r'),
+                                         mid_mul=2.0),
                           **kwargs)

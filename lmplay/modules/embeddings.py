@@ -53,6 +53,10 @@ class UnifiedEmbedding(nn.Module):
     :param ln: LN the value before returning. Just trying different approaches here.
     """
     super().__init__()
+    if isinstance(integration2, int):
+      mid_size = integration2
+    else:
+      mid_size = embed_dim
     self.vocab_size = vocab_size
     self.embedding_size = embed_dim
     self.emb_training_epochs = emb_training_epochs
@@ -70,9 +74,9 @@ class UnifiedEmbedding(nn.Module):
     #Anyway, Prod could lose the integration weights and big tok_embed.weight so the weight structure would go back to normal and have no prod costs.
     front_embed_dim = int(embed_dim * front_embed_mul)
     self.tok_embed = nn.Embedding(vocab_size, front_embed_dim)
-    self.integration1 = create_linear(linear, "ue_integration1", front_embed_dim, embed_dim)
+    self.integration1 = create_linear(linear, "ue_integration1", front_embed_dim, mid_size)
     if integration1_5:
-      self.integration1_5 = create_linear(linear, "ue_integration15", embed_dim, embed_dim)
+      self.integration1_5 = create_linear(linear, "ue_integration15", mid_size, mid_size)
     else:
       self.register_parameter('integration1_5', None)
     #This only works if the main model has overridden the 'to' call to check for it. See LMBase.
@@ -91,8 +95,8 @@ class UnifiedEmbedding(nn.Module):
         p.secondary_optimizer = True
 
 
-    if integration2:
-      self.integration2 = create_linear(linear, "ue_integration2", embed_dim, embed_dim)
+    if integration2 != False:
+      self.integration2 = create_linear(linear, "ue_integration2", mid_size, embed_dim)
     else:
       self.register_parameter('integration2', None)
     if ln:

@@ -29,11 +29,12 @@ class GPT2(LMBase):
                tok_embed=True,
                pos_embed=False,
                emb_activation="g",
+               mid_mul=1.0,
                for_train=True,
                keep_embed_on_cpu=False,
                version="1.0",
                **ignore):
-    super().__init__(f"{version}_{front_embed_mul}_{_p(linear)}{_p(tok_embed)}{_p(pos_embed)}{_p(emb_activation)}_{num_blocks}L_{max_len}",
+    super().__init__(f"{version}_{front_embed_mul}_{_p(linear)}{_p(tok_embed)}{_p(pos_embed)}{_p(emb_activation)}{mid_mul:0.1f}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -45,7 +46,8 @@ class GPT2(LMBase):
                      linear=linear,
                      tok_embed=tok_embed,
                      pos_embed=pos_embed,
-                     emb_activation=emb_activation)
+                     emb_activation=emb_activation,
+                     mid_mul=mid_mul)
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
@@ -71,12 +73,13 @@ class GPT2(LMBase):
       linear = ULinear
     else:
       raise ValueError(f"Unknown linear type {linear}")
-
+    integration2 = int(embed_dim*mid_mul)
     if tok_embed:
       self.tok_embed = UnifiedEmbedding(vocab_size,
                                         embed_dim,
                                         front_embed_mul,
                                         emb_activation=emb_activation,
+                                        integration2=integration2,
                                         linear=linear,
                                         keep_embed_on_cpu=keep_embed_on_cpu)
     else:
@@ -85,6 +88,7 @@ class GPT2(LMBase):
       self.pos_embed = UnifiedEmbedding(max_len,
                                         embed_dim,
                                         front_embed_mul,
+                                        integration2=integration2,
                                         emb_activation=emb_activation,
                                         linear=linear,
                                         keep_embed_on_cpu=keep_embed_on_cpu)
