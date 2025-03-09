@@ -16,8 +16,9 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                version="foc1",
+               scale_type="full",
                **ignore):
-    super().__init__(f"{version}_{num_blocks}L_{max_len}",
+    super().__init__(f"{version}_{scale_type}_{num_blocks}L_{max_len}",
                      version=version,
                      max_len=max_len,
                      num_heads=num_heads,
@@ -25,7 +26,8 @@ class GPT2(LMBase):
                      embed_dim=embed_dim,
                      attn_dropout=attn_dropout,
                      ff_dropout=ff_dropout,
-                     embed_dropout=embed_dropout)
+                     embed_dropout=embed_dropout,
+                     scale_type=scale_type)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -38,7 +40,7 @@ class GPT2(LMBase):
                                         embed_dim,
                                         attn_dropout=attn_dropout,
                                         ff_dropout=ff_dropout,
-                                        learn_scale=True) for _ in range(num_blocks)])
+                                        learn_scale=scale_type) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 

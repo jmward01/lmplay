@@ -14,3 +14,11 @@ def gpt2ish(*args, **kwargs):
                           overrides=dict(),
                           **kwargs)
 
+
+@expose_runner('foc1_1',
+               description='Trying a less expensive version of this idea.')
+def gpt2ish(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(scale_type="simple"),
+                          **kwargs)
