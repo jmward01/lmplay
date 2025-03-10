@@ -50,11 +50,12 @@ class GPT2(LMBase):
                iambias=False,
                ambias=False,
                mulinear=False,
+               norm_v=False,
                **ignore):
     # Second in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
     # This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
     # This specific version combines the changes from unified embeddings 1.3 (sort of) and unified weights 2.1
-    name = f"{version}_{_p(ln_attn)}{_p(lradd_predict)}{_p(lradd_simple)}{_p(imbias)}{_p(iambias)}{_p(ambias)}{_p(mulinear)}_{_p(lradd_floor)}_{_p(lradd_ceil)}_{front_embed_mul:0.1f}_{mid_mul:0.1f}_{num_blocks}L_{max_len}"
+    name = f"{version}_{_p(ln_attn)}{_p(lradd_predict)}{_p(lradd_simple)}{_p(imbias)}{_p(iambias)}{_p(ambias)}{_p(mulinear)}{_p(norm_v)}_{_p(lradd_floor)}_{_p(lradd_ceil)}_{_p(front_embed_mul)}_{_p(mid_mul)}_{num_blocks}L_{max_len}"
     super().__init__(
       name,
       max_len=max_len,
@@ -85,6 +86,7 @@ class GPT2(LMBase):
       iambias=iambias,
       ambias=ambias,
       mulinear=mulinear,
+      norm_v=norm_v,
       **ignore)
     if max_predict == True:
       max_predict_size = embed_dim * 4
@@ -153,7 +155,8 @@ class GPT2(LMBase):
                                         lradd_floor=lradd_floor,
                                         lradd_ceil=lradd_ceil,
                                         lradd_predict=lradd_predict,
-                                        lradd_simple=lradd_simple) for _ in range(num_blocks)])
+                                        lradd_simple=lradd_simple,
+                                        norm_v=norm_v) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     if dl_fc == True:
       self.fc = SDULinear(embed_dim,
