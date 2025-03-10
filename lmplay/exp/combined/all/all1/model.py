@@ -30,6 +30,7 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                front_embed_mul=16.0,
+               mid_mul=1.0,
                exp_mul=64.0,
                for_train=True,
                keep_embed_on_cpu=False,
@@ -53,7 +54,7 @@ class GPT2(LMBase):
     # Second in the 'sacrificial' line of experiments. These models combine all the sacrificial experiments, experiments that train with extra parameters that are removed for prod.
     # This model could be re-saved after training back to a 'standard' version compatible with the gpt2ish baseline weights.
     # This specific version combines the changes from unified embeddings 1.3 (sort of) and unified weights 2.1
-    name = f"{version}_{_p(ln_attn)}{_p(lradd_predict)}{_p(lradd_simple)}{_p(imbias)}{_p(iambias)}{_p(ambias)}{_p(mulinear)}_{_p(lradd_floor)}_{_p(lradd_ceil)}_{num_blocks}L_{max_len}"
+    name = f"{version}_{_p(ln_attn)}{_p(lradd_predict)}{_p(lradd_simple)}{_p(imbias)}{_p(iambias)}{_p(ambias)}{_p(mulinear)}_{_p(lradd_floor)}_{_p(lradd_ceil)}_{front_embed_mul:0.1f}_{mid_mul:0.1f}_{num_blocks}L_{max_len}"
     super().__init__(
       name,
       max_len=max_len,
@@ -64,6 +65,7 @@ class GPT2(LMBase):
       ff_dropout=ff_dropout,
       embed_dropout=embed_dropout,
       front_embed_mul=front_embed_mul,
+      mid_mul=mid_mul,
       exp_mul=exp_mul,
       for_train=for_train,
       keep_embed_on_cpu=keep_embed_on_cpu,
@@ -130,10 +132,11 @@ class GPT2(LMBase):
       t_linear = ulinear
     else:
       t_linear = nn.Linear
-
+    integration2 = int(embed_dim*mid_mul)
     self.tok_embed = UnifiedEmbedding(vocab_size,
                                       embed_dim,
                                       front_embed_mul,
+                                      integration2=integration2,
                                       keep_embed_on_cpu=keep_embed_on_cpu,
                                       linear=tok_linear)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))

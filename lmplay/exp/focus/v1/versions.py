@@ -15,6 +15,8 @@ def gpt2ish(*args, **kwargs):
                           **kwargs)
 
 #Much simpler thing here. If scaling is really important than allowing it to float to a good value is possibly a good thing.
+#A minor improvement at the very beginning of training but it doesn't look like it lasts.
+# Didn't run it long since it isn't worth the cost of not being able to use the optimized pytorch version
 @expose_runner('foc1_1',
                description='Trying a less expensive version of this idea.')
 def gpt2ish(*args, **kwargs):
