@@ -61,5 +61,6 @@ def runner(*args, **kwargs):
                                          mulinear=True,
                                          front_embed_mul=8,
                                          mid_mul=32,
+                                         ue_sduw=False,
                                          norm_v=False),
                           **kwargs)
