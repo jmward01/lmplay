@@ -47,7 +47,7 @@ def runner(*args, **kwargs):
                                          mulinear=True),
                           **kwargs)
 
-@expose_runner('all1_4', description="all1_3 but with the front emb mul at 8 and the mid mul at 8 and norm_V turned on.")
+@expose_runner('all1_4', description="all1_3 but with the front emb mul at 8 and the mid mul at 8.")
 def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
@@ -61,5 +61,5 @@ def runner(*args, **kwargs):
                                          mulinear=True,
                                          front_embed_mul=8,
                                          mid_mul=32,
-                                         norm_v=True),
+                                         norm_v=False),
                           **kwargs)
