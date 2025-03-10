@@ -60,6 +60,6 @@ def runner(*args, **kwargs):
                                          ambias=True,
                                          mulinear=True,
                                          front_embed_mul=8,
-                                         mid_mul=8,
+                                         mid_mul=32,
                                          norm_v=True),
                           **kwargs)
