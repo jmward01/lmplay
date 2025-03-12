@@ -75,3 +75,12 @@ def runner(*args, **kwargs):
                                          mid_mul=32.0,
                                          norm_v=True),
                           **kwargs)
+
+@expose_runner('ue1_10', description="UE 1.9 but normv only after the first block")
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(front_embed_mul=8.0,
+                                         mid_mul=32.0,
+                                         norm_v=1),
+                          **kwargs)

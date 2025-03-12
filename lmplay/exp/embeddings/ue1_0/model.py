@@ -49,7 +49,7 @@ class GPT2(LMBase):
                      pos_embed=pos_embed,
                      emb_activation=emb_activation,
                      mid_mul=mid_mul,
-                     norm_v=norm_v)
+                     normv_start=0,)
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
@@ -97,12 +97,17 @@ class GPT2(LMBase):
     else:
       self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     self.dropout = nn.Dropout(embed_dropout)
+    if isinstance(norm_v, int):
+      start_n = norm_v
+      norm_v = True
+    else:
+      start_n = 0
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
-                                        norm_v=norm_v,
+                                        norm_v=norm_v == True and start_n <= i,
                                         attn_dropout=attn_dropout,
-                                        ff_dropout=ff_dropout) for _ in range(num_blocks)])
+                                        ff_dropout=ff_dropout) for i in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 
