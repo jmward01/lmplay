@@ -16,3 +16,10 @@ def runner(*args, **kwargs):
                           *args,
                           overrides=dict(start_n=1),
                           **kwargs)
+
+@expose_runner('normv1_2', description="Only applying norm to the first block on to see the impact.")
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(end_n=1),
+                          **kwargs)
