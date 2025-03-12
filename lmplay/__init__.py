@@ -13,7 +13,7 @@ import lmplay.exp.combined.sacrificial.sac2.versions
 
 import lmplay.exp.embeddings.ue1_0.versions
 
-import lmplay.exp.attn_norm.normv.model
+import lmplay.exp.attn_norm.normv.versions
 
 import lmplay.exp.nnmem.v1.versions
 import lmplay.exp.nnmem.v2.versions
