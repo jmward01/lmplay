@@ -30,11 +30,12 @@ class GPT2(LMBase):
                pos_embed=False,
                emb_activation="g",
                mid_mul=1.0,
+               norm_v=False,
                for_train=True,
                keep_embed_on_cpu=False,
                version="1.0",
                **ignore):
-    super().__init__(f"{version}_{front_embed_mul}_{_p(linear)}{_p(tok_embed)}{_p(pos_embed)}{_p(emb_activation)}{mid_mul:0.1f}_{num_blocks}L_{max_len}",
+    super().__init__(f"{version}_{front_embed_mul}_{_p(linear)}{_p(tok_embed)}{_p(pos_embed)}{_p(emb_activation)}{_p(norm_v)}{mid_mul:0.1f}_{num_blocks}L_{max_len}",
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -47,7 +48,8 @@ class GPT2(LMBase):
                      tok_embed=tok_embed,
                      pos_embed=pos_embed,
                      emb_activation=emb_activation,
-                     mid_mul=mid_mul)
+                     mid_mul=mid_mul,
+                     norm_v=norm_v)
     keep_embed_on_cpu = for_train and keep_embed_on_cpu
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
@@ -98,6 +100,7 @@ class GPT2(LMBase):
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
+                                        norm_v=norm_v,
                                         attn_dropout=attn_dropout,
                                         ff_dropout=ff_dropout) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)

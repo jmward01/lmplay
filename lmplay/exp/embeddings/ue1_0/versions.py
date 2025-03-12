@@ -65,3 +65,13 @@ def runner(*args, **kwargs):
                           overrides=dict(front_embed_mul=8.0,
                                          mid_mul=32.0),
                           **kwargs)
+
+#norm_v
+@expose_runner('ue1_9', description="UE 1.8 and normv")
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(front_embed_mul=8.0,
+                                         mid_mul=32.0,
+                                         norm_v=True),
+                          **kwargs)
