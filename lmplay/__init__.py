@@ -30,3 +30,5 @@ import lmplay.exp.gpt2ish.versions
 import lmplay.exp.rgpt2ish.versions
 
 import lmplay.exp.focus.v1.versions
+
+#import lmplay.exp.attn_distil.v1.versions
