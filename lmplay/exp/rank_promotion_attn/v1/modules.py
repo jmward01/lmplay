@@ -330,7 +330,7 @@ class DistiledMultiheadAttention(nn.Module):
     utility = utility[u_map]
     expected_utility = expected_utility[u_map]
     x = self.proj_dropout(self.proj(x))
-    utility_loss = F.mse_loss(expected_utility, utility.detach(), reduction="sum")
+    utility_loss = F.mse_loss(expected_utility, utility.detach(), reduction="mean")
     x = FlattenedBatch(x, lengths).unflatten()
     return x, utility_loss
 
