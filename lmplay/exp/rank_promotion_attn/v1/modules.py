@@ -158,13 +158,22 @@ class DistiledMultiheadAttention(nn.Module):
     scale_distilations = []
     utility_predictors = []
     layer_buffers = []
+    def build_scale_distilation():
+      l1 = nn.Linear(scale_length * embed_dim*2, scale_length*10)
+      l2 = nn.Linear(scale_length*10, scale_length)
+      return nn.Sequential(l1, nn.GELU(), l2)
+    def build_utility_prediction():
+      l1 = nn.Linear(scale_length * embed_dim*2, scale_length*10)
+      l2 = nn.Linear(scale_length*10, 1)
+      return nn.Sequential(l1, nn.GELU(), l2)
+
     # Don't need to distil or predict the last layer anymore
     for scale_length in scale_lengths[:-1]:
       # Keeping this simple right now.
       # This is predicting the value of each value in the scale window so we can softmax and sum on it.
-      scale_distilations.append(nn.Linear(scale_length * embed_dim*2, scale_length))
+      scale_distilations.append(build_scale_distilation())
       #The tulity predictor is pretty lightweight since it only outputs size 1
-      utility_predictors.append(nn.Linear(scale_length * embed_dim*2, 1))
+      utility_predictors.append(build_utility_prediction())
       # We need a buffer for each layer at the beginning so that we can stack things properly
       layer_buffers.append(nn.Parameter(torch.empty((scale_length - 1, embed_dim*2))))
     #The final scale doesn't need predictors for the next level
