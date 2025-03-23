@@ -324,11 +324,13 @@ class DistiledMultiheadAttention(nn.Module):
     v = kv[:,:,1,:].view(*k.shape)
     x, utility = self.mha(q,k,v)
     x = x.squeeze(-2)
-    utility = utility.squeeze(-2)[:,self.scale_window_lengths[0]:]
-
+    expected_utility = expected_utility.squeeze(-1)
+    utility = utility.squeeze(-2)[:,self.scale_window_lengths[0]:].detach()
+    u_map = expected_utility > 0
+    utility = utility[u_map]
+    expected_utility = expected_utility[u_map]
     x = self.proj_dropout(self.proj(x))
-
-    utility_loss = F.mse_loss(expected_utility.squeeze(-1), utility.detach(), reduction="sum")
+    utility_loss = F.mse_loss(expected_utility, utility.detach(), reduction="sum")
     x = FlattenedBatch(x, lengths).unflatten()
     return x, utility_loss
 
