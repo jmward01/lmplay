@@ -17,6 +17,7 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
+               attn_scales=(20, 20, 20),
                version="1.0",
                **ignore):
     super().__init__(to_name(version, num_blocks=num_blocks, max_len=max_len),
@@ -27,6 +28,7 @@ class GPT2(LMBase):
                      attn_dropout=attn_dropout,
                      ff_dropout=ff_dropout,
                      embed_dropout=embed_dropout,
+                     attn_scales=attn_scales,
                      version=version,
                      expect_extra_loss=True,
                      pass_lengths=True)
@@ -40,7 +42,7 @@ class GPT2(LMBase):
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
-                                        [3, 10, 10],
+                                        attn_scales,
                                         attn_dropout=attn_dropout,
                                         ff_dropout=ff_dropout) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
