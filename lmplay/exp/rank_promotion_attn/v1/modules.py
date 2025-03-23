@@ -283,7 +283,7 @@ class DistiledMultiheadAttention(nn.Module):
     utility_buffer = torch.zeros((self.scale_window_lengths[layer + 1] - 1, 1), device=selected_expected_utility.data.device)
     #This utility will map to the tiled next layer and selected for the previous layer so just do it now.
     selected_expected_utility = selected_expected_utility.tile_within(utility_buffer)
-    return tiled_f_x, next_layer, selected_take_map, selected_expected_utility.data[selected_take_map]
+    return tiled_f_x, next_layer, selected_take_map, selected_expected_utility.data
 
 
   def forward(self, x, cache: Optional[list] = None, lengths=None) -> (torch.Tensor, torch.Tensor):
@@ -298,34 +298,49 @@ class DistiledMultiheadAttention(nn.Module):
 
     #We need to save things each round to put it all back together
     things_to_save = []
-    expected_utility = None
+
     for i in range(len(self.scale_window_lengths) - 1):
-      tiled_f_x, next_layer, selected_take_map, selected_expected_utility = self._gen_attn_layer(current_layer, i)
+      tiled_previous_f_x, next_layer, selected_take_map, selected_expected_utility = self._gen_attn_layer(current_layer, i)
       current_layer = next_layer
-      things_to_save.append((i, tiled_f_x, selected_take_map, selected_expected_utility))
+      #selected_take_map will take the next layer and fill it to be the same length as the previous layer
+      things_to_save.append((tiled_previous_f_x, selected_take_map, selected_expected_utility))
       #tiled_layer = tile_within(current_layer)
       #selected_fb = fb of the values selected from the untiled passed in current_layer
       #expected_utility_fb = expected utility mapped to the passed back selected_fb
 
-    #current_layer now equals the final scale layer. We need to tile that and start appending it to the previous layer
-    kv = current_layer.tile_within(self.layer_buffers[-1]).data
+    #current_layer now equals the final scale layer. We need to tile that so we can use it later.
+    last_kv = current_layer.tile_within(self.layer_buffers[-1]).data
 
-    for i, tiled_f_x, selected_take_map, selected_expected_utility in reversed(things_to_save):
+    #Track the last layer and start the takemap for it
+    #take_maps = [[torch.arange(last_kv.data.shape[0], dtype=torch.int64, device=last_kv.data.device)]]
+    take_maps = []
+    for tiled_previous_f_x, selected_take_map, selected_expected_utility in reversed(things_to_save):
       #Expand the layer we are building.
 
-      if expected_utility is None:
-        expected_utility = selected_expected_utility
-      else:
+      #if expected_utility is None:
+      #  expected_utility = selected_expected_utility
+      #else:
         #We are building in reverse.
         #Expand what we have
-        expected_utility = expected_utility[selected_take_map]
+        #expected_utility = expected_utility[selected_take_map]
         #The new one is already expanded.
-        expected_utility = torch.concat((selected_expected_utility, expected_utility), -2)
-      kv = kv[selected_take_map]
+        #expected_utility = torch.concat((selected_expected_utility, expected_utility), -2)
+      #kv = kv[selected_take_map]
       #We are building in reverse.
-      kv = torch.concat([tiled_f_x.data, kv], -2)
+      #kv = torch.concat([tiled_f_x.data, kv], -2)
+      take_maps.append([torch.arange(last_kv.shape[0], dtype=torch.int64, device=last_kv.device), last_kv, selected_expected_utility])
+      for d in take_maps:
+        d[0] = d[0][selected_take_map]
+      last_kv = tiled_previous_f_x.data
 
-
+    expected_utilities = []
+    scale_histories = []
+    for take_map, scale_history, expected_utility in take_maps:
+      scale_histories.insert(0, scale_history[take_map])
+      expected_utilities.insert(0, expected_utility[take_map])
+    scale_histories.insert(0, last_kv)
+    kv = torch.concat(scale_histories, dim=-2)
+    expected_utility = torch.concat(expected_utilities, dim=-2)
     q = self.query(x.data).view(-1, 1, self.emb_dim)
     #q: seq_len, 1, num_heads, head_size
     kv = kv.view(*kv.shape[:-1], 2, -1)
