@@ -1,5 +1,6 @@
 from .plot import plot, find_stat_files, get_file_data
 from argparse import ArgumentParser
+import time
 
 def main():
   args = ArgumentParser("Graph some things!")
@@ -49,6 +50,7 @@ def main():
   if len(found_files) == 0:
     print("No files found.")
     exit(1)
+  start_time = time.time()
   print(f"Igrnoring: \n" + '\n'.join(ignored_files))
   print(f"Displaying: \n" + '\n'.join(found_files))
 
@@ -67,7 +69,8 @@ def main():
   outfile_log_norm_acc = f"./log_diff_accuracy.{file_type}"
   plot(outfile_log_norm_loss, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, diff_to_target=True, average_count=average_count, target=args.target, plot_raw=args.plot_raw)
   plot(outfile_log_norm_acc, file_data, min_show=min_show, log_plot=True, scale=True, use_process=False, plot_targets=('accuracy',), diff_to_target=True, average_count=average_count, target=args.target, plot_raw=args.plot_raw)
-
+  total_time = time.time() - start_time
+  print(f"Finished in {total_time:0.1f}s")
 
 
   #plot(outfile, *found_files, plot_targets=('accuracy',),min_show=.2, log_plot=True, scale=True, use_process=False, average_count=15)

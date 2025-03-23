@@ -254,7 +254,7 @@ def main():
         print(f"User canceled training.")
         early_exit = True
       except:
-        print(f"Unknown error:\n{traceback.format_exc(limit=10)}")
+        print(f"Unknown error:\n{traceback.format_exc(limit=20)}")
         early_exit = True
       if early_exit:
         break

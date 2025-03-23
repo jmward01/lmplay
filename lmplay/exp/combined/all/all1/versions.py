@@ -3,7 +3,7 @@ from .model import GPT2
 from lmplay.base.runner_list import expose_runner
 
 
-@expose_runner('all1_0', description="Combines UE 1.0 16x, UW 6.0, LRAdd and vnorm")
+@expose_runner('all1_0', description="Combines UE 1.0 16x and UW 6.0")
 def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
@@ -60,10 +60,5 @@ def runner(*args, **kwargs):
                                          ambias=True,
                                          mulinear=True,
                                          front_embed_mul=8,
-                                         mid_mul=16,
-                                         ),
+                                         mid_mul=16),
                           **kwargs)
-                                         #mid_mul=32,
-                                         #ue_sduw=False,
-                                         #norm_v=False),
-                          #**kwargs)

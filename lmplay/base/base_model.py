@@ -38,12 +38,14 @@ class OptimizerWarmupLRScheduler(LRScheduler):
 
 
 class MBase(nn.Module):
-  def __init__(self, name: str, *init_args, **init_kwargs):
+  def __init__(self, name: str, *init_args, expect_extra_loss=False, pass_lengths=False, **init_kwargs):
     super().__init__()
     self.name = name.replace('.', '_')
     self.init_args = init_args
     self.init_kwargs = init_kwargs
     self.max_len = init_kwargs['max_len']
+    self.expect_extra_loss = expect_extra_loss
+    self.pass_lengths = pass_lengths
 
   def initialize(self, device):
     pass
@@ -124,11 +126,23 @@ class MBase(nn.Module):
     # x doesn't need the last EOT since it will be predicting that
     x = x[:, :-1]
 
-    x = self(x)
+    if self.pass_lengths:
+
+      x = self(x, lengths=torch.tensor(predictions_ends, dtype=torch.int64, device=x.device))
+    else:
+      x = self(x)
+
+    if self.expect_extra_loss:
+      x, extra_loss = x
+    else:
+      extra_loss = None
     results = []
     # num classes is always second. For, reasons?
     target_loss = F.cross_entropy(x.permute(0, 2, 1), truths, reduction="none")
-    total_target_loss = 0.0
+    if extra_loss is None:
+      total_target_loss = 0.0
+    else:
+      total_target_loss = torch.sum(extra_loss)
     total_token_count = 0
     for tl, prediction_start, prediction_end in zip(target_loss, predictions_starts, predictions_ends):
       if not include_prompts:

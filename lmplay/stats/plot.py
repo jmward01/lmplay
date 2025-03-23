@@ -1,3 +1,4 @@
+import math
 import os
 from typing import Optional
 import matplotlib
@@ -79,7 +80,8 @@ def _plot_worker(out_file,
                  plot_raw: bool,
                  average_count: Optional[int],
                  satart_ac=5,
-                 ac_inc=6):
+                 ac_inc=6,
+                 target_points=10000):
   # with plt.xkcd():
   acs = dict()
   #This is horrible nog good bad code. Sorry. Please don't think of this as something to use.
@@ -116,6 +118,10 @@ def _plot_worker(out_file,
   addtl_lines = []
   for name, data in file_data.items():
     iters = data[X_KEY]
+    d_stride = math.ceil(len(iters)/target_points)
+    #d_stride = 1
+    if d_stride > 1:
+      iters = iters[::d_stride]
     first_d = 0
     #bisect just gives a value which is stupid. I want an index
     while first_d < len(iters) and iters[first_d] < min_iter:
@@ -126,7 +132,11 @@ def _plot_worker(out_file,
       # if average_count is None:
       #  plt.plot(data[X_KEY], d, label=f"{name}_{data_name}", linewidth=1)
       # else:
-
+      #x_axis = data[X_KEY]
+      #d_stride = math.ceil(len(d)/target_points)
+      if d_stride > 1:
+        d =d[::d_stride]
+        #x_axis = x_axis[::d_stride]
       if plot_raw:
         l = plt.plot(data[X_KEY], d, linewidth=.2, alpha=.3)
       else:
@@ -185,17 +195,22 @@ def _plot_worker(out_file,
       if abs_avg_min_value == abs_avg_max_value:
         abs_avg_max_value = None
         abs_avg_min_value = None
+
       if l is None:
-        addtl_lines.append({X_KEY: data[X_KEY], 'data': avgs, "label": f"{name}_{data_name}"})
+        addtl_lines.append({X_KEY: iters, 'data': avgs, "label": f"{name}_{data_name}"})
       else:
         addtl_lines.append(
-          {X_KEY: data[X_KEY], 'data': avgs, 'color': l[0].get_color(), "label": f"{name}_{data_name}"})
+          {X_KEY: iters, 'data': avgs, 'color': l[0].get_color(), "label": f"{name}_{data_name}"})
   for line_info in addtl_lines:
     # do these last so the show on top of the other line data
-    if 'color' in line_info:
-      plt.plot(line_info[X_KEY], line_info['data'], label=line_info['label'], linewidth=.5, color=line_info['color'])
+    if plot_raw:
+       add_width = 0.0
     else:
-      plt.plot(line_info[X_KEY], line_info['data'], label=line_info['label'], linewidth=.3)
+      add_width = 0.5
+    if 'color' in line_info:
+      plt.plot(line_info[X_KEY], line_info['data'], label=line_info['label'], linewidth=.5 + add_width, color=line_info['color'])
+    else:
+      plt.plot(line_info[X_KEY], line_info['data'], label=line_info['label'], linewidth=.3 + add_width)
   plt.ylabel(' '.join(plot_targets))
   plt.xlabel(X_LABEL)
   if log_plot:
@@ -223,9 +238,11 @@ def _plot_worker(out_file,
     plt.xlim(x_min, max_iter * 1.1)
   # plt.autoscale(enable=True, axis='both', tight=True)
   plt.grid(True)
-  plt.legend(bbox_to_anchor=(1.05, 1),
+  leg = plt.legend(bbox_to_anchor=(1.05, 1),
              loc='upper left',
              borderaxespad=0.)
+  for legobj in leg.get_lines():
+      legobj.set_linewidth(2.0)
   plt.savefig(out_file, bbox_inches='tight', dpi=600)
   if show:
     plt.show()
