@@ -11,3 +11,12 @@ def gpt2ish(*args, **kwargs):
                           *args,
                           overrides=dict(),
                           **kwargs)
+
+
+@expose_runner('rpa1_1',
+               description='Trying more scale layers that are smaller.')
+def gpt2ish(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(attn_scales=(5, 5, 5, 5, 10)),
+                          **kwargs)
