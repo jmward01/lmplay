@@ -9,5 +9,5 @@ from lmplay.base.runner_list import expose_runner
 def gpt2ish(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(embed_dim=192),
+                          overrides=dict(),
                           **kwargs)
