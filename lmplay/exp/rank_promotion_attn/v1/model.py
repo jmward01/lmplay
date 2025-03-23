@@ -17,10 +17,10 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
-               attn_scales=(20, 20, 20),
+               attn_scales=(20, 10, 10),
                version="1.0",
                **ignore):
-    super().__init__(to_name(version, num_blocks=num_blocks, max_len=max_len),
+    super().__init__(to_name(version, attn_scales=attn_scales, num_blocks=num_blocks, max_len=max_len),
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,

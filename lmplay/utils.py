@@ -11,6 +11,8 @@ def pstr(v) -> str:
     return v
   if isinstance(v, float):
     return f"{v:0.1f}"
+  if hasattr(v, "__iter__"):
+    return ''.join(pstr(vc) for vc in v)
   return str(int(v))
 
 def to_name(version:str, *args, **kwargs):
