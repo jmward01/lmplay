@@ -28,7 +28,16 @@ def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(attn_scales=(5, 5, 5, 5, 10),
+                                         add_attn_postion=True),
+
+                          **kwargs)
+
+@expose_runner('rpa1_3',
+               description='Pos attn and switching around the attn scales.')
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(attn_scales=(5, 5, 10, 5, 5),
                                          add_attn_postion=True,
-                                         add_model_attn=True),
 
                           **kwargs)
