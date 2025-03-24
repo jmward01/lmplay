@@ -3,10 +3,10 @@ from .model import GPT2
 from lmplay.base.runner_list import expose_runner
 
 
-#the cli name will be passed in as version so no need to pass it to the model. You can force a version overrid if you want it different from the cli.
+# the cli name will be passed in as version so no need to pass it to the model. You can force a version overrid if you want it different from the cli.
 @expose_runner('rpa1_0',
                description='Time to get a bit crazy.')
-def gpt2ish(*args, **kwargs):
+def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(),
@@ -15,8 +15,20 @@ def gpt2ish(*args, **kwargs):
 
 @expose_runner('rpa1_1',
                description='Trying more scale layers that are smaller.')
-def gpt2ish(*args, **kwargs):
+def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(attn_scales=(5, 5, 5, 5, 10)),
+                          **kwargs)
+
+
+@expose_runner('rpa1_2',
+               description='Trying just attn position and no model position.')
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(attn_scales=(5, 5, 5, 5, 10),
+                                         add_attn_postion=True,
+                                         add_model_attn=False),
+
                           **kwargs)

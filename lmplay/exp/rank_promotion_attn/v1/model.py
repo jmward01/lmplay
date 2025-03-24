@@ -18,9 +18,11 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                attn_scales=(20, 10, 10),
+               add_attn_postion: bool = False,
+               add_model_attn: bool = True,
                version="1.0",
                **ignore):
-    super().__init__(to_name(version, attn_scales=attn_scales, num_blocks=num_blocks, max_len=max_len),
+    super().__init__(to_name(version, add_model_attn, add_attn_postion, attn_scales=attn_scales, num_blocks=num_blocks, max_len=max_len),
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -30,6 +32,8 @@ class GPT2(LMBase):
                      embed_dropout=embed_dropout,
                      attn_scales=attn_scales,
                      version=version,
+                     add_model_attn=add_model_attn,
+                     add_attn_postion=add_attn_postion,
                      expect_extra_loss=True,
                      pass_lengths=True)
     self.tokenizer = tiktoken.get_encoding("gpt2")
@@ -37,14 +41,18 @@ class GPT2(LMBase):
 
     self.max_len = max_len
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
-    self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
+    if add_model_attn:
+      self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
+    else:
+      self.register_parameter("pos_embed", None)
     self.dropout = nn.Dropout(embed_dropout)
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
                                         attn_scales,
                                         attn_dropout=attn_dropout,
-                                        ff_dropout=ff_dropout) for _ in range(num_blocks)])
+                                        ff_dropout=ff_dropout,
+                                        add_position=add_attn_postion) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 
@@ -59,9 +67,12 @@ class GPT2(LMBase):
     # This only works for training, not production inference.
     tok_embedding = self.tok_embed(x)
     # tok_embedding.shape == (batch_size, seq_len, embed_dim)
-    pos_embedding = self.pos_embed[:, x_start:seq_len, :]
-    # pos_embedding.shape == (1, seq_len, embed_dim)
-    x = self.dropout(tok_embedding + pos_embedding)
+    if not self.pos_embed is None:
+      pos_embedding = self.pos_embed[:, x_start:seq_len, :]
+      # pos_embedding.shape == (1, seq_len, embed_dim)
+      x = self.dropout(tok_embedding + pos_embedding)
+    else:
+      x = self.dropout(tok_embedding)
     all_attn_loss = 0.0
     for i, block in enumerate(self.blocks):
       x, attn_loss = block(x, cache=self._kv_cache(cache, i), lengths=lengths)

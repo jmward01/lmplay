@@ -136,6 +136,7 @@ class DistiledMultiheadAttention(nn.Module):
                num_heads: int,
                embed_dim: int,
                ff_dropout: Optional[float] = 0.1,
+               add_position: bool = False,
                **kwargs):
     super().__init__()
 
@@ -189,6 +190,10 @@ class DistiledMultiheadAttention(nn.Module):
                                            dropout=0.0,
                                            bias=True,
                                            batch_first=True)
+    if add_position:
+      self.position = nn.Parameter(torch.zeros(1, sum(self.scale_window_lengths), embed_dim*2))
+    else:
+      self.register_parameter("position", None)
     self.reset_parameters()
 
 
@@ -343,6 +348,8 @@ class DistiledMultiheadAttention(nn.Module):
     expected_utility = torch.concat(expected_utilities, dim=-2)
     q = self.query(x.data).view(-1, 1, self.emb_dim)
     #q: seq_len, 1, num_heads, head_size
+    if not self.position is None:
+      kv = kv + self.position
     kv = kv.view(*kv.shape[:-1], 2, -1)
     k = kv[:,:,0,:].view(-1, kv.shape[-3], self.emb_dim)
     v = kv[:,:,1,:].view(*k.shape)
