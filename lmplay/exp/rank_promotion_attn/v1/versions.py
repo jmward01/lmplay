@@ -41,3 +41,13 @@ def runner(*args, **kwargs):
                                          add_attn_postion=True),
 
                           **kwargs)
+
+@expose_runner('rpa1_4',
+               description='Trying another scaling')
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(attn_scales=(10, 2, 2, 2, 2, 2),
+                                         add_attn_postion=True),
+
+                          **kwargs)
