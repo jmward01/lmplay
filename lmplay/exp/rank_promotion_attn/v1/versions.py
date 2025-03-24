@@ -23,12 +23,12 @@ def runner(*args, **kwargs):
 
 
 @expose_runner('rpa1_2',
-               description='Trying just attn position and no model position.')
+               description='Adding attn pos attn.')
 def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(attn_scales=(5, 5, 5, 5, 10),
                                          add_attn_postion=True,
-                                         add_model_attn=False),
+                                         add_model_attn=True),
 
                           **kwargs)
