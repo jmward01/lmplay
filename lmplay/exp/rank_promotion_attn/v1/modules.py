@@ -28,6 +28,24 @@ def scaled_dot_product_attention(query, key, value, num_heads:int, dropout_p=0.0
   return result, attn_weight
 
 
+class MHA(nn.Module):
+  def __init__(self, embedding_dim:int, num_heads:int, k_dim:int|None = None, dropout:float=0.0):
+    super().__init__()
+    if k_dim is None:
+      k_dim = embedding_dim
+    self.num_heads = num_heads
+    self.k_dim = k_dim
+    self.embedding_dim = embedding_dim
+    self.k_proj = nn.Linear(k_dim, k_dim)
+    self.q_proj = nn.Linear(embedding_dim, k_dim)
+    self.v_proj = nn.Linear(embedding_dim, embedding_dim)
+    self.dropout = dropout
+
+  def forward(self, q, k, v):
+    q = self.q_proj(q)
+    k = self.k_proj(k)
+    v = self.v_proj(v)
+    return scaled_dot_product_attention(q, k, v, self.num_heads, dropout_p=self.dropout, training=self.training)
 # from .mytorch import MultiheadAttention
 
 def mha1(q: torch.Tensor,
@@ -232,7 +250,7 @@ class DistiledMultiheadAttention(nn.Module):
     else:
       scale_dim = embed_dim
     post_tile_dim = embed_dim + key_dim
-    self.in_proj = nn.Linear(embed_dim, embed_dim)
+    #self.in_proj = nn.Linear(embed_dim, embed_dim)
     self.key_value = nn.Linear(embed_dim, post_tile_dim)
 
     self.query = nn.Linear(embed_dim, key_dim)
@@ -280,6 +298,7 @@ class DistiledMultiheadAttention(nn.Module):
 
     #                                       kdim=key_dim,
     #                                       vdim=embed_dim)
+    self.mha = MHA(embed_dim, num_heads, k_dim=key_dim)
     if add_position:
       self.position = nn.Parameter(torch.zeros(1, sum(self.scale_window_lengths), post_tile_dim))
     else:
@@ -391,7 +410,7 @@ class DistiledMultiheadAttention(nn.Module):
     else:
       return_flat_batch = True
       lengths = x.sample_lengths
-    x = FlattenedBatch(self.in_proj(x.data), x)
+    #x = FlattenedBatch(self.in_proj(x.data), x)
     if self.kv_first:
       current_layer = FlattenedBatch(self.key_value(x.data), x)
     else:
@@ -460,8 +479,10 @@ class DistiledMultiheadAttention(nn.Module):
     v = kv[:, :, self.key_dim:]
     # Utility is coming back detached/no grad already
     #x, utility = mha(q, k, v, self.emb_dim, self.key_dim, self.num_heads, self.proj, training=self.training)
-    x, utility = scaled_dot_product_attention(q, k, v, self.num_heads, training=self.training)
+    #x, utility = scaled_dot_product_attention(q, k, v, self.num_heads, training=self.training)
+    x, utility = self.mha(q, k, v)
     x = self.proj(x)
+
     # x = x.squeeze(-2)
     expected_utility = expected_utility.squeeze(-1)
     # utility = utility.squeeze(-2)[:, self.scale_window_lengths[0]:].detach()
