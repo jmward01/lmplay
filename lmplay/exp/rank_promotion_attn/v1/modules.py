@@ -394,7 +394,6 @@ class Block(nn.Module):
   """
 
   def __init__(self,
-               max_len: int,
                num_heads: int,
                embed_dim: int,
                scale_lengths: list[int],
