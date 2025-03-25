@@ -212,6 +212,7 @@ class DistiledMultiheadAttention(nn.Module):
     else:
       scale_dim = embed_dim
     post_tile_dim = embed_dim + key_dim
+    self.in_proj = nn.Linear(embed_dim, embed_dim)
     self.key_value = nn.Linear(embed_dim, post_tile_dim)
 
     self.query = nn.Linear(embed_dim, key_dim)
@@ -370,7 +371,7 @@ class DistiledMultiheadAttention(nn.Module):
     else:
       return_flat_batch = True
       lengths = x.sample_lengths
-
+    x = FlattenedBatch(self.in_proj(x.data), x)
     if self.kv_first:
       current_layer = FlattenedBatch(self.key_value(x.data), x)
     else:
