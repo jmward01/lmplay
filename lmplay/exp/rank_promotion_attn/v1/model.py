@@ -20,9 +20,10 @@ class GPT2(LMBase):
                attn_scales=(20, 10, 10),
                add_attn_postion: bool = False,
                add_model_attn: bool = True,
+               kv_first:bool = True,
                version="1.0",
                **ignore):
-    super().__init__(to_name(version, add_model_attn, add_attn_postion, attn_scales=attn_scales, num_blocks=num_blocks, max_len=max_len),
+    super().__init__(to_name(version, add_model_attn, add_attn_postion, kv_first, attn_scales=attn_scales, num_blocks=num_blocks, max_len=max_len),
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -34,6 +35,7 @@ class GPT2(LMBase):
                      version=version,
                      add_model_attn=add_model_attn,
                      add_attn_postion=add_attn_postion,
+                     kv_first=kv_first,
                      expect_extra_loss=True,
                      pass_lengths=True)
     self.tokenizer = tiktoken.get_encoding("gpt2")
@@ -52,7 +54,8 @@ class GPT2(LMBase):
                                         attn_scales,
                                         attn_dropout=attn_dropout,
                                         ff_dropout=ff_dropout,
-                                        add_position=add_attn_postion) for _ in range(num_blocks)])
+                                        add_position=add_attn_postion,
+                                        kv_first=kv_first) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 

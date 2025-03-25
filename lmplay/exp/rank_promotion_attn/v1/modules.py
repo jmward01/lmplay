@@ -5,7 +5,6 @@ import torch
 from torch import nn
 from torch.nn import functional as F, init
 from torch.nn.utils import rnn
-from lmplay.utils import create_linear, gen_mask
 
 __all__ = ['DistiledMultiheadAttention']
 
@@ -137,6 +136,7 @@ class DistiledMultiheadAttention(nn.Module):
                embed_dim: int,
                ff_dropout: Optional[float] = 0.1,
                add_position: bool = False,
+               kv_first: bool = True,
                **kwargs):
     super().__init__()
 
@@ -147,7 +147,13 @@ class DistiledMultiheadAttention(nn.Module):
 
     # k&v are what are 'attended' to and will be cached for generation.
     #Tying them together for performance
-    self.key_value = nn.Linear(embed_dim, embed_dim*2)
+    self.kv_first = kv_first
+    if kv_first:
+      scale_dim = embed_dim * 2
+    else:
+      scale_dim = embed_dim
+    post_tile_dim = embed_dim*2
+    self.key_value = nn.Linear(embed_dim, post_tile_dim)
 
     self.query = nn.Linear(embed_dim, embed_dim)
     # proj to clean things up after
@@ -160,11 +166,11 @@ class DistiledMultiheadAttention(nn.Module):
     utility_predictors = []
     layer_buffers = []
     def build_scale_distilation():
-      l1 = nn.Linear(scale_length * embed_dim*2, scale_length*10)
+      l1 = nn.Linear(scale_length * scale_dim, scale_length*10)
       l2 = nn.Linear(scale_length*10, scale_length)
       return nn.Sequential(l1, nn.GELU(), l2)
     def build_utility_prediction():
-      l1 = nn.Linear(scale_length * embed_dim*2, scale_length*10)
+      l1 = nn.Linear(scale_length * scale_dim, scale_length*10)
       l2 = nn.Linear(scale_length*10, 1)
       return nn.Sequential(l1, nn.GELU(), l2)
 
@@ -176,22 +182,21 @@ class DistiledMultiheadAttention(nn.Module):
       #The tulity predictor is pretty lightweight since it only outputs size 1
       utility_predictors.append(build_utility_prediction())
       # We need a buffer for each layer at the beginning so that we can stack things properly
-      layer_buffers.append(nn.Parameter(torch.empty((scale_length - 1, embed_dim*2))))
+      layer_buffers.append(nn.Parameter(torch.empty((scale_length - 1, scale_dim))))
     #The final scale doesn't need predictors for the next level
-    layer_buffers.append(nn.Parameter(torch.empty((scale_lengths[-1] - 1, embed_dim*2))))
+    layer_buffers.append(nn.Parameter(torch.empty((scale_lengths[-1] - 1, scale_dim))))
     # These construct the next layer
     self.scale_distilations = nn.ModuleList(scale_distilations)
     # These predict the utility of the next layer
     self.utility_predictors = nn.ModuleList(utility_predictors)
     self.layer_buffers = nn.ParameterList(layer_buffers)
-    self.register_buffer("mask", gen_mask(1024)) #just here for debugging
     self.mha = torch.nn.MultiheadAttention(embed_dim,
                                            num_heads,
                                            dropout=0.0,
                                            bias=True,
                                            batch_first=True)
     if add_position:
-      self.position = nn.Parameter(torch.zeros(1, sum(self.scale_window_lengths), embed_dim*2))
+      self.position = nn.Parameter(torch.zeros(1, sum(self.scale_window_lengths), post_tile_dim))
     else:
       self.register_parameter("position", None)
     self.reset_parameters()
@@ -299,7 +304,10 @@ class DistiledMultiheadAttention(nn.Module):
 
     #Start by flattening it all out
     x = FlattenedBatch.flatten(x, lengths)
-    current_layer = FlattenedBatch(self.key_value(x.data), x)
+    if self.kv_first:
+      current_layer = FlattenedBatch(self.key_value(x.data), x)
+    else:
+      current_layer = FlattenedBatch(x.data, x)
 
     #We need to save things each round to put it all back together
     things_to_save = []
@@ -340,10 +348,17 @@ class DistiledMultiheadAttention(nn.Module):
 
     expected_utilities = []
     scale_histories = []
+
     for take_map, scale_history, expected_utility in take_maps:
-      scale_histories.insert(0, scale_history[take_map])
+      if self.kv_first:
+        scale_histories.insert(0, scale_history[take_map])
+      else:
+        scale_histories.insert(0, self.key_value(scale_history)[take_map])
       expected_utilities.insert(0, expected_utility[take_map])
-    scale_histories.insert(0, last_kv)
+    if self.kv_first:
+      scale_histories.insert(0, last_kv)
+    else:
+      scale_histories.insert(0, self.key_value(last_kv))
     kv = torch.concat(scale_histories, dim=-2)
     expected_utility = torch.concat(expected_utilities, dim=-2)
     q = self.query(x.data).view(-1, 1, self.emb_dim)
