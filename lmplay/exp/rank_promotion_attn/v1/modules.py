@@ -10,9 +10,9 @@ __all__ = ['DistiledMultiheadAttention']
 
 def roll_by_gather(data, shifts: torch.Tensor, guard_mask=None):
   # modified from https://stackoverflow.com/questions/66596699/how-to-shift-columns-or-rows-in-a-tensor-with-different-offsets-in-pytorch
-  # The guard mask works for this specific use where we are shifting indexes to tile in a buffer.
+  #The guard mask works for this specific use where we are shifting indexes to tile in a buffer.
   # We don't want the tiled buffer idexs coming back anyway since that would waste memory and without them there is no need
-  # to do the mod so this saves mem and computation.
+  #to do the mod so this saves mem and computation.
   n_rows, n_cols = data.shape[:2]
   arange1 = torch.arange(n_rows, device=data.device).view((n_rows, 1)).repeat((1, n_cols))
   if guard_mask is None:
@@ -23,7 +23,7 @@ def roll_by_gather(data, shifts: torch.Tensor, guard_mask=None):
   return torch.gather(data, 0, arange2)
 
 def tile_within(x, buffer):
-  # Alternate/faster version: https://stackoverflow.com/questions/66596699/how-to-shift-columns-or-rows-in-a-tensor-with-different-offsets-in-pytorch
+  #Alternate/faster version: https://stackoverflow.com/questions/66596699/how-to-shift-columns-or-rows-in-a-tensor-with-different-offsets-in-pytorch
   batch_size, seq_length, embed_dim = x.shape
   buffer = buffer.expand(batch_size, -1, -1)
   _, scale_window_length, embed_dim = buffer.shape
@@ -40,17 +40,17 @@ def tile_within(x, buffer):
 
 
 class FlattenedBatch:
-  def __init__(self, data: torch.Tensor, sample_lengths: torch.Tensor):
+  def __init__(self, data:torch.Tensor, sample_lengths:torch.Tensor):
     self.data = data
     if isinstance(sample_lengths, FlattenedBatch):
       self.sample_lengths = sample_lengths.sample_lengths
-      self._sample_lengths_list: list[int] | None = sample_lengths._sample_lengths_list
-      self._max_sample_length: int | None = sample_lengths._max_sample_length
+      self._sample_lengths_list:list[int]|None = sample_lengths._sample_lengths_list
+      self._max_sample_length:int|None = sample_lengths._max_sample_length
       self._sample_start_idxs: torch.Tensor | None = sample_lengths._sample_start_idxs
     else:
       self.sample_lengths = sample_lengths
-      self._sample_lengths_list: list[int] | None = None
-      self._max_sample_length: int | None = None
+      self._sample_lengths_list:list[int]|None = None
+      self._max_sample_length:int|None = None
       self._sample_start_idxs: torch.Tensor | None = None
 
   @property
@@ -77,27 +77,27 @@ class FlattenedBatch:
   def batch_size(self) -> int:
     return len(self.sample_lengths_list)
 
-  def tile_within(self, buffer: torch.Tensor):
-    # Buffer size dictates the tile size. Tile = buffer.shape[0] + 1
-    # buffer: len, emb_size
+  def tile_within(self, buffer:torch.Tensor):
+    #Buffer size dictates the tile size. Tile = buffer.shape[0] + 1
+    #buffer: len, emb_size
     buff_len = buffer.shape[0]
     seq_idxs = torch.arange(buff_len, buff_len + self.data.shape[0], device=self.data.device)
     buf_idxs = torch.arange(0, buff_len, device=self.data.device)
     last_idx = 0
     idx_list = []
-    # Not a fan of this loop but it should be relatively fast since it is batch size long.
+    #Not a fan of this loop but it should be relatively fast since it is batch size long.
     # This should be dominated by all other computation. Still. This is probably one of the slowest parts of this function.
     for next_idx in self.sample_lengths_list:
       idx_list.append(buf_idxs)
-      idx_list.append(seq_idxs[last_idx:last_idx + next_idx])
+      idx_list.append(seq_idxs[last_idx:last_idx+next_idx])
       last_idx += next_idx
 
 
     #This list of idxs now has every sample idx in it withpadding idxs prefixing them. Whe we tile this it will give us the almost idxs we need.
     tile_idxs = torch.concat(idx_list)
-    # This will allow us to select out the tiled areas we care about only
+    #This will allow us to select out the tiled areas we care about only
     data_idxs = tile_idxs >= buff_len
-    # we will roll to create tiling of the source data and the buffer absorbs the stuff that went into negative indexes
+    #we will roll to create tiling of the source data and the buffer absorbs the stuff that went into negative indexes
     shift = torch.arange(0, buff_len + 1, device=buffer.device).unsqueeze(0)
     tile_idxs = tile_idxs.unsqueeze(-1).expand(-1, buff_len + 1)
     tile_idxs = roll_by_gather(tile_idxs, shift, guard_mask=data_idxs)
@@ -108,16 +108,16 @@ class FlattenedBatch:
     return FlattenedBatch(tiled_data, self)
 
   def unflatten(self) -> torch.Tensor:
-    # Turn this back into a batch. I assume the pytorch routines here are fast.
+    #Turn this back into a batch. I assume the pytorch routines here are fast.
     tensors = list(torch.split(self.data, self.sample_lengths_list))
     fp = rnn.pack_sequence(tensors, False)
     d, lengths = rnn.pad_packed_sequence(fp, batch_first=True)
     return d
 
   @classmethod
-  def flatten(cls, batch, sample_lengths: torch.Tensor) -> "FlattenedBatch":
-    # Not a huge fan of this method. I wish the pytorch rnn stuff was a little easier to deal with.
-    # It probably is, I just am missing how they pack things in a PackedSequence to be able to easily use it.
+  def flatten(cls, batch, sample_lengths:torch.Tensor) -> "FlattenedBatch":
+    #Not a huge fan of this method. I wish the pytorch rnn stuff was a little easier to deal with.
+    #It probably is, I just am missing how they pack things in a PackedSequence to be able to easily use it.
     parts = []
     for sample, length in zip(batch, sample_lengths):
       parts.append(sample[:length])
@@ -137,7 +137,6 @@ class DistiledMultiheadAttention(nn.Module):
                ff_dropout: Optional[float] = 0.1,
                add_position: bool = False,
                kv_first: bool = True,
-               key_dim: int | None = None,
                **kwargs):
     super().__init__()
 
@@ -147,7 +146,7 @@ class DistiledMultiheadAttention(nn.Module):
     # head_size = int(embed_dim / num_heads)
 
     # k&v are what are 'attended' to and will be cached for generation.
-    # Tying them together for performance
+    #Tying them together for performance
     self.kv_first = kv_first
     if kv_first:
       scale_dim = embed_dim * 2
@@ -219,36 +218,36 @@ class DistiledMultiheadAttention(nn.Module):
       return False
     return True
 
-  def _gen_attn_layer(self, f_x: FlattenedBatch, layer: int):
-    # First things first, lets stack things up on this layer.
+  def _gen_attn_layer(self, f_x:FlattenedBatch, layer:int):
+    #First things first, lets stack things up on this layer.
     tiled_f_x = f_x.tile_within(self.layer_buffers[layer])
 
-    # Gen the expected utility
-    # Add 1 because it can't go below 0
-    expected_utility = F.elu(self.utility_predictors[layer](tiled_f_x.data.view(tiled_f_x.data.shape[0], -1))) + 1.0
+    #Gen the expected utility
+    #Add 1 because it can't go below 0
+    expected_utility = F.elu(self.utility_predictors[layer](tiled_f_x.data.view(tiled_f_x.data.shape[0],-1))) + 1.0
     expected_utility = expected_utility.squeeze(-1)
-    # batch, seq_len
-    # Now we generate a running average of expected utility
-    # This isn't quite right yet since this average is running across samples. We will fix that later
+    #batch, seq_len
+    #Now we generate a running average of expected utility
+    #This isn't quite right yet since this average is running across samples. We will fix that later
     with torch.no_grad():
-      # No gradient needed here.
+      #No gradient needed here.
       # This logic will be learend purely based on the predicted utility matching the actual utility use.
       running_ave_utility = torch.cumsum(expected_utility, 0)
       end_idxs = f_x.sample_start_idxs + f_x.sample_lengths - 1
       end_utility = running_ave_utility[end_idxs]
-      # This gives us the utility for all samples in the batch except for the last
+      #This gives us the utility for all samples in the batch except for the last
       first_utility = end_utility[0:1]
       if f_x.sample_lengths.shape[0] > 1:
-        # If we have a batch > 1 we need to adjust all the running stuff since cumsum takes into account the other smaples
+        #If we have a batch > 1 we need to adjust all the running stuff since cumsum takes into account the other smaples
         all_but_first_utility = end_utility[2:] - end_utility[1:-1]
         sample_utility = torch.concat([first_utility, all_but_first_utility])
 
-        # now we do a little cheat
+        #now we do a little cheat
         z = torch.zeros_like(running_ave_utility)
         z[f_x.sample_start_idxs[1:]] = sample_utility
         z = torch.cumsum(z, 0)
-        # now we have the utility running average not impacted by the previous batch values
-        # Let's do something similar for the index of every sample
+        #now we have the utility running average not impacted by the previous batch values
+        #Let's do something similar for the index of every sample
         running_ave_utility -= z
         z = torch.zeros_like(running_ave_utility)
         z[f_x.sample_start_idxs[1:]] = f_x.sample_lengths[:-1].to(z.dtype)
@@ -257,8 +256,8 @@ class DistiledMultiheadAttention(nn.Module):
         idxs = idxs - z
       else:
         idxs = torch.arange(1, f_x.data.shape[0] + 1, device=f_x.data.device)
-      running_ave_utility = running_ave_utility / idxs
-      # We will always take until our scale is filled so set those appropriately
+      running_ave_utility = running_ave_utility/idxs
+      #We will always take until our scale is filled so set those appropriately
       required_idxs = idxs <= self.scale_window_lengths[layer]
       selected = expected_utility > running_ave_utility
       selected = torch.logical_or(selected, required_idxs, out=selected)
@@ -269,20 +268,20 @@ class DistiledMultiheadAttention(nn.Module):
     cumsum = torch.cumsum(selected, 0)
     end_counts = cumsum[end_idxs]
     next_layer_lengths = torch.concat((end_counts[0:1], end_counts[1:] - end_counts[:-1]))
-    # Now we know how long each sample in the new scale layer will be
+    #Now we know how long each sample in the new scale layer will be
 
-    # This builds a mapping that will take the selected and expand it to the same size as the original input.
-    # This is because all the 'false' values in the cumsum come up as consecutive. this gives us the last true indexes for all those false ones.
-    _, selected_take_map = torch.unique_consecutive(cumsum, dim=None, return_inverse=True)
+    #This builds a mapping that will take the selected and expand it to the same size as the original input.
+    #This is because all the 'false' values in the cumsum come up as consecutive. this gives us the last true indexes for all those false ones.
+    _, selected_take_map = torch.unique_consecutive(cumsum, dim = None, return_inverse=True)
 
-    # This will be used to generate loss
+    #This will be used to generate loss
     selected_expected_utility = expected_utility[selected]
 
-    # Now we need to create the promoted values
-    # Using a simple FF to create a distilled new value
-    # The result of new_layer_big[selected] is a flattened array because the number selected for each part of the batch can be different.
+    #Now we need to create the promoted values
+    #Using a simple FF to create a distilled new value
+    #The result of new_layer_big[selected] is a flattened array because the number selected for each part of the batch can be different.
     selected_tiled_f_x = tiled_f_x.data[selected]
-    # flatten it and get the rankings
+    #flatten it and get the rankings
     rankings = self.scale_distilations[layer](selected_tiled_f_x.view(selected_tiled_f_x.shape[0], -1))
 
     rankings = torch.softmax(rankings, -1).unsqueeze(-1)
@@ -297,46 +296,41 @@ class DistiledMultiheadAttention(nn.Module):
     return tiled_f_x, next_layer, selected_take_map, selected_expected_utility.data
 
 
-  def forward(self, x:torch.Tensor|FlattenedBatch, cache: Optional[list] = None, lengths=None) -> (torch.Tensor, torch.Tensor):
+  def forward(self, x, cache: Optional[list] = None, lengths=None) -> (torch.Tensor, torch.Tensor):
     #Lengths are always passed right now since we don't support prod inferrence yet.
 
     # Useful for later ops
+    batch_size, seq_len, embed_dim = x.shape
 
-    if not isinstance(x, FlattenedBatch):
-      return_flat_batch = False
-      # Start by flattening it all out
-      x = FlattenedBatch.flatten(x, lengths)
-    else:
-      return_flat_batch = True
-      lengths = x.sample_lengths
-
+    #Start by flattening it all out
+    x = FlattenedBatch.flatten(x, lengths)
     if self.kv_first:
       current_layer = FlattenedBatch(self.key_value(x.data), x)
     else:
-      current_layer = x
+      current_layer = FlattenedBatch(x.data, x)
 
-    # We need to save things each round to put it all back together
+    #We need to save things each round to put it all back together
     things_to_save = []
 
     for i in range(len(self.scale_window_lengths) - 1):
       tiled_previous_f_x, next_layer, selected_take_map, selected_expected_utility = self._gen_attn_layer(current_layer, i)
       current_layer = next_layer
-      # selected_take_map will take the next layer and fill it to be the same length as the previous layer
+      #selected_take_map will take the next layer and fill it to be the same length as the previous layer
       things_to_save.append((tiled_previous_f_x, selected_take_map, selected_expected_utility))
-      # tiled_layer = tile_within(current_layer)
-      # selected_fb = fb of the values selected from the untiled passed in current_layer
-      # expected_utility_fb = expected utility mapped to the passed back selected_fb
+      #tiled_layer = tile_within(current_layer)
+      #selected_fb = fb of the values selected from the untiled passed in current_layer
+      #expected_utility_fb = expected utility mapped to the passed back selected_fb
 
-    # current_layer now equals the final scale layer. We need to tile that so we can use it later.
+    #current_layer now equals the final scale layer. We need to tile that so we can use it later.
     last_kv = current_layer.tile_within(self.layer_buffers[-1]).data
 
-    # Track the last layer and start the takemap for it
-    # take_maps = [[torch.arange(last_kv.data.shape[0], dtype=torch.int64, device=last_kv.data.device)]]
+    #Track the last layer and start the takemap for it
+    #take_maps = [[torch.arange(last_kv.data.shape[0], dtype=torch.int64, device=last_kv.data.device)]]
     take_maps = []
     for tiled_previous_f_x, selected_take_map, selected_expected_utility in reversed(things_to_save):
-      # Expand the layer we are building.
+      #Expand the layer we are building.
 
-      # if expected_utility is None:
+      #if expected_utility is None:
       #  expected_utility = selected_expected_utility
       #else:
         #We are building in reverse.
@@ -383,9 +377,7 @@ class DistiledMultiheadAttention(nn.Module):
     expected_utility = expected_utility[u_map]
     x = self.proj_dropout(self.proj(x))
     utility_loss = F.mse_loss(expected_utility, utility.detach(), reduction="mean")
-    x = FlattenedBatch(x, lengths)
-    if not return_flat_batch:
-      x = x.unflatten()
+    x = FlattenedBatch(x, lengths).unflatten()
     return x, utility_loss
 
 
@@ -402,6 +394,7 @@ class Block(nn.Module):
   """
 
   def __init__(self,
+               max_len: int,
                num_heads: int,
                embed_dim: int,
                scale_lengths: list[int],
@@ -448,18 +441,10 @@ class Block(nn.Module):
                             create_linear(ff_linear, 'block_ff_2', embed_dim * 4, embed_dim),
                             nn.Dropout(ff_dropout))
 
-  def forward(self, x:torch.Tensor|FlattenedBatch, cache: Optional[list] = None, lengths: torch.Tensor|None = None):
+  def forward(self, x, cache: Optional[list] = None, lengths: torch.Tensor|None = None):
     # A simple 'block' that uses residual connections and gives attn + pure logic both a chance to modify the hidden layer
     # the 'cache' is the kv cache and is only needed for inference, not training.
-    if isinstance(x, FlattenedBatch):
-      lengths = x.sample_lengths
-      x = x.data
-      attn, attn_loss = self.attn(FlattenedBatch(self.ln1(x), lengths), cache=cache, lengths=lengths)
-      x = self.mha_lradd(x.data, attn.data)
-      x = self.ff_lradd(x, self.ff(self.ln2(x)))
-      return FlattenedBatch(x, lengths), attn_loss
-    else:
-      attn, attn_loss = self.attn(self.ln1(x), cache=cache, lengths=lengths)
-      x = self.mha_lradd(x, attn)
-      x = self.ff_lradd(x, self.ff(self.ln2(x)))
-      return x, attn_loss
+    attn, attn_loss = self.attn(self.ln1(x), cache=cache, lengths=lengths)
+    x = self.mha_lradd(x, attn)
+    x = self.ff_lradd(x, self.ff(self.ln2(x)))
+    return x, attn_loss

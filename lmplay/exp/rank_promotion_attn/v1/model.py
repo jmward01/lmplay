@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from typing import Optional, List
 
-from .modules import Block, FlattenedBatch
+from .modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase
 from lmplay.utils import to_name
@@ -79,18 +79,16 @@ class GPT2(LMBase):
     else:
       x = self.dropout(tok_embedding)
     all_attn_loss = 0.0
-    x = FlattenedBatch.flatten(x, lengths)
     for i, block in enumerate(self.blocks):
       x, attn_loss = block(x, cache=self._kv_cache(cache, i), lengths=lengths)
       all_attn_loss = all_attn_loss + attn_loss
-    x = self.ln(x.data)
+    x = self.ln(x)
     if cache is None:
       #No cache then this is training and we need to decode the whole thing
       x = self.fc(x)
     else:
       #Not training. We only care about the last one
       x = self.fc(x[:,-1:,:])
-    x = FlattenedBatch(x, lengths).unflatten()
     if not cache is None:
       return x, cache
     all_attn_loss = all_attn_loss/len(self.blocks)
