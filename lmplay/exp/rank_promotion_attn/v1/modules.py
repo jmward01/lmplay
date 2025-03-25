@@ -298,7 +298,12 @@ class DistiledMultiheadAttention(nn.Module):
 
     #                                       kdim=key_dim,
     #                                       vdim=embed_dim)
-    self.mha = MHA(embed_dim, num_heads, k_dim=key_dim)
+    #self.mha = MHA(embed_dim, num_heads, k_dim=key_dim)
+    self.mha = torch.nn.MultiheadAttention(embed_dim,
+                                       num_heads,
+                                       dropout=0.0,
+                                       bias=True,
+                                       batch_first=True)
     if add_position:
       self.position = nn.Parameter(torch.zeros(1, sum(self.scale_window_lengths), post_tile_dim))
     else:
@@ -481,6 +486,9 @@ class DistiledMultiheadAttention(nn.Module):
     #x, utility = mha(q, k, v, self.emb_dim, self.key_dim, self.num_heads, self.proj, training=self.training)
     #x, utility = scaled_dot_product_attention(q, k, v, self.num_heads, training=self.training)
     x, utility = self.mha(q, k, v)
+    #needed for pytorch mha
+    x = x.squeeze(-2)
+    utility = utility.detach().squeeze(-2)
     x = self.proj(x)
 
     # x = x.squeeze(-2)
