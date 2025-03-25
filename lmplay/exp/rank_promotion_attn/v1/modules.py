@@ -9,44 +9,64 @@ from typing import Optional
 import torch, math
 import torch.nn.functional as F
 
+#stolen from pytorch docs and modified.
+def scaled_dot_product_attention(query, key, value, num_heads:int, dropout_p=0.0, training: bool = True) -> (torch.Tensor, torch.Tensor):
+  target_batch_size, target_seq_len, target_embed_dim = value.shape
+  key = key.reshape(target_batch_size, target_seq_len, num_heads, -1).transpose(1,2)
+  value = value.reshape(target_batch_size, target_seq_len, num_heads, -1).transpose(1, 2)
+  query = query.reshape(target_batch_size, 1, num_heads, -1).transpose(1, 2)
+
+  scale_factor = 1 / math.sqrt(query.size(-1))
+  attn_weight = query @ key.transpose(-2, -1) * scale_factor
+  attn_weight = torch.softmax(attn_weight, dim=-1)
+  if dropout_p > 0 and training == True:
+    attn_weight = torch.dropout(attn_weight, dropout_p, train=True)
+  result = attn_weight @ value
+  result = result.view(target_batch_size, -1)
+  attn_weight = attn_weight.detach().view(target_batch_size, num_heads, target_seq_len)
+  attn_weight = torch.mean(attn_weight, dim = 1)
+  return result, attn_weight
+
 
 # from .mytorch import MultiheadAttention
 
-def mha(q: torch.Tensor,
-        k: torch.Tensor,
-        v: torch.Tensor,
-        embed_dim: int,
-        kqdim: int,
-        num_heads: int,
-        out_projection: nn.Linear,
-        dropout_p=0.0,
-        training: bool = True) -> (torch.Tensor, torch.Tensor):
+def mha1(q: torch.Tensor,
+         k: torch.Tensor,
+         v: torch.Tensor,
+         embed_dim: int,
+         kqdim: int,
+         num_heads: int,
+         out_projection: nn.Linear,
+         dropout_p=0.0,
+         training: bool = True) -> (torch.Tensor, torch.Tensor):
   v_head_dim = embed_dim // num_heads
   kq_head_dim = kqdim // num_heads
 
   flat_seq_len, context_len, _ = k.shape
-  #q = flat_seq,           1, kqdim
-  #k = flat_seq, context_len, kqdim
-  #We want
-  #q = flat_seq*num_heads,           1, kq_head_dim
-  #k = flat_seq*num_heads, kq_head_dim, context_len
-  q = q.view(flat_seq_len, 1 , num_heads, kq_head_dim).permute(0, 2, 1, 3).view(-1, 1, kq_head_dim)
-  k = k.view(flat_seq_len, context_len, num_heads, kq_head_dim).permute(0, 2, 3, 1).contiguous().view(-1, kq_head_dim, context_len)
-  v = v.view(flat_seq_len, context_len, num_heads, v_head_dim).permute(0, 2, 1, 3).contiguous().view(-1, context_len, v_head_dim)
-  #reshape(v.shape[0], num_heads, context_len, v_head_dim)
+  # q = flat_seq,           1, kqdim
+  # k = flat_seq, context_len, kqdim
+  # We want
+  # q = flat_seq*num_heads,           1, kq_head_dim
+  # k = flat_seq*num_heads, kq_head_dim, context_len
+  q = q.view(flat_seq_len, 1, num_heads, kq_head_dim).permute(0, 2, 1, 3).view(-1, 1, kq_head_dim)
+  k = k.view(flat_seq_len, context_len, num_heads, kq_head_dim).permute(0, 2, 3, 1).contiguous().view(-1, kq_head_dim,
+                                                                                                      context_len)
+  v = v.view(flat_seq_len, context_len, num_heads, v_head_dim).permute(0, 2, 1, 3).contiguous().view(-1, context_len,
+                                                                                                     v_head_dim)
+  # reshape(v.shape[0], num_heads, context_len, v_head_dim)
 
-  #q = q.view(tgt_len, bsz * num_heads, kq_head_dim)
-  #k = k.reshape(k.shape[0], ssz * num_heads, kq_head_dim)
-  #v = v.reshape(v.shape[0], ssz * num_heads, v_head_dim)
+  # q = q.view(tgt_len, bsz * num_heads, kq_head_dim)
+  # k = k.reshape(k.shape[0], ssz * num_heads, kq_head_dim)
+  # v = v.reshape(v.shape[0], ssz * num_heads, v_head_dim)
 
   if not training:
     dropout_p = 0.0
 
   E = q.shape[-1]
   q_scaled = q * math.sqrt(1.0 / float(E))
-  #k.transpose(-2, -1) = flat_seq, kq_head_dim, num_heads*context_len
-  #q                   = flat_seq,   num_heads, kq_head_dim
-  #attn_output_weights = torch.bmm(q_scaled, k.transpose(-2, -1))
+  # k.transpose(-2, -1) = flat_seq, kq_head_dim, num_heads*context_len
+  # q                   = flat_seq,   num_heads, kq_head_dim
+  # attn_output_weights = torch.bmm(q_scaled, k.transpose(-2, -1))
   attn_output_weights = torch.bmm(q_scaled, k)
   attn_output_weights = F.softmax(attn_output_weights, dim=-1)
   if dropout_p > 0.0:
@@ -55,11 +75,11 @@ def mha(q: torch.Tensor,
   attn_output = torch.bmm(attn_output_weights, v)
   attn_output = attn_output.contiguous().view(flat_seq_len, -1)
 
-  #attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len * bsz, embed_dim)
+  # attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len * bsz, embed_dim)
   attn_output = out_projection(attn_output)
 
-  #average attention weights over heads
-  #We don't want to waste mem on this since backprop won't use the mean.
+  # average attention weights over heads
+  # We don't want to waste mem on this since backprop won't use the mean.
   with torch.no_grad():
     attn_output_weights = attn_output_weights.view(flat_seq_len, num_heads, context_len).detach()
     attn_output_weights = attn_output_weights.mean(dim=1)
@@ -438,11 +458,13 @@ class DistiledMultiheadAttention(nn.Module):
       kv = kv + self.position
     k = kv[:, :, 0:self.key_dim]
     v = kv[:, :, self.key_dim:]
-    #Utility is coming back detached/no grad already
-    x, utility = mha(q, k, v, self.emb_dim, self.key_dim, self.num_heads, self.proj, training=self.training)
-    #x = x.squeeze(-2)
+    # Utility is coming back detached/no grad already
+    #x, utility = mha(q, k, v, self.emb_dim, self.key_dim, self.num_heads, self.proj, training=self.training)
+    x, utility = scaled_dot_product_attention(q, k, v, self.num_heads, training=self.training)
+    x = self.proj(x)
+    # x = x.squeeze(-2)
     expected_utility = expected_utility.squeeze(-1)
-    #utility = utility.squeeze(-2)[:, self.scale_window_lengths[0]:].detach()
+    # utility = utility.squeeze(-2)[:, self.scale_window_lengths[0]:].detach()
     utility = utility[:, self.scale_window_lengths[0]:]
     u_map = expected_utility > 0
     utility = utility[u_map]
