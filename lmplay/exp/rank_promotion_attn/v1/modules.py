@@ -1,108 +1,12 @@
+import math
+from typing import Optional
+
+import torch
 from torch import nn
-from torch.nn import init
+from torch.nn import functional as F, init
 from torch.nn.utils import rnn
 
 __all__ = ['DistiledMultiheadAttention']
-
-from typing import Optional
-
-import torch, math
-import torch.nn.functional as F
-
-#stolen from pytorch docs and modified.
-def scaled_dot_product_attention(query, key, value, num_heads:int, dropout_p=0.0, training: bool = True) -> (torch.Tensor, torch.Tensor):
-  target_batch_size, target_seq_len, target_embed_dim = value.shape
-  key = key.reshape(target_batch_size, target_seq_len, num_heads, -1).transpose(1,2)
-  value = value.reshape(target_batch_size, target_seq_len, num_heads, -1).transpose(1, 2)
-  query = query.reshape(target_batch_size, 1, num_heads, -1).transpose(1, 2)
-
-  scale_factor = 1 / math.sqrt(query.size(-1))
-  attn_weight = query @ key.transpose(-2, -1) * scale_factor
-  attn_weight = torch.softmax(attn_weight, dim=-1)
-  if dropout_p > 0 and training == True:
-    attn_weight = torch.dropout(attn_weight, dropout_p, train=True)
-  result = attn_weight @ value
-  result = result.view(target_batch_size, -1)
-  attn_weight = attn_weight.detach().view(target_batch_size, num_heads, target_seq_len)
-  attn_weight = torch.mean(attn_weight, dim = 1)
-  return result, attn_weight
-
-
-class MHA(nn.Module):
-  def __init__(self, embedding_dim:int, num_heads:int, k_dim:int|None = None, dropout:float=0.0):
-    super().__init__()
-    if k_dim is None:
-      k_dim = embedding_dim
-    self.num_heads = num_heads
-    self.k_dim = k_dim
-    self.embedding_dim = embedding_dim
-    self.k_proj = nn.Linear(k_dim, k_dim)
-    self.q_proj = nn.Linear(embedding_dim, k_dim)
-    self.v_proj = nn.Linear(embedding_dim, embedding_dim)
-    self.dropout = dropout
-
-  def forward(self, q, k, v):
-    q = self.q_proj(q)
-    k = self.k_proj(k)
-    v = self.v_proj(v)
-    return scaled_dot_product_attention(q, k, v, self.num_heads, dropout_p=self.dropout, training=self.training)
-# from .mytorch import MultiheadAttention
-
-def mha1(q: torch.Tensor,
-         k: torch.Tensor,
-         v: torch.Tensor,
-         embed_dim: int,
-         kqdim: int,
-         num_heads: int,
-         out_projection: nn.Linear,
-         dropout_p=0.0,
-         training: bool = True) -> (torch.Tensor, torch.Tensor):
-  v_head_dim = embed_dim // num_heads
-  kq_head_dim = kqdim // num_heads
-
-  flat_seq_len, context_len, _ = k.shape
-  # q = flat_seq,           1, kqdim
-  # k = flat_seq, context_len, kqdim
-  # We want
-  # q = flat_seq*num_heads,           1, kq_head_dim
-  # k = flat_seq*num_heads, kq_head_dim, context_len
-  q = q.view(flat_seq_len, 1, num_heads, kq_head_dim).permute(0, 2, 1, 3).view(-1, 1, kq_head_dim)
-  k = k.view(flat_seq_len, context_len, num_heads, kq_head_dim).permute(0, 2, 3, 1).contiguous().view(-1, kq_head_dim,
-                                                                                                      context_len)
-  v = v.view(flat_seq_len, context_len, num_heads, v_head_dim).permute(0, 2, 1, 3).contiguous().view(-1, context_len,
-                                                                                                     v_head_dim)
-  # reshape(v.shape[0], num_heads, context_len, v_head_dim)
-
-  # q = q.view(tgt_len, bsz * num_heads, kq_head_dim)
-  # k = k.reshape(k.shape[0], ssz * num_heads, kq_head_dim)
-  # v = v.reshape(v.shape[0], ssz * num_heads, v_head_dim)
-
-  if not training:
-    dropout_p = 0.0
-
-  E = q.shape[-1]
-  q_scaled = q * math.sqrt(1.0 / float(E))
-  # k.transpose(-2, -1) = flat_seq, kq_head_dim, num_heads*context_len
-  # q                   = flat_seq,   num_heads, kq_head_dim
-  # attn_output_weights = torch.bmm(q_scaled, k.transpose(-2, -1))
-  attn_output_weights = torch.bmm(q_scaled, k)
-  attn_output_weights = F.softmax(attn_output_weights, dim=-1)
-  if dropout_p > 0.0:
-    attn_output_weights = F.dropout(attn_output_weights, p=dropout_p)
-
-  attn_output = torch.bmm(attn_output_weights, v)
-  attn_output = attn_output.contiguous().view(flat_seq_len, -1)
-
-  # attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len * bsz, embed_dim)
-  attn_output = out_projection(attn_output)
-
-  # average attention weights over heads
-  # We don't want to waste mem on this since backprop won't use the mean.
-  with torch.no_grad():
-    attn_output_weights = attn_output_weights.view(flat_seq_len, num_heads, context_len).detach()
-    attn_output_weights = attn_output_weights.mean(dim=1)
-  return attn_output, attn_output_weights
-
 
 def roll_by_gather(data, shifts: torch.Tensor, guard_mask=None):
   # modified from https://stackoverflow.com/questions/66596699/how-to-shift-columns-or-rows-in-a-tensor-with-different-offsets-in-pytorch
@@ -117,7 +21,6 @@ def roll_by_gather(data, shifts: torch.Tensor, guard_mask=None):
     arange2 = (arange1 - shifts)
     arange2 = arange2[guard_mask]
   return torch.gather(data, 0, arange2)
-
 
 def tile_within(x, buffer):
   # Alternate/faster version: https://stackoverflow.com/questions/66596699/how-to-shift-columns-or-rows-in-a-tensor-with-different-offsets-in-pytorch
@@ -169,6 +72,7 @@ class FlattenedBatch:
                                               torch.cumsum(self.sample_lengths, 0, dtype=torch.int64)[:-1]])
     return self._sample_start_idxs
 
+
   @property
   def batch_size(self) -> int:
     return len(self.sample_lengths_list)
@@ -188,7 +92,8 @@ class FlattenedBatch:
       idx_list.append(seq_idxs[last_idx:last_idx + next_idx])
       last_idx += next_idx
 
-    # This list of idxs now has every sample idx in it withpadding idxs prefixing them. Whe we tile this it will give us the almost idxs we need.
+
+    #This list of idxs now has every sample idx in it withpadding idxs prefixing them. Whe we tile this it will give us the almost idxs we need.
     tile_idxs = torch.concat(idx_list)
     # This will allow us to select out the tiled areas we care about only
     data_idxs = tile_idxs >= buff_len
@@ -219,6 +124,8 @@ class FlattenedBatch:
     return cls(torch.concat(parts), sample_lengths)
 
 
+
+
 class DistiledMultiheadAttention(nn.Module):
   """Trying ideas to reduce the overall attn length
   """
@@ -236,24 +143,20 @@ class DistiledMultiheadAttention(nn.Module):
 
     assert embed_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
     self.num_heads = num_heads
-    self.emb_dim = embed_dim
-    if key_dim is None:
-      key_dim = embed_dim
-    self.key_dim = key_dim
+    self.emb_dim =embed_dim
     # head_size = int(embed_dim / num_heads)
 
     # k&v are what are 'attended' to and will be cached for generation.
     # Tying them together for performance
     self.kv_first = kv_first
     if kv_first:
-      scale_dim = embed_dim + key_dim
+      scale_dim = embed_dim * 2
     else:
       scale_dim = embed_dim
-    post_tile_dim = embed_dim + key_dim
-    #self.in_proj = nn.Linear(embed_dim, embed_dim)
+    post_tile_dim = embed_dim*2
     self.key_value = nn.Linear(embed_dim, post_tile_dim)
 
-    self.query = nn.Linear(embed_dim, key_dim)
+    self.query = nn.Linear(embed_dim, embed_dim)
     # proj to clean things up after
     self.proj = nn.Linear(embed_dim, embed_dim)
     self.proj_dropout = nn.Dropout(ff_dropout)
@@ -263,15 +166,13 @@ class DistiledMultiheadAttention(nn.Module):
     scale_distilations = []
     utility_predictors = []
     layer_buffers = []
-
     def build_scale_distilation():
-      l1 = nn.Linear(scale_length * scale_dim, scale_length * 10)
-      l2 = nn.Linear(scale_length * 10, scale_length)
+      l1 = nn.Linear(scale_length * scale_dim, scale_length*10)
+      l2 = nn.Linear(scale_length*10, scale_length)
       return nn.Sequential(l1, nn.GELU(), l2)
-
     def build_utility_prediction():
-      l1 = nn.Linear(scale_length * scale_dim, scale_length * 10)
-      l2 = nn.Linear(scale_length * 10, 1)
+      l1 = nn.Linear(scale_length * scale_dim, scale_length*10)
+      l2 = nn.Linear(scale_length*10, 1)
       return nn.Sequential(l1, nn.GELU(), l2)
 
     # Don't need to distil or predict the last layer anymore
@@ -279,36 +180,28 @@ class DistiledMultiheadAttention(nn.Module):
       # Keeping this simple right now.
       # This is predicting the value of each value in the scale window so we can softmax and sum on it.
       scale_distilations.append(build_scale_distilation())
-      # The tulity predictor is pretty lightweight since it only outputs size 1
+      #The tulity predictor is pretty lightweight since it only outputs size 1
       utility_predictors.append(build_utility_prediction())
       # We need a buffer for each layer at the beginning so that we can stack things properly
       layer_buffers.append(nn.Parameter(torch.empty((scale_length - 1, scale_dim))))
-    # The final scale doesn't need predictors for the next level
+    #The final scale doesn't need predictors for the next level
     layer_buffers.append(nn.Parameter(torch.empty((scale_lengths[-1] - 1, scale_dim))))
     # These construct the next layer
     self.scale_distilations = nn.ModuleList(scale_distilations)
     # These predict the utility of the next layer
     self.utility_predictors = nn.ModuleList(utility_predictors)
     self.layer_buffers = nn.ParameterList(layer_buffers)
-    # self.mha = MultiheadAttention(embed_dim,
-    #                                       num_heads,
-    #                                       dropout=0.0,
-    #                                       bias=True,
-    #                                       batch_first=True,
-
-    #                                       kdim=key_dim,
-    #                                       vdim=embed_dim)
-    #self.mha = MHA(embed_dim, num_heads, k_dim=key_dim)
     self.mha = torch.nn.MultiheadAttention(embed_dim,
-                                       num_heads,
-                                       dropout=0.0,
-                                       bias=True,
-                                       batch_first=True)
+                                           num_heads,
+                                           dropout=0.0,
+                                           bias=True,
+                                           batch_first=True)
     if add_position:
       self.position = nn.Parameter(torch.zeros(1, sum(self.scale_window_lengths), post_tile_dim))
     else:
       self.register_parameter("position", None)
     self.reset_parameters()
+
 
   def reset_parameters(self) -> None:
     for p in self.layer_buffers:
@@ -370,7 +263,9 @@ class DistiledMultiheadAttention(nn.Module):
       selected = expected_utility > running_ave_utility
       selected = torch.logical_or(selected, required_idxs, out=selected)
 
-    # We need to know how long the new sample lengths are. To do that we count up the selected and use that to find the new lengths
+
+
+    #We need to know how long the new sample lengths are. To do that we count up the selected and use that to find the new lengths
     cumsum = torch.cumsum(selected, 0)
     end_counts = cumsum[end_idxs]
     next_layer_lengths = torch.concat((end_counts[0:1], end_counts[1:] - end_counts[:-1]))
@@ -396,15 +291,14 @@ class DistiledMultiheadAttention(nn.Module):
     next_layer = FlattenedBatch(next_layer, next_layer_lengths)
 
     selected_expected_utility = FlattenedBatch(selected_expected_utility.unsqueeze(-1), next_layer_lengths)
-    utility_buffer = torch.zeros((self.scale_window_lengths[layer + 1] - 1, 1),
-                                 device=selected_expected_utility.data.device)
-    # This utility will map to the tiled next layer and selected for the previous layer so just do it now.
+    utility_buffer = torch.zeros((self.scale_window_lengths[layer + 1] - 1, 1), device=selected_expected_utility.data.device)
+    #This utility will map to the tiled next layer and selected for the previous layer so just do it now.
     selected_expected_utility = selected_expected_utility.tile_within(utility_buffer)
     return tiled_f_x, next_layer, selected_take_map, selected_expected_utility.data
 
-  def forward(self, x: torch.Tensor | FlattenedBatch, cache: Optional[list] = None, lengths=None) -> (
-          torch.Tensor, torch.Tensor):
-    # Lengths are always passed right now since we don't support prod inferrence yet.
+
+  def forward(self, x:torch.Tensor|FlattenedBatch, cache: Optional[list] = None, lengths=None) -> (torch.Tensor, torch.Tensor):
+    #Lengths are always passed right now since we don't support prod inferrence yet.
 
     # Useful for later ops
 
@@ -415,7 +309,7 @@ class DistiledMultiheadAttention(nn.Module):
     else:
       return_flat_batch = True
       lengths = x.sample_lengths
-    #x = FlattenedBatch(self.in_proj(x.data), x)
+
     if self.kv_first:
       current_layer = FlattenedBatch(self.key_value(x.data), x)
     else:
@@ -425,8 +319,7 @@ class DistiledMultiheadAttention(nn.Module):
     things_to_save = []
 
     for i in range(len(self.scale_window_lengths) - 1):
-      tiled_previous_f_x, next_layer, selected_take_map, selected_expected_utility = self._gen_attn_layer(current_layer,
-                                                                                                          i)
+      tiled_previous_f_x, next_layer, selected_take_map, selected_expected_utility = self._gen_attn_layer(current_layer, i)
       current_layer = next_layer
       # selected_take_map will take the next layer and fill it to be the same length as the previous layer
       things_to_save.append((tiled_previous_f_x, selected_take_map, selected_expected_utility))
@@ -445,17 +338,16 @@ class DistiledMultiheadAttention(nn.Module):
 
       # if expected_utility is None:
       #  expected_utility = selected_expected_utility
-      # else:
-      # We are building in reverse.
-      # Expand what we have
-      # expected_utility = expected_utility[selected_take_map]
-      # The new one is already expanded.
-      # expected_utility = torch.concat((selected_expected_utility, expected_utility), -2)
-      # kv = kv[selected_take_map]
-      # We are building in reverse.
-      # kv = torch.concat([tiled_f_x.data, kv], -2)
-      take_maps.append(
-        [torch.arange(last_kv.shape[0], dtype=torch.int64, device=last_kv.device), last_kv, selected_expected_utility])
+      #else:
+        #We are building in reverse.
+        #Expand what we have
+        #expected_utility = expected_utility[selected_take_map]
+        #The new one is already expanded.
+        #expected_utility = torch.concat((selected_expected_utility, expected_utility), -2)
+      #kv = kv[selected_take_map]
+      #We are building in reverse.
+      #kv = torch.concat([tiled_f_x.data, kv], -2)
+      take_maps.append([torch.arange(last_kv.shape[0], dtype=torch.int64, device=last_kv.device), last_kv, selected_expected_utility])
       for d in take_maps:
         d[0] = d[0][selected_take_map]
       last_kv = tiled_previous_f_x.data
@@ -475,32 +367,22 @@ class DistiledMultiheadAttention(nn.Module):
       scale_histories.insert(0, self.key_value(last_kv))
     kv = torch.concat(scale_histories, dim=-2)
     expected_utility = torch.concat(expected_utilities, dim=-2)
-    q = self.query(x.data)
-    q = q.view(-1, 1, self.key_dim)
-    # q: seq_len, 1, num_heads, head_size
+    q = self.query(x.data).view(-1, 1, self.emb_dim)
+    #q: seq_len, 1, num_heads, head_size
     if not self.position is None:
       kv = kv + self.position
-    k = kv[:, :, 0:self.key_dim]
-    v = kv[:, :, self.key_dim:]
-    # Utility is coming back detached/no grad already
-    #x, utility = mha(q, k, v, self.emb_dim, self.key_dim, self.num_heads, self.proj, training=self.training)
-    #x, utility = scaled_dot_product_attention(q, k, v, self.num_heads, training=self.training)
-    x, utility = self.mha(q, k, v)
-    #needed for pytorch mha
+    kv = kv.view(*kv.shape[:-1], 2, -1)
+    k = kv[:,:,0,:].view(-1, kv.shape[-3], self.emb_dim)
+    v = kv[:,:,1,:].view(*k.shape)
+    x, utility = self.mha(q,k,v)
     x = x.squeeze(-2)
-    utility = utility.detach().squeeze(-2)
-    x = self.proj(x)
-
-    # x = x.squeeze(-2)
     expected_utility = expected_utility.squeeze(-1)
-    # utility = utility.squeeze(-2)[:, self.scale_window_lengths[0]:].detach()
-    utility = utility[:, self.scale_window_lengths[0]:]
+    utility = utility.squeeze(-2)[:,self.scale_window_lengths[0]:].detach()
     u_map = expected_utility > 0
     utility = utility[u_map]
     expected_utility = expected_utility[u_map]
-    # x = self.proj_dropout(self.proj(x))
-    x = self.proj_dropout(x)
-    utility_loss = F.mse_loss(expected_utility, utility, reduction="mean")
+    x = self.proj_dropout(self.proj(x))
+    utility_loss = F.mse_loss(expected_utility, utility.detach(), reduction="mean")
     x = FlattenedBatch(x, lengths)
     if not return_flat_batch:
       x = x.unflatten()
@@ -566,8 +448,7 @@ class Block(nn.Module):
                             create_linear(ff_linear, 'block_ff_2', embed_dim * 4, embed_dim),
                             nn.Dropout(ff_dropout))
 
-  def forward(self, x: torch.Tensor | FlattenedBatch, cache: Optional[list] = None,
-              lengths: torch.Tensor | None = None):
+  def forward(self, x:torch.Tensor|FlattenedBatch, cache: Optional[list] = None, lengths: torch.Tensor|None = None):
     # A simple 'block' that uses residual connections and gives attn + pure logic both a chance to modify the hidden layer
     # the 'cache' is the kv cache and is only needed for inference, not training.
     if isinstance(x, FlattenedBatch):
