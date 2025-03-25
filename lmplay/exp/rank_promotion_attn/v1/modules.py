@@ -8,6 +8,44 @@ from torch.nn.utils import rnn
 
 __all__ = ['DistiledMultiheadAttention']
 
+#stolen from pytorch docs and modified.
+def scaled_dot_product_attention(query, key, value, num_heads:int, dropout_p=0.0, training: bool = True) -> (torch.Tensor, torch.Tensor):
+  target_batch_size, target_seq_len, target_embed_dim = value.shape
+  key = key.reshape(target_batch_size, target_seq_len, num_heads, -1).transpose(1,2)
+  value = value.reshape(target_batch_size, target_seq_len, num_heads, -1).transpose(1, 2)
+  query = query.reshape(target_batch_size, 1, num_heads, -1).transpose(1, 2)
+
+  scale_factor = 1 / math.sqrt(query.size(-1))
+  attn_weight = query @ key.transpose(-2, -1) * scale_factor
+  attn_weight = torch.softmax(attn_weight, dim=-1)
+  if dropout_p > 0 and training == True:
+    attn_weight = torch.dropout(attn_weight, dropout_p, train=True)
+  result = attn_weight @ value
+  result = result.view(target_batch_size, -1)
+  attn_weight = attn_weight.detach().view(target_batch_size, num_heads, target_seq_len)
+  attn_weight = torch.mean(attn_weight, dim = 1)
+  return result, attn_weight
+
+
+class MHA(nn.Module):
+  def __init__(self, embedding_dim:int, num_heads:int, k_dim:int|None = None, dropout:float=0.0):
+    super().__init__()
+    if k_dim is None:
+      k_dim = embedding_dim
+    self.num_heads = num_heads
+    self.k_dim = k_dim
+    self.embedding_dim = embedding_dim
+    self.k_proj = nn.Linear(k_dim, k_dim)
+    self.q_proj = nn.Linear(embedding_dim, k_dim)
+    self.v_proj = nn.Linear(embedding_dim, embedding_dim)
+    self.dropout = dropout
+
+  def forward(self, q, k, v):
+    q = self.q_proj(q)
+    k = self.k_proj(k)
+    v = self.v_proj(v)
+    return scaled_dot_product_attention(q, k, v, self.num_heads, dropout_p=self.dropout, training=self.training)
+
 def roll_by_gather(data, shifts: torch.Tensor, guard_mask=None):
   # modified from https://stackoverflow.com/questions/66596699/how-to-shift-columns-or-rows-in-a-tensor-with-different-offsets-in-pytorch
   #The guard mask works for this specific use where we are shifting indexes to tile in a buffer.
@@ -190,11 +228,11 @@ class DistiledMultiheadAttention(nn.Module):
     # These predict the utility of the next layer
     self.utility_predictors = nn.ModuleList(utility_predictors)
     self.layer_buffers = nn.ParameterList(layer_buffers)
-    self.mha = torch.nn.MultiheadAttention(embed_dim,
-                                           num_heads,
-                                           dropout=0.0,
-                                           bias=True,
-                                           batch_first=True)
+    #self.mha = torch.nn.MultiheadAttention(embed_dim,
+    #                                       num_heads,
+    #                                       dropout=0.0,
+    #                                       bias=True,
+    #                                       batch_first=True)
     if add_position:
       self.position = nn.Parameter(torch.zeros(1, sum(self.scale_window_lengths), post_tile_dim))
     else:
@@ -368,10 +406,13 @@ class DistiledMultiheadAttention(nn.Module):
     kv = kv.view(*kv.shape[:-1], 2, -1)
     k = kv[:,:,0,:].view(-1, kv.shape[-3], self.emb_dim)
     v = kv[:,:,1,:].view(*k.shape)
-    x, utility = self.mha(q,k,v)
-    x = x.squeeze(-2)
+    x, utility = scaled_dot_product_attention(q,k,v, self.num_heads)
+    #x, utility = self.mha(q,k,v)
+    #x = x.squeeze(-2)
+
     expected_utility = expected_utility.squeeze(-1)
-    utility = utility.squeeze(-2)[:,self.scale_window_lengths[0]:].detach()
+    #utility = utility.squeeze(-2)[:,self.scale_window_lengths[0]:].detach()
+    utility = utility[:,self.scale_window_lengths[0]:].detach()
     u_map = expected_utility > 0
     utility = utility[u_map]
     expected_utility = expected_utility[u_map]
