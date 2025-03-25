@@ -71,7 +71,7 @@ def runner(*args, **kwargs):
                           overrides=dict(attn_scales=(3, 3, 3, 3, 3, 3, 3, 3),
                                          add_attn_postion=True,
                                          kv_first=False,
-                                         key_dim=256,
-                                         num_heads=4),
+                                         #key_dim=256,
+                                         num_heads=12),
 
                           **kwargs)
