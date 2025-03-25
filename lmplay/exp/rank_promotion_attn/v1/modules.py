@@ -296,18 +296,23 @@ class DistiledMultiheadAttention(nn.Module):
     return tiled_f_x, next_layer, selected_take_map, selected_expected_utility.data
 
 
-  def forward(self, x, cache: Optional[list] = None, lengths=None) -> (torch.Tensor, torch.Tensor):
+  def forward(self, x:torch.Tensor|FlattenedBatch, cache: Optional[list] = None, lengths=None) -> (torch.Tensor, torch.Tensor):
     #Lengths are always passed right now since we don't support prod inferrence yet.
 
     # Useful for later ops
-    batch_size, seq_len, embed_dim = x.shape
 
-    #Start by flattening it all out
-    x = FlattenedBatch.flatten(x, lengths)
+    if not isinstance(x, FlattenedBatch):
+      return_flat_batch = False
+      #Start by flattening it all out
+      x = FlattenedBatch.flatten(x, lengths)
+    else:
+      return_flat_batch = True
+      lengths = x.sample_lengths
+
     if self.kv_first:
       current_layer = FlattenedBatch(self.key_value(x.data), x)
     else:
-      current_layer = FlattenedBatch(x.data, x)
+      current_layer = x
 
     #We need to save things each round to put it all back together
     things_to_save = []
@@ -377,7 +382,9 @@ class DistiledMultiheadAttention(nn.Module):
     expected_utility = expected_utility[u_map]
     x = self.proj_dropout(self.proj(x))
     utility_loss = F.mse_loss(expected_utility, utility.detach(), reduction="mean")
-    x = FlattenedBatch(x, lengths).unflatten()
+    x = FlattenedBatch(x, lengths)
+    if not return_flat_batch:
+      x = x.unflatten()
     return x, utility_loss
 
 
@@ -441,10 +448,18 @@ class Block(nn.Module):
                             create_linear(ff_linear, 'block_ff_2', embed_dim * 4, embed_dim),
                             nn.Dropout(ff_dropout))
 
-  def forward(self, x, cache: Optional[list] = None, lengths: torch.Tensor|None = None):
+  def forward(self, x:torch.Tensor|FlattenedBatch, cache: Optional[list] = None, lengths: torch.Tensor|None = None):
     # A simple 'block' that uses residual connections and gives attn + pure logic both a chance to modify the hidden layer
     # the 'cache' is the kv cache and is only needed for inference, not training.
-    attn, attn_loss = self.attn(self.ln1(x), cache=cache, lengths=lengths)
-    x = self.mha_lradd(x, attn)
-    x = self.ff_lradd(x, self.ff(self.ln2(x)))
-    return x, attn_loss
+    if isinstance(x, FlattenedBatch):
+      lengths = x.sample_lengths
+      x = x.data
+      attn, attn_loss = self.attn(FlattenedBatch(self.ln1(x), lengths), cache=cache, lengths=lengths)
+      x = self.mha_lradd(x.data, attn.data)
+      x = self.ff_lradd(x, self.ff(self.ln2(x)))
+      return FlattenedBatch(x, lengths), attn_loss
+    else:
+      attn, attn_loss = self.attn(self.ln1(x), cache=cache, lengths=lengths)
+      x = self.mha_lradd(x, attn)
+      x = self.ff_lradd(x, self.ff(self.ln2(x)))
+      return x, attn_loss
