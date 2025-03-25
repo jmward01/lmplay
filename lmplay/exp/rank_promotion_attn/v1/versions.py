@@ -69,9 +69,6 @@ def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(attn_scales=(3, 3, 3, 3, 3, 3, 3, 3),
-                                         add_attn_postion=True,
-                                         kv_first=False,
-                                         #key_dim=256,
-                                         num_heads=12),
+                                         add_attn_postion=True),
 
                           **kwargs)
