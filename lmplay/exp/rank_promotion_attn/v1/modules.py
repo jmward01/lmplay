@@ -383,7 +383,7 @@ class DistiledMultiheadAttention(nn.Module):
                                self.num_distil_head_groups,
                                int(self.num_distil_heads/self.num_distil_head_groups),
                                scale_window_len)
-      rankings = torch.sum(rankings, dim = 2).unsqueeze(-2)
+      rankings = torch.sum(rankings, dim = 2).unsqueeze(-2) / int(self.num_distil_heads/self.num_distil_head_groups)
     selected_tiled_f_x = selected_tiled_f_x.view(flat_seq, scale_window_len, self.num_distil_head_groups, -1)
     selected_tiled_f_x = selected_tiled_f_x.permute(0, 2, 1, 3)
 
