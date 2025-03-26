@@ -47,7 +47,7 @@ class GPT2(LMBase):
     self.max_len = max_len
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     if add_model_attn:
-      self.pos_embed = nn.Parameter(torch.zeros(max_len, embed_dim))
+      self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     else:
       self.register_parameter("pos_embed", None)
     self.dropout = nn.Dropout(embed_dropout)
@@ -75,7 +75,7 @@ class GPT2(LMBase):
     # tok_embedding.shape == (batch_size, seq_len, embed_dim)
     if not self.pos_embed is None:
       #broken for inference
-      pos_embedding = torch.concat([self.pos_embed[:end, :] for end in lengths], dim=0)
+      pos_embedding = torch.concat([self.pos_embed[0, :end, :] for end in lengths], dim=0)
       x = self.dropout(tok_embedding + pos_embedding)
     else:
       #broken for inference
