@@ -38,7 +38,13 @@ class OptimizerWarmupLRScheduler(LRScheduler):
 
 
 class MBase(nn.Module):
-  def __init__(self, name: str, *init_args, expect_extra_loss=False, pass_lengths=False, **init_kwargs):
+  def __init__(self,
+               name: str,
+               *init_args,
+               expect_extra_loss=False,
+               pass_lengths=False,
+               flat_batch=False,
+               **init_kwargs):
     super().__init__()
     self.name = name.replace('.', '_')
     self.init_args = init_args
@@ -46,6 +52,7 @@ class MBase(nn.Module):
     self.max_len = init_kwargs['max_len']
     self.expect_extra_loss = expect_extra_loss
     self.pass_lengths = pass_lengths
+    self.flat_batch = flat_batch
 
   def initialize(self, device):
     pass
@@ -83,7 +90,7 @@ class MBase(nn.Module):
     tokens = torch.tensor(tokens, dtype=torch.long, device=device)
     return tokens, prediction_starts
 
-  def _tokenize_batch(self, batch: Sequence[dict]) -> (torch.Tensor, Sequence[int]):
+  def _tokenize_batch(self, batch: Sequence[dict], dont_pad=False) -> (torch.Tensor, Sequence[int]):
     device = self.fc.weight.device
     predictions_starts = []
     predictions_ends = []
@@ -92,9 +99,9 @@ class MBase(nn.Module):
       t, ps = self._tokenize_str(t, device)
       x.append(t)
       predictions_starts.append(ps)
-      predictions_ends.append(t.size(-1) - 1)
-
-    x = pad_sequence(x, batch_first=True, padding_value=self.tokenizer.eot_token)
+      predictions_ends.append(int(t.size(-1)) - 1)
+      if not dont_pad:
+        x = pad_sequence(x, batch_first=True, padding_value=self.tokenizer.eot_token)
     return x, predictions_starts, predictions_ends
 
   def to(self, *args, **kwargs):
@@ -120,14 +127,18 @@ class MBase(nn.Module):
 
   def train_prompts(self, prompts: Sequence[dict], include_prompts=True) -> (Sequence[str], torch.Tensor):
     # We want to pad them together so that the truths will line up with the prompts.
-    x, predictions_starts, predictions_ends = self._tokenize_batch(prompts)
-    # Truth doesn't have the first EOT char. It needs to start on prediction start
-    truths = x[:, 1:]
-    # x doesn't need the last EOT since it will be predicting that
-    x = x[:, :-1]
+    x, predictions_starts, predictions_ends = self._tokenize_batch(prompts, dont_pad=self.flat_batch)
+    if self.flat_batch:
+      truths = torch.concat([t[1:] for t in x], dim = 0)
+      x = torch.concat([t[:-1] for t in x], dim = 0)
+    else:
+      # Truth doesn't have the first EOT char. It needs to start on prediction start
+      truths = x[:, 1:]
+      # x doesn't need the last EOT since it will be predicting that
+      x = x[:, :-1]
 
     if self.pass_lengths:
-
+      #These ends should already be one short/match the actual prediction end
       x = self(x, lengths=torch.tensor(predictions_ends, dtype=torch.int64, device=x.device))
     else:
       x = self(x)
@@ -137,8 +148,15 @@ class MBase(nn.Module):
     else:
       extra_loss = None
     results = []
+    if self.flat_batch:
+      # num classes is always second. For, reasons?
+      target_loss = F.cross_entropy(x.unsqueeze(0).permute(0, 2, 1), truths.unsqueeze(0), reduction="none")
+      target_loss = torch.split(target_loss.squeeze(0), predictions_ends)
+    else:
+      target_loss = F.cross_entropy(x.permute(0, 2, 1), truths, reduction="none")
+      target_loss = torch.split(target_loss, predictions_ends)
+
     # num classes is always second. For, reasons?
-    target_loss = F.cross_entropy(x.permute(0, 2, 1), truths, reduction="none")
     if extra_loss is None:
       total_target_loss = 0.0
     else:
@@ -160,10 +178,17 @@ class MBase(nn.Module):
     # Get the predicted value so we can cut just that out as the result.
     predicted_tokens = torch.argmax(x, dim=-1)
     # for result, prediction_start, prediction_end, truth in zip(predicted_tokens, predictions_starts, predictions_ends, truths):
-    for result, prediction_start, prediction_end in zip(predicted_tokens, predictions_starts, predictions_ends):
-      # we only care about the prediction.
-      # the last value is end of sentence
-      results.append(self.tokenizer.decode(result[prediction_start:prediction_end].tolist()))
+    if self.flat_batch:
+      for result in torch.split(predicted_tokens, predictions_ends):
+        # we only care about the prediction.
+        # the last value is end of sentence
+        results.append(self.tokenizer.decode(result.tolist()))
+    else:
+
+      for result, prediction_start, prediction_end in zip(predicted_tokens, predictions_starts, predictions_ends):
+        # we only care about the prediction.
+        # the last value is end of sentence
+        results.append(self.tokenizer.decode(result[prediction_start:prediction_end].tolist()))
     # target loss is normalized by example but not by batch. That will be done by the caller.
     return results, total_target_loss, total_token_count
 

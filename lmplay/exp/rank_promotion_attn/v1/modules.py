@@ -77,19 +77,13 @@ def tile_within(x, buffer):
   return new_layer
 
 
-class FlattenedBatch:
-  def __init__(self, data:torch.Tensor, sample_lengths:torch.Tensor):
-    self.data = data
-    if isinstance(sample_lengths, FlattenedBatch):
-      self.sample_lengths = sample_lengths.sample_lengths
-      self._sample_lengths_list:list[int]|None = sample_lengths._sample_lengths_list
-      self._max_sample_length:int|None = sample_lengths._max_sample_length
-      self._sample_start_idxs: torch.Tensor | None = sample_lengths._sample_start_idxs
-    else:
-      self.sample_lengths = sample_lengths
-      self._sample_lengths_list:list[int]|None = None
-      self._max_sample_length:int|None = None
-      self._sample_start_idxs: torch.Tensor | None = None
+class FlattenedBatchInfo:
+  def __init__(self, sample_lengths:torch.Tensor):
+    self.sample_lengths = sample_lengths
+    self._sample_lengths_list:list[int]|None = None
+    self._max_sample_length:int|None = None
+    self._sample_start_idxs: torch.Tensor | None = None
+    self._flat_size:int|None = None
 
   @property
   def sample_lengths_list(self) -> list[int]:
@@ -106,7 +100,7 @@ class FlattenedBatch:
   @property
   def sample_start_idxs(self):
     if self._sample_start_idxs is None:
-      self._sample_start_idxs = torch.concat([torch.tensor([0], dtype=torch.int64, device=self.data.device),
+      self._sample_start_idxs = torch.concat([torch.tensor([0], dtype=torch.int64, device=self.sample_lengths.device),
                                               torch.cumsum(self.sample_lengths, 0, dtype=torch.int64)[:-1]])
     return self._sample_start_idxs
 
@@ -115,12 +109,19 @@ class FlattenedBatch:
   def batch_size(self) -> int:
     return len(self.sample_lengths_list)
 
-  def tile_within(self, buffer:torch.Tensor):
+  @property
+  def flat_size(self) -> int:
+    if self._flat_size is None:
+      self._flat_size = sum(self.sample_lengths_list)
+    return self._flat_size
+
+
+  def tile_within(self, data:torch.Tensor, buffer:torch.Tensor) -> torch.Tensor:
     #Buffer size dictates the tile size. Tile = buffer.shape[0] + 1
     #buffer: len, emb_size
     buff_len = buffer.shape[0]
-    seq_idxs = torch.arange(buff_len, buff_len + self.data.shape[0], device=self.data.device)
-    buf_idxs = torch.arange(0, buff_len, device=self.data.device)
+    seq_idxs = torch.arange(buff_len, buff_len + data.shape[0], device=data.device)
+    buf_idxs = torch.arange(0, buff_len, device=data.device)
     last_idx = 0
     idx_list = []
     #Not a fan of this loop but it should be relatively fast since it is batch size long.
@@ -140,27 +141,67 @@ class FlattenedBatch:
     tile_idxs = tile_idxs.unsqueeze(-1).expand(-1, buff_len + 1)
     tile_idxs = roll_by_gather(tile_idxs, shift, guard_mask=data_idxs)
     tile_idxs = tile_idxs.reshape(-1)
-    tiled_data = torch.concat([buffer, self.data])[tile_idxs]
+    tiled_data = torch.concat([buffer, data])[tile_idxs]
 
-    tiled_data = tiled_data.view(self.data.shape[0], -1, *self.data.shape[1:])
-    return FlattenedBatch(tiled_data, self)
+    tiled_data = tiled_data.view(data.shape[0], -1, * data.shape[1:])
+    return tiled_data
 
-  def unflatten(self) -> torch.Tensor:
+  def unflatten(self, data) -> torch.Tensor:
     #Turn this back into a batch. I assume the pytorch routines here are fast.
-    tensors = list(torch.split(self.data, self.sample_lengths_list))
+    tensors = list(torch.split(data, self.sample_lengths_list))
     fp = rnn.pack_sequence(tensors, False)
     d, lengths = rnn.pad_packed_sequence(fp, batch_first=True)
     return d
 
   @classmethod
-  def flatten(cls, batch, sample_lengths:torch.Tensor) -> "FlattenedBatch":
+  def flatten(cls, batch, sample_lengths:torch.Tensor) -> (torch.Tensor, "FlattenedBatchInfo"):
     #Not a huge fan of this method. I wish the pytorch rnn stuff was a little easier to deal with.
     #It probably is, I just am missing how they pack things in a PackedSequence to be able to easily use it.
     parts = []
     for sample, length in zip(batch, sample_lengths):
       parts.append(sample[:length])
-    return cls(torch.concat(parts), sample_lengths)
+    return torch.concat(parts), cls(sample_lengths)
 
+
+class FlattenedBatch:
+  def __init__(self, data:torch.Tensor, lengths:FlattenedBatchInfo):
+    self.data = data
+    self.lengths = lengths
+    #Useful for debugging
+    assert data.shape[0] == lengths.flat_size
+
+  @property
+  def sample_lengths(self) -> torch.Tensor:
+    return self.lengths.sample_lengths
+
+  @property
+  def sample_lengths_list(self) -> list[int]:
+    return self.lengths.sample_lengths_list
+
+  @property
+  def max_sample_length(self) -> int:
+    return self.lengths.max_sample_length
+
+  @property
+  def sample_start_idxs(self):
+    return self.lengths.sample_start_idxs
+
+
+  @property
+  def batch_size(self) -> int:
+    return self.lengths.batch_size
+
+  def tile_within(self, buffer:torch.Tensor) -> "FlattenedBatch":
+    tile_data = self.lengths.tile_within(self.data, buffer)
+    return FlattenedBatch(tile_data, self.lengths)
+
+  def unflatten(self) -> torch.Tensor:
+    return self.lengths.unflatten(self.data)
+
+  @classmethod
+  def flatten(cls, batch, sample_lengths:torch.Tensor) -> "FlattenedBatch":
+    data, lengths = FlattenedBatchInfo.flatten(batch, sample_lengths)
+    return FlattenedBatch(data, lengths)
 
 
 
@@ -325,27 +366,28 @@ class DistiledMultiheadAttention(nn.Module):
     rankings = torch.softmax(rankings, -1).unsqueeze(-1)
     next_layer = selected_tiled_f_x * rankings
     next_layer = torch.sum(next_layer, -2)
-    next_layer = FlattenedBatch(next_layer, next_layer_lengths)
+    next_layer = FlattenedBatch(next_layer, FlattenedBatchInfo(next_layer_lengths))
 
-    selected_expected_utility = FlattenedBatch(selected_expected_utility.unsqueeze(-1), next_layer_lengths)
+    selected_expected_utility = FlattenedBatch(selected_expected_utility.unsqueeze(-1), next_layer.lengths)
     utility_buffer = torch.zeros((self.scale_window_lengths[layer + 1] - 1, 1), device=selected_expected_utility.data.device)
     #This utility will map to the tiled next layer and selected for the previous layer so just do it now.
     selected_expected_utility = selected_expected_utility.tile_within(utility_buffer)
     return tiled_f_x, next_layer, selected_take_map, selected_expected_utility.data
 
 
-  def forward(self, x, cache: Optional[list] = None, lengths=None) -> (torch.Tensor, torch.Tensor):
+  def forward(self, x:FlattenedBatch, cache: Optional[list] = None) -> (torch.Tensor, torch.Tensor):
     #Lengths are always passed right now since we don't support prod inferrence yet.
 
     # Useful for later ops
-    batch_size, seq_len, embed_dim = x.shape
+    #batch_size, seq_len, embed_dim = x.shape
 
     #Start by flattening it all out
-    x = FlattenedBatch.flatten(x, lengths)
+    #x = FlattenedBatch.flatten(x, lengths)
+    lengths = x.lengths
     if self.kv_first:
-      current_layer = FlattenedBatch(self.key_value(x.data), x)
+      current_layer = FlattenedBatch(self.key_value(x.data), x.lengths)
     else:
-      current_layer = FlattenedBatch(x.data, x)
+      current_layer = FlattenedBatch(x.data, x.lengths)
 
     #We need to save things each round to put it all back together
     things_to_save = []
@@ -418,7 +460,7 @@ class DistiledMultiheadAttention(nn.Module):
     expected_utility = expected_utility[u_map]
     x = self.proj_dropout(self.proj(x))
     utility_loss = F.mse_loss(expected_utility, utility.detach(), reduction="mean")
-    x = FlattenedBatch(x, lengths).unflatten()
+    x = FlattenedBatch(x, lengths)
     return x, utility_loss
 
 
@@ -481,10 +523,12 @@ class Block(nn.Module):
                             create_linear(ff_linear, 'block_ff_2', embed_dim * 4, embed_dim),
                             nn.Dropout(ff_dropout))
 
-  def forward(self, x, cache: Optional[list] = None, lengths: torch.Tensor|None = None):
+  def forward(self, x:FlattenedBatch, cache: Optional[list] = None):
+    lengths = x.lengths
+    x = x.data
     # A simple 'block' that uses residual connections and gives attn + pure logic both a chance to modify the hidden layer
     # the 'cache' is the kv cache and is only needed for inference, not training.
-    attn, attn_loss = self.attn(self.ln1(x), cache=cache, lengths=lengths)
-    x = self.mha_lradd(x, attn)
+    attn, attn_loss = self.attn(FlattenedBatch(self.ln1(x), lengths), cache=cache)
+    x = self.mha_lradd(x, attn.data)
     x = self.ff_lradd(x, self.ff(self.ln2(x)))
-    return x, attn_loss
+    return FlattenedBatch(x, lengths), attn_loss

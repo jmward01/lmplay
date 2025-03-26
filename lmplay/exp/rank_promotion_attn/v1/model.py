@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from typing import Optional, List
 
-from .modules import Block
+from .modules import Block, FlattenedBatch, FlattenedBatchInfo
 import tiktoken
 from lmplay.base.base_model import LMBase
 from lmplay.utils import to_name
@@ -39,6 +39,7 @@ class GPT2(LMBase):
                      add_attn_postion=add_attn_postion,
                      kv_first=kv_first,
                      expect_extra_loss=True,
+                     flat_batch=True,
                      pass_lengths=True)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
@@ -46,7 +47,7 @@ class GPT2(LMBase):
     self.max_len = max_len
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     if add_model_attn:
-      self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
+      self.pos_embed = nn.Parameter(torch.zeros(max_len, embed_dim))
     else:
       self.register_parameter("pos_embed", None)
     self.dropout = nn.Dropout(embed_dropout)
@@ -62,31 +63,35 @@ class GPT2(LMBase):
     self.fc = nn.Linear(embed_dim, vocab_size)
 
   def forward(self, x:torch.Tensor, cache:Optional[List] = None, lengths:torch.Tensor|None = None):
-    seq_len = x.size(1)
-    x_start = 0
     if cache is not None and len(cache) > 0:
+      raise  NotImplementedError()
+      #broken for inference
       #the is part of generate
-      x_start = cache[0][0].size(1)
-      seq_len += x_start
-    assert seq_len <= self.max_len, "sequence longer than model capacity"
+      #x_start = cache[0][0].size(1)
+      #seq_len += x_start
+    #assert seq_len <= self.max_len, "sequence longer than model capacity"
     # This only works for training, not production inference.
     tok_embedding = self.tok_embed(x)
     # tok_embedding.shape == (batch_size, seq_len, embed_dim)
     if not self.pos_embed is None:
-      pos_embedding = self.pos_embed[:, x_start:seq_len, :]
-      # pos_embedding.shape == (1, seq_len, embed_dim)
+      #broken for inference
+      pos_embedding = torch.concat([self.pos_embed[:end, :] for end in lengths], dim=0)
       x = self.dropout(tok_embedding + pos_embedding)
     else:
+      #broken for inference
       x = self.dropout(tok_embedding)
     all_attn_loss = 0.0
+    x = FlattenedBatch(x, FlattenedBatchInfo(lengths))
     for i, block in enumerate(self.blocks):
-      x, attn_loss = block(x, cache=self._kv_cache(cache, i), lengths=lengths)
+      x, attn_loss = block(x, cache=self._kv_cache(cache, i))
       all_attn_loss = all_attn_loss + attn_loss
-    x = self.ln(x)
+
+    x = self.ln(x.data)
     if cache is None:
       #No cache then this is training and we need to decode the whole thing
       x = self.fc(x)
     else:
+      #broken for inference
       #Not training. We only care about the last one
       x = self.fc(x[:,-1:,:])
     if not cache is None:
