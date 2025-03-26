@@ -22,9 +22,10 @@ class GPT2(LMBase):
                add_model_attn: bool = True,
                kv_first:bool = True,
                key_dim=None,
+               num_distil_heads=1,
                version="1.0",
                **ignore):
-    super().__init__(to_name(version, add_model_attn, add_attn_postion, kv_first, key_dim, attn_scales=attn_scales, num_blocks=num_blocks, max_len=max_len),
+    super().__init__(to_name(version, add_model_attn, add_attn_postion, kv_first, key_dim, num_distil_heads=num_distil_heads, attn_scales=attn_scales, num_blocks=num_blocks, max_len=max_len),
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
@@ -38,6 +39,7 @@ class GPT2(LMBase):
                      add_model_attn=add_model_attn,
                      add_attn_postion=add_attn_postion,
                      kv_first=kv_first,
+                     num_distil_heads=num_distil_heads,
                      expect_extra_loss=True,
                      flat_batch=True,
                      pass_lengths=True)
@@ -58,7 +60,8 @@ class GPT2(LMBase):
                                         ff_dropout=ff_dropout,
                                         add_position=add_attn_postion,
                                         kv_first=kv_first,
-                                        key_dim=key_dim) for _ in range(num_blocks)])
+                                        key_dim=key_dim,
+                                        num_distil_heads=num_distil_heads) for _ in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 
