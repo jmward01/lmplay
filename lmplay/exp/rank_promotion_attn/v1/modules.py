@@ -213,6 +213,7 @@ class DistiledMultiheadAttention(nn.Module):
                num_heads: int,
                embed_dim: int,
                num_distil_heads:int=1,
+               num_distil_head_groups=None,
                key_dim: int | None = None,
                ff_dropout: Optional[float] = 0.1,
                add_position: bool = True,
@@ -222,6 +223,9 @@ class DistiledMultiheadAttention(nn.Module):
 
     assert embed_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
     self.num_distil_heads = num_distil_heads
+    if num_distil_head_groups is None:
+      num_distil_head_groups = self.num_distil_heads
+    self.num_distil_head_groups = num_distil_head_groups
     self.num_heads = num_heads
     self.emb_dim = embed_dim
     if key_dim is None:
@@ -373,7 +377,14 @@ class DistiledMultiheadAttention(nn.Module):
     #rankings   = flat_seq, heads, 1, scale_window
     #selected_tiled_f_x = flat_seq, heads, scale_window, tile_size/heads
     rankings = torch.softmax(rankings, -1)
-    selected_tiled_f_x = selected_tiled_f_x.view(flat_seq, scale_window_len, self.num_distil_heads, -1)
+
+    if self.num_distil_heads != self.num_distil_head_groups:
+      rankings = rankings.view(flat_seq,
+                               self.num_distil_head_groups,
+                               int(self.num_distil_heads/self.num_distil_head_groups),
+                               scale_window_len)
+      rankings = torch.sum(rankings, dim = 2).unsqueeze(-2)
+    selected_tiled_f_x = selected_tiled_f_x.view(flat_seq, scale_window_len, self.num_distil_head_groups, -1)
     selected_tiled_f_x = selected_tiled_f_x.permute(0, 2, 1, 3)
 
     next_layer = rankings @ selected_tiled_f_x

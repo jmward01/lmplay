@@ -29,6 +29,8 @@ def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(key_dim=12*20,
-                                         num_distil_heads=12),
+                                         num_distil_heads=12,
+                                         num_distil_head_groups=3),
 
                           **kwargs)
+#num_distil_head_groups
