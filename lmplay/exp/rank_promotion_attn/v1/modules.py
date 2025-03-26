@@ -212,6 +212,7 @@ class DistiledMultiheadAttention(nn.Module):
                scale_lengths: list[int],
                num_heads: int,
                embed_dim: int,
+               num_distil_heads:int=1,
                key_dim: int | None = None,
                ff_dropout: Optional[float] = 0.1,
                add_position: bool = True,
@@ -220,6 +221,7 @@ class DistiledMultiheadAttention(nn.Module):
     super().__init__()
 
     assert embed_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
+    self.num_distil_heads = num_distil_heads
     self.num_heads = num_heads
     self.emb_dim = embed_dim
     if key_dim is None:
@@ -250,7 +252,7 @@ class DistiledMultiheadAttention(nn.Module):
 
     def build_scale_distilation():
       l1 = nn.Linear(scale_length * scale_dim, scale_length * 10)
-      l2 = nn.Linear(scale_length * 10, scale_length)
+      l2 = nn.Linear(scale_length * 10, scale_length*num_distil_heads)
       return nn.Sequential(l1, nn.GELU(), l2)
 
     def build_utility_prediction():
@@ -357,12 +359,29 @@ class DistiledMultiheadAttention(nn.Module):
     # Using a simple FF to create a distilled new value
     # The result of new_layer_big[selected] is a flattened array because the number selected for each part of the batch can be different.
     selected_tiled_f_x = tiled_f_x.data[selected]
+    flat_seq, scale_window_len = selected_tiled_f_x.shape[:2]
     # flatten it and get the rankings
     rankings = self.scale_distilations[layer](selected_tiled_f_x.view(selected_tiled_f_x.shape[0], -1))
 
-    rankings = torch.softmax(rankings, -1).unsqueeze(-1)
-    next_layer = selected_tiled_f_x * rankings
-    next_layer = torch.sum(next_layer, -2)
+    #ranking: flat_seq, scale_window_len*distil_heads
+    rankings = rankings.view(flat_seq, self.num_distil_heads, 1, scale_window_len)
+    #ranking: flat_seq, distil_heads, 1 , scale_window_len
+
+    #rankings   = flat_seq, scale_window
+    #selected_tiled_f_x = flat_seq, scale_window, tile_size
+    #We need
+    #rankings   = flat_seq, heads, 1, scale_window
+    #selected_tiled_f_x = flat_seq, heads, scale_window, tile_size/heads
+    rankings = torch.softmax(rankings, -1)
+    selected_tiled_f_x = selected_tiled_f_x.view(flat_seq, scale_window_len, self.num_distil_heads, -1)
+    selected_tiled_f_x = selected_tiled_f_x.permute(0, 2, 1, 3)
+
+    next_layer = rankings @ selected_tiled_f_x
+    next_layer = next_layer.view(flat_seq, -1)
+
+    #next_layer = selected_tiled_f_x * rankings
+    #next_layer = torch.sum(next_layer, -2)
+
     next_layer = FlattenedBatch(next_layer, FlattenedBatchInfo(next_layer_lengths))
 
     selected_expected_utility = FlattenedBatch(selected_expected_utility.unsqueeze(-1), next_layer.lengths)
