@@ -445,9 +445,11 @@ class DistiledMultiheadAttention(nn.Module):
     #q: seq_len, 1, num_heads, head_size
     if not self.position is None:
       kv = kv + self.position
-    kv = kv.view(*kv.shape[:-1], 2, -1)
-    k = kv[:,:,0,:].view(-1, kv.shape[-3], self.emb_dim)
-    v = kv[:,:,1,:].view(*k.shape)
+    #kv = kv.view(*kv.shape[:-1], 2, -1)
+    #k = kv[:,:,:self.emb_dim].view(-1, kv.shape[-3], self.emb_dim)
+    #v = kv[:,:,self.emb_dim:].view(*k.shape)
+    k = kv[:,:,:self.emb_dim]
+    v = kv[:,:,self.emb_dim:]
     x, utility = scaled_dot_product_attention(q,k,v, self.num_heads)
     #x, utility = self.mha(q,k,v)
     #x = x.squeeze(-2)
