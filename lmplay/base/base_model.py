@@ -100,8 +100,8 @@ class MBase(nn.Module):
       x.append(t)
       predictions_starts.append(ps)
       predictions_ends.append(int(t.size(-1)) - 1)
-      if not dont_pad:
-        x = pad_sequence(x, batch_first=True, padding_value=self.tokenizer.eot_token)
+    if not dont_pad:
+      x = pad_sequence(x, batch_first=True, padding_value=self.tokenizer.eot_token)
     return x, predictions_starts, predictions_ends
 
   def to(self, *args, **kwargs):
@@ -154,7 +154,6 @@ class MBase(nn.Module):
       target_loss = torch.split(target_loss.squeeze(0), predictions_ends)
     else:
       target_loss = F.cross_entropy(x.permute(0, 2, 1), truths, reduction="none")
-      target_loss = torch.split(target_loss, predictions_ends)
 
     # num classes is always second. For, reasons?
     if extra_loss is None:
