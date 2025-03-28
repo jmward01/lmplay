@@ -327,7 +327,7 @@ class LMRunnerBase(ABC):
     # if torch.cuda.is_available():
     #  torch.set_float32_matmul_precision('high')
     torch.set_float32_matmul_precision('high')
-    for p in ('lr', 'optimizer_warmup_start', 'optimizer_warmup_steps'):
+    for p in ('lr', 'optimizer_warmup_start', 'optimizer_warmup_steps', 'max_len'):
       if p in parameters and parameters[p] is None:
         del parameters[p]
 

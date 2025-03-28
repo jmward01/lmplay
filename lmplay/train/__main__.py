@@ -123,6 +123,7 @@ def main():
   args.add_argument('--check-grads', help="Prints any None gradients found while training.", action="store_true")
   args.add_argument('--describe', help="Prints the model description and exits", action="store_true")
   args.add_argument('--dont-include-prompts', help="Include prompt in training loss. Default is to include.", action="store_true")
+  args.add_argument('--context_len', help="Sets the context lengths to train against. Default is usually 1024 but it is up to the model.", default=None, type=int)
   args = args.parse_args()
 
 
@@ -156,10 +157,15 @@ def main():
 
 
   if args.run_name is None:
-    args.run_name = '_'.join(get_step_names(training_plan))
+    run_name = '_'.join(get_step_names(training_plan))
+    args.run_name = run_name
 
   if args.model is None:
-    args.model = f"{args.exp}_{args.num_blocks}_{args.run_name}_model.lmp"
+
+    if not args.context_len is None:
+      args.model = f"{args.exp}_{args.num_blocks}_{args.context_len}_{args.run_name}_model.lmp"
+    else:
+      args.model = f"{args.exp}_{args.num_blocks}_{args.run_name}_model.lmp"
 
   initial_locations = [args.model, args.initial_model]
   save_location = args.model
@@ -195,7 +201,8 @@ def main():
                 grad_clip=args.grad_clip,
                 check_grads=args.check_grads,
                 version=args.exp,
-                include_prompts=not args.dont_include_prompts)
+                include_prompts=not args.dont_include_prompts,
+                max_len=args.context_len)
 
   early_exit = False
   for step_name, epochs, train, validation in steps(training_plan, current_step=mr.current_step):
