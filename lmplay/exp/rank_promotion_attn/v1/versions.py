@@ -54,3 +54,15 @@ def runner(*args, **kwargs):
                                          num_distil_head_groups=2),
 
                           **kwargs)
+
+@expose_runner('rpa1_5',
+               description='Trying to make things smaller so they are faster. Seeing how small I can make the key dim.')
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(key_dim=12*3,
+                                         num_distil_heads=4,
+                                         num_distil_head_groups=2,
+                                         add_model_attn=False),
+
+                          **kwargs)
