@@ -56,7 +56,10 @@ class GPT2(LMBase):
                      pass_lengths=True)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
-
+    if isinstance(attn_scales[0], int):
+      attn_scales = tuple(attn_scales for _ in range(num_blocks))
+    if len(attn_scales) < num_blocks:
+      attn_scales = attn_scales + tuple(attn_scales[-1] for _ in range(num_blocks - len(attn_scales)))
     self.max_len = max_len
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     if add_model_attn:
@@ -66,14 +69,14 @@ class GPT2(LMBase):
     self.dropout = nn.Dropout(embed_dropout)
     self.blocks = nn.Sequential(*[Block(num_heads,
                                         embed_dim,
-                                        attn_scales,
+                                        attn_scales[i],
                                         attn_dropout=attn_dropout,
                                         ff_dropout=ff_dropout,
                                         add_position=add_attn_position,
                                         kv_first=kv_first,
                                         key_dim=key_dim,
                                         num_distil_heads=num_distil_heads,
-                                        num_distil_head_groups=num_distil_head_groups) for _ in range(num_blocks)])
+                                        num_distil_head_groups=num_distil_head_groups) for i in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 
