@@ -164,7 +164,11 @@ class UnifiedEmbedding(nn.Module):
       output_device = idxs.device
     else:
       output_device = tok_embed_device
-
+    if len(idxs.shape) == 1:
+      need_squeeze = True
+      idxs = idxs.unsqueeze(0)
+    else:
+      need_squeeze = False
     if not idxs is None and allow_reorder and idxs.size(1) > 1:
       #This greatly saves computation/CPU transfer costs but clearly adds a little complexity.
       #It doesn't appear to hurt training (it shouldn't but quick tests were done and showed similar training curves)
@@ -234,5 +238,6 @@ class UnifiedEmbedding(nn.Module):
       #x = self.integration1(x)
       if not self.integration2 is None:
         x = self.integration2(self.ff_activation(x))
-
+    if need_squeeze:
+      x = x.squeeze(0)
     return self.ln(x)

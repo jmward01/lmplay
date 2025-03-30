@@ -104,6 +104,6 @@ def runner(*args, **kwargs):
                                          num_distil_head_groups=2,
                                          add_model_attn=False,
                                          mid_mul=3,
-                                         front_emb_mul=3),
+                                         front_embed_mul=3),
 
                           **kwargs)

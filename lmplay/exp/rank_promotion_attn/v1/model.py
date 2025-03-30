@@ -73,8 +73,8 @@ class GPT2(LMBase):
                                         front_embed_mul,
                                         integration2=integration2,
                                         linear=nn.Linear)
-
-    self.tok_embed = nn.Embedding(vocab_size, embed_dim)
+    else:
+      self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     if add_model_attn:
       self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
     else:
