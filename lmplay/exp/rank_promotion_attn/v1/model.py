@@ -6,7 +6,7 @@ from .modules import Block, FlattenedBatch, FlattenedBatchInfo
 import tiktoken
 from lmplay.base.base_model import LMBase
 from lmplay.utils import to_name
-
+from lmplay.modules import UnifiedEmbedding
 
 class GPT2(LMBase):
   def __init__(self,
@@ -24,6 +24,9 @@ class GPT2(LMBase):
                key_dim=None,
                num_distil_heads=1,
                num_distil_head_groups=None,
+               mid_mul=None,
+               front_embed_mul=None,
+
                version="1.0",
                **ignore):
     super().__init__(to_name(version,
@@ -34,6 +37,8 @@ class GPT2(LMBase):
                              num_distil_heads=num_distil_heads,
                              num_distil_head_groups=num_distil_head_groups,
                              attn_scales=attn_scales,
+                             mid_mul=mid_mul,
+                             front_embed_mul=front_embed_mul,
                              num_blocks=num_blocks,
                              max_len=max_len),
                      max_len=max_len,
@@ -61,6 +66,14 @@ class GPT2(LMBase):
     if len(attn_scales) < num_blocks:
       attn_scales = attn_scales + tuple(attn_scales[-1] for _ in range(num_blocks - len(attn_scales)))
     self.max_len = max_len
+    if not mid_mul is None and not front_embed_mul is None:
+      integration2 = int(embed_dim*mid_mul)
+      self.tok_embed = UnifiedEmbedding(vocab_size,
+                                        embed_dim,
+                                        front_embed_mul,
+                                        integration2=integration2,
+                                        linear=nn.Linear)
+
     self.tok_embed = nn.Embedding(vocab_size, embed_dim)
     if add_model_attn:
       self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
