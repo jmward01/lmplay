@@ -81,7 +81,7 @@ def _plot_worker(out_file,
                  average_count: Optional[int],
                  satart_ac=5,
                  ac_inc=6,
-                 target_points=10000):
+                 target_points=40000):
   # with plt.xkcd():
   acs = dict()
   #This is horrible nog good bad code. Sorry. Please don't think of this as something to use.
