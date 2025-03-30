@@ -73,7 +73,7 @@ def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(key_dim=12*3,
-                                         attn_scales=(3, 3, 11, 3, 10),
+                                         attn_scales=(3, 3, 3, 5, 16),
                                          num_distil_heads=4,
                                          num_distil_head_groups=2,
                                          add_model_attn=False),
