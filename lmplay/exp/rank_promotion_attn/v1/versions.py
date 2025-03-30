@@ -79,3 +79,16 @@ def runner(*args, **kwargs):
                                          add_model_attn=False),
 
                           **kwargs)
+
+@expose_runner('rpa1_7',
+               description='Even smaller but with logic at the front')
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(key_dim=12*3,
+                                         attn_scales=((5, 5, 5, 5), (5, 3), (5, 3)),
+                                         num_distil_heads=4,
+                                         num_distil_head_groups=2,
+                                         add_model_attn=False),
+
+                          **kwargs)
