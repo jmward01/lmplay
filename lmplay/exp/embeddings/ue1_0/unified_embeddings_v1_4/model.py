@@ -46,7 +46,7 @@ class GPT2(LMBase):
                                         front_embed_mul,
                                         keep_embed_on_cpu=keep_embed_on_cpu,
                                         linear=nn.Linear,
-                                        gelu=False,
+                                        emb_activation=False,
                                         integration1_5=False,
                                         integration2=False)
     self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))

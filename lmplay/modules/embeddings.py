@@ -5,6 +5,8 @@ import random
 from tqdm import tqdm
 from lmplay.utils import create_linear
 
+__all__ = ['ConvertableEmbedding', 'UnifiedEmbedding']
+
 class ConvertableEmbedding(nn.Embedding):
   """This acts like a normal embedding but when it sees a UE loaded with its name it converts it to a normal embedding and deletes the UE weights.
 
@@ -36,7 +38,8 @@ class UnifiedEmbedding(nn.Module):
                keep_embed_on_cpu=False,
                emb_training_epochs=50,
                ln=False,
-               gelu=False,
+               emb_activation=False,
+               activation=F.gelu,
                integration1_5=False,
                integration2=True,
                linear=nn.Linear):
@@ -50,6 +53,10 @@ class UnifiedEmbedding(nn.Module):
     :param ln: LN the value before returning. Just trying different approaches here.
     """
     super().__init__()
+    if isinstance(integration2, int):
+      mid_size = integration2
+    else:
+      mid_size = embed_dim
     self.vocab_size = vocab_size
     self.embedding_size = embed_dim
     self.emb_training_epochs = emb_training_epochs
@@ -67,9 +74,9 @@ class UnifiedEmbedding(nn.Module):
     #Anyway, Prod could lose the integration weights and big tok_embed.weight so the weight structure would go back to normal and have no prod costs.
     front_embed_dim = int(embed_dim * front_embed_mul)
     self.tok_embed = nn.Embedding(vocab_size, front_embed_dim)
-    self.integration1 = create_linear(linear, "ue_integration1", front_embed_dim, embed_dim)
+    self.integration1 = create_linear(linear, "ue_integration1", front_embed_dim, mid_size)
     if integration1_5:
-      self.integration1_5 = create_linear(linear, "ue_integration15", embed_dim, embed_dim)
+      self.integration1_5 = create_linear(linear, "ue_integration15", mid_size, mid_size)
     else:
       self.register_parameter('integration1_5', None)
     #This only works if the main model has overridden the 'to' call to check for it. See LMBase.
@@ -88,18 +95,19 @@ class UnifiedEmbedding(nn.Module):
         p.secondary_optimizer = True
 
 
-    if integration2:
-      self.integration2 = create_linear(linear, "ue_integration2", embed_dim, embed_dim)
+    if integration2 != False:
+      self.integration2 = create_linear(linear, "ue_integration2", mid_size, embed_dim)
     else:
       self.register_parameter('integration2', None)
     if ln:
       self.ln = nn.LayerNorm(embed_dim)
     else:
       self.ln = lambda x:x
-    if gelu == True:
-      self.emb_activation = F.gelu
+    if emb_activation == True:
+      self.emb_activation = activation
     else:
       self.emb_activation = lambda x:x
+    self.ff_activation = activation
     self._register_load_state_dict_pre_hook(self.check_initialize)
     self.initialized_from_small_embed = False
 
@@ -149,14 +157,18 @@ class UnifiedEmbedding(nn.Module):
     if f'{prefix}weight' in state_dict:
       self.initialize(state_dict[f'{prefix}weight'])
 
-  def forward(self, idxs: torch.Tensor = None, allow_reorder=True) -> torch.Tensor:
+  def forward(self, idxs: torch.Tensor = None, start_slice = None, end_slice = None, allow_reorder=True) -> torch.Tensor:
     #If they send in 'none' then we will send back all embeddings.
     tok_embed_device = self.tok_embed.weight.device
     if not idxs is None:
       output_device = idxs.device
     else:
       output_device = tok_embed_device
-
+    if len(idxs.shape) == 1:
+      need_squeeze = True
+      idxs = idxs.unsqueeze(0)
+    else:
+      need_squeeze = False
     if not idxs is None and allow_reorder and idxs.size(1) > 1:
       #This greatly saves computation/CPU transfer costs but clearly adds a little complexity.
       #It doesn't appear to hurt training (it shouldn't but quick tests were done and showed similar training curves)
@@ -184,23 +196,28 @@ class UnifiedEmbedding(nn.Module):
 
         x = self.integration1(x)
       if not self.integration1_5 is None:
-        x = self.integration1_5(F.gelu(x))
+        x = self.integration1_5(self.ff_activation(x))
 
       #x = self.integration1(x)
       # Minimize the lookup/liner layer costs
       if not self.integration2 is None:
-        x = self.integration2(F.gelu(x))
+        x = self.integration2(self.ff_activation(x))
       # Now we can re-lookup the result
       reorg_idxs = x[torch.tensor(tuple(idx_locations[idx] for idx in local_idxs), dtype=torch.long, device=idxs.device)]
       x = reorg_idxs.view(batch, sequence, -1)
     else:
+      if idxs is None:
+        if end_slice is None:
+          end_slice = self.vocab_size
+        if start_slice is None:
+          start_slice = 0
       if tok_embed_device != output_device:
         #This probably means the embeddings are on CPU to save memory.
         #Autocast doesn't like mixed devices
         with torch.amp.autocast(enabled=False, device_type=tok_embed_device.type):
           if idxs is None:
             #They want them all!
-            x = self.emb_activation(self.tok_embed.weight)
+            x = self.emb_activation(self.tok_embed.weight[start_slice:end_slice])
           else:
             x = self.emb_activation(self.tok_embed(idxs))
 
@@ -210,16 +227,17 @@ class UnifiedEmbedding(nn.Module):
       else:
         if idxs is None:
           #They want them all!
-          x = self.emb_activation(self.tok_embed.weight)
+          x = self.emb_activation(self.tok_embed.weight[start_slice:end_slice])
         else:
           x = self.emb_activation(self.tok_embed(idxs))
 
         if not self.integration1 is None:
           x = self.integration1(x)
       if not self.integration1_5 is None:
-        x = self.integration1_5(F.gelu(x))
+        x = self.integration1_5(self.ff_activation(x))
       #x = self.integration1(x)
       if not self.integration2 is None:
-        x = self.integration2(F.gelu(x))
-
+        x = self.integration2(self.ff_activation(x))
+    if need_squeeze:
+      x = x.squeeze(0)
     return self.ln(x)

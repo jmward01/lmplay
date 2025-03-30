@@ -5,8 +5,9 @@ from .attn import MultiheadAttention
 from .general import LRAdd
 from lmplay.utils import create_linear
 
-
 __all__ = ['Block']
+
+
 class Block(nn.Module):
   """Your basic encoder block implementation! Nothing crazy in here.
 
@@ -21,12 +22,13 @@ class Block(nn.Module):
                linear=nn.Linear,
                # Passing in the class we want for a linear layer since this can be swapped for different exp
                ff_linear=None,
+               mha=MultiheadAttention,
                mha_linear=None,
                lradd=False,
-               lradd_simple=None, #only matters is lradd=True
-               lradd_predict=None, #only matters is lradd=True
-               lradd_floor=None, #only matters is lradd=True
-               lradd_ceil=None, #only matters is lradd=True
+               lradd_simple=None,  # only matters is lradd=True
+               lradd_predict=None,  # only matters is lradd=True
+               lradd_floor=None,  # only matters is lradd=True
+               lradd_ceil=None,  # only matters is lradd=True
                ln_attn=True,
                ln_mlp=True,
                **kwargs):
@@ -46,20 +48,20 @@ class Block(nn.Module):
     if lradd:
       self.ff_lradd = LRAdd(embed_dim, simple=lradd_simple, predict=lradd_predict, floor=lradd_floor, ceil=lradd_ceil)
     else:
-      self.ff_lradd = lambda x,y: x + y
+      self.ff_lradd = lambda x, y: x + y
 
     if lradd:
       self.mha_lradd = LRAdd(embed_dim, simple=lradd_simple, predict=lradd_predict, floor=lradd_floor, ceil=lradd_ceil)
     else:
-      self.mha_lradd = lambda x,y: x + y
+      self.mha_lradd = lambda x, y: x + y
 
-    self.attn = MultiheadAttention(max_len,
-                                   num_heads,
-                                   embed_dim,
-                                   attn_dropout=attn_dropout,
-                                   ff_dropout=ff_dropout,
-                                   linear=mha_linear,
-                                   **kwargs)
+    self.attn = mha(max_len,
+                    num_heads,
+                    embed_dim,
+                    attn_dropout=attn_dropout,
+                    ff_dropout=ff_dropout,
+                    linear=mha_linear,
+                    **kwargs)
     self.ff = nn.Sequential(create_linear(ff_linear, 'block_ff_1', embed_dim, embed_dim * 4),
                             nn.GELU(),
                             create_linear(ff_linear, 'block_ff_2', embed_dim * 4, embed_dim),

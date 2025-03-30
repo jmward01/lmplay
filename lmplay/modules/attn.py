@@ -32,7 +32,7 @@ class MultiheadAttention(nn.Module):
                proj_linear=None,
                value_linear=None,
                causal=True,
-               learn_scale=False):  # Passing in the class we want for a linear layer since this can be swapped for different exp
+               learn_scale: bool|str=False):  # Passing in the class we want for a linear layer since this can be swapped for different exp
     """
     :param max_len: Max sequence generation length. Needed for mask generation. Better implementations don't need this.
     :param num_heads: Guess
@@ -79,9 +79,14 @@ class MultiheadAttention(nn.Module):
 
     # proj to clean things up after
     self.proj = create_linear(proj_linear, 'mha_proj', embed_dim, embed_dim)
-    if learn_scale:
+    if learn_scale == True or learn_scale == 'full':
       self.scale = create_linear(linear, 'mha_scale', embed_dim, num_heads)
+      self.scale_type = 'full'
+    elif learn_scale == 'simple':
+      self.scale = nn.Parameter(torch.tensor([1.0]))
+      self.scale_type = 'simple'
     else:
+      self.scale_type = None
       self.scale = None
     # I had implementation issues with this dropout so I just... dropped it out.
     # It isn't critical to the concept of MHA so this is the easy route.
@@ -124,7 +129,7 @@ class MultiheadAttention(nn.Module):
     # Useful for later ops
     batch_size, seq_len, embed_dim = x.shape
     target_batch_size, target_seq_len, target_embed_dim = x_target.shape
-    if self.scale is None and (self.force_ref or torch.cuda.is_available()):
+    if self.scale_type is None and (self.force_ref or torch.cuda.is_available()):
       k = self.key_norm(self.key(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).transpose(1,
                                                                                                                      2)
       v = self.value_norm(
@@ -166,15 +171,19 @@ class MultiheadAttention(nn.Module):
         cache[1] = v
 
       # This is where the 'scaled' is implemented!
-      if self.scale is None:
-        attn = torch.matmul(q, k) / math.sqrt(q.size(-1))
-      else:
+      if self.scale_type is None:
+        scale =  math.sqrt(q.size(-1))
+      elif self.scale_type == 'full':
+
         #We want the scale on the same dimension as the softmax. That means the last value is the scale
         #scale should become: batch, heads, seq length, scale
         #Since we softmax of -1 we are scaling on -1
         scale = F.sigmoid(self.scale(x)).transpose(1,2).unsqueeze(-1) * (2 * math.sqrt(q.size(-1)))
-        attn = torch.matmul(q, k)
-        attn = attn / scale
+      elif self.scale_type == 'simple':
+        scale = math.sqrt(q.size(-1)) * self.scale
+      else:
+        raise  ValueError(f"Unknown scale_type {self.scale_type}")
+      attn = torch.matmul(q, k) / scale
       # No need to mask for seq len 1 since we are just generating the next token.
       if seq_len > 1 and not self.mask is None:
         mask = self.mask[:, :, :seq_len, :seq_len]

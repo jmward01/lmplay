@@ -9,22 +9,24 @@ from lmplay.base.base_model import LMRunnerBase
 from lmplay.train.datasets.plan import steps, get_first_step_name, get_step_names
 from lmplay.train.datasets.plan_configs import DEFAULT_PLANS
 
-def render_pbar(exp:str, device, ms: ModelStats, current_step:str) -> str:
+def render_pbar(exp:str, device, ms:ModelStats, ss: ModelStats, current_step:str) -> str:
   if device is None:
     device = ""
-  if ms.total_train_samples > 0:
-    train_loss = f"{ms.train_loss():0.4f}"
-    train_acc = f"{ms.train_accuracy():0.4f}"
+  if ss.total_train_samples > 0:
+    train_loss = f"{ss.train_loss():0.4f}"
+    train_acc = f"{ss.train_accuracy():0.4f}"
   else:
     train_loss = "TBD"
     train_acc = "TBD"
-  if ms.total_validate_samples > 0:
-    validate_loss = f"{ms.validate_loss():0.4f}"
-    validate_acc = f"{ms.validate_accuracy():0.4f}"
+  if ss.total_validate_samples > 0:
+    validate_loss = f"{ss.validate_loss():0.4f}"
+    validate_acc = f"{ss.validate_accuracy():0.4f}"
   else:
     validate_loss = "TBD"
     validate_acc = "TBD"
-  return f"{exp}-{device}-{current_step}-train l:{train_loss}, a:{train_acc}/val l:{validate_loss}, a:{validate_acc}"
+  b_step_tokens_trained = ss.total_train_tokens / 10e8
+  b_tokens_trained = ms.total_train_tokens / 10e8
+  return f"{exp}-{device}-{current_step}-train l:{train_loss}, a:{train_acc}/val l:{validate_loss}, a:{validate_acc}, st:{b_step_tokens_trained:0.2f}B, tt:{b_tokens_trained:0.2f}B"
 
 
 def calc_next(interval: int, current: int):
@@ -121,6 +123,7 @@ def main():
   args.add_argument('--check-grads', help="Prints any None gradients found while training.", action="store_true")
   args.add_argument('--describe', help="Prints the model description and exits", action="store_true")
   args.add_argument('--dont-include-prompts', help="Include prompt in training loss. Default is to include.", action="store_true")
+  args.add_argument('--context_len', help="Sets the context lengths to train against. Default is usually 1024 but it is up to the model.", default=None, type=int)
   args = args.parse_args()
 
 
@@ -154,10 +157,15 @@ def main():
 
 
   if args.run_name is None:
-    args.run_name = '_'.join(get_step_names(training_plan))
+    run_name = '_'.join(get_step_names(training_plan))
+    args.run_name = run_name
 
   if args.model is None:
-    args.model = f"{args.exp}_{args.num_blocks}_{args.run_name}_model.lmp"
+
+    if not args.context_len is None:
+      args.model = f"{args.exp}_{args.num_blocks}_{args.context_len}_{args.run_name}_model.lmp"
+    else:
+      args.model = f"{args.exp}_{args.num_blocks}_{args.run_name}_model.lmp"
 
   initial_locations = [args.model, args.initial_model]
   save_location = args.model
@@ -193,7 +201,8 @@ def main():
                 grad_clip=args.grad_clip,
                 check_grads=args.check_grads,
                 version=args.exp,
-                include_prompts=not args.dont_include_prompts)
+                include_prompts=not args.dont_include_prompts,
+                max_len=args.context_len)
 
   early_exit = False
   for step_name, epochs, train, validation in steps(training_plan, current_step=mr.current_step):
@@ -228,11 +237,11 @@ def main():
           # Hack because hugging face doesn't have a way to restart where you left off.
           # Trying to preserve order to make testing repeatable but still allow interruptions
           # if train_count > mr.model_stats.total_train_samples:
-          results, _ = mr.train(batch, new_train_samples_read)
+          results, _, total_tokens = mr.train(batch, new_train_samples_read)
 
           if mr.get_step_stats().total_train_samples >= next_validate:
             validation_batch, new_validation_samples_read = next(validation_batcher)
-            results, _ = mr.validate(validation_batch, new_validation_samples_read)
+            results, _, validate_tokens = mr.validate(validation_batch, new_validation_samples_read)
             truth_example: str = validation_batch[-1]['truth']
             prediction_example: str = results[-1]
             prompt = validation_batch[-1]['prompt'].replace('\n', ' ')
@@ -246,13 +255,13 @@ def main():
             pbar.set_description("Saving weights...")
             mr.save(save_location)
             next_save = calc_next(save_interval, mr.get_step_stats().total_train_samples)
-          pbar.set_description(render_pbar(args.exp, device, mr.get_step_stats(), mr.current_step))
+          pbar.set_description(render_pbar(args.exp, device, mr.model_stats, mr.get_step_stats(), mr.current_step))
           pbar.update(new_train_samples_read)
       except KeyboardInterrupt:
         print(f"User canceled training.")
         early_exit = True
       except:
-        print(f"Unknown error:\n{traceback.format_exc(limit=10)}")
+        print(f"Unknown error:\n{traceback.format_exc()}")
         early_exit = True
       if early_exit:
         break

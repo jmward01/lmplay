@@ -1,3 +1,4 @@
+import math
 import os
 from typing import Optional
 import matplotlib
@@ -9,6 +10,11 @@ import multiprocessing as mp
 import numpy
 import numpy as np
 import bisect
+
+#X_KEY = "iter"
+#X_LABEL = "Iteration"
+X_KEY = "tokens"
+X_LABEL = "Tokens"
 
 def find_stat_files(path: str) -> (tuple, tuple):
   path = os.path.expanduser(path)
@@ -74,7 +80,8 @@ def _plot_worker(out_file,
                  plot_raw: bool,
                  average_count: Optional[int],
                  satart_ac=5,
-                 ac_inc=6):
+                 ac_inc=6,
+                 target_points=40000):
   # with plt.xkcd():
   acs = dict()
   #This is horrible nog good bad code. Sorry. Please don't think of this as something to use.
@@ -110,7 +117,11 @@ def _plot_worker(out_file,
   abs_max_value = None
   addtl_lines = []
   for name, data in file_data.items():
-    iters = data['iter']
+    iters = data[X_KEY]
+    d_stride = math.ceil(len(iters)/target_points)
+    #d_stride = 1
+    if d_stride > 1:
+      iters = iters[::d_stride]
     first_d = 0
     #bisect just gives a value which is stupid. I want an index
     while first_d < len(iters) and iters[first_d] < min_iter:
@@ -119,11 +130,15 @@ def _plot_worker(out_file,
     for data_name in plot_targets:
       d = numpy.array(data[data_name])
       # if average_count is None:
-      #  plt.plot(data['iter'], d, label=f"{name}_{data_name}", linewidth=1)
+      #  plt.plot(data[X_KEY], d, label=f"{name}_{data_name}", linewidth=1)
       # else:
-
+      #x_axis = data[X_KEY]
+      #d_stride = math.ceil(len(d)/target_points)
+      if d_stride > 1:
+        d =d[::d_stride]
+        #x_axis = x_axis[::d_stride]
       if plot_raw:
-        l = plt.plot(data['iter'], d, linewidth=.2, alpha=.3)
+        l = plt.plot(data[X_KEY], d, linewidth=.2, alpha=.3)
       else:
         l = None
       avgs = [0.0] * len(d)
@@ -180,19 +195,24 @@ def _plot_worker(out_file,
       if abs_avg_min_value == abs_avg_max_value:
         abs_avg_max_value = None
         abs_avg_min_value = None
+
       if l is None:
-        addtl_lines.append({'iter': data['iter'], 'data': avgs, "label": f"{name}_{data_name}"})
+        addtl_lines.append({X_KEY: iters, 'data': avgs, "label": f"{name}_{data_name}"})
       else:
         addtl_lines.append(
-          {'iter': data['iter'], 'data': avgs, 'color': l[0].get_color(), "label": f"{name}_{data_name}"})
+          {X_KEY: iters, 'data': avgs, 'color': l[0].get_color(), "label": f"{name}_{data_name}"})
   for line_info in addtl_lines:
     # do these last so the show on top of the other line data
-    if 'color' in line_info:
-      plt.plot(line_info['iter'], line_info['data'], label=line_info['label'], linewidth=.5, color=line_info['color'])
+    if plot_raw:
+       add_width = 0.0
     else:
-      plt.plot(line_info['iter'], line_info['data'], label=line_info['label'], linewidth=.3)
+      add_width = 0.5
+    if 'color' in line_info:
+      plt.plot(line_info[X_KEY], line_info['data'], label=line_info['label'], linewidth=.5 + add_width, color=line_info['color'])
+    else:
+      plt.plot(line_info[X_KEY], line_info['data'], label=line_info['label'], linewidth=.3 + add_width)
   plt.ylabel(' '.join(plot_targets))
-  plt.xlabel('Iteration')
+  plt.xlabel(X_LABEL)
   if log_plot:
     plt.xscale('log')
   if not plot_raw:
@@ -218,9 +238,11 @@ def _plot_worker(out_file,
     plt.xlim(x_min, max_iter * 1.1)
   # plt.autoscale(enable=True, axis='both', tight=True)
   plt.grid(True)
-  plt.legend(bbox_to_anchor=(1.05, 1),
+  leg = plt.legend(bbox_to_anchor=(1.05, 1),
              loc='upper left',
              borderaxespad=0.)
+  for legobj in leg.get_lines():
+      legobj.set_linewidth(2.0)
   plt.savefig(out_file, bbox_inches='tight', dpi=600)
   if show:
     plt.show()
@@ -244,7 +266,7 @@ def get_stats(file_data: dict, plot_targets: tuple, shortest_iter: int):
   for name, data in file_data.items():
     dataset_min = None
     dataset_max = None
-    for i, iter_val in enumerate(data['iter']):
+    for i, iter_val in enumerate(data[X_KEY]):
       if iter_val != 0 and iter_val >= shortest_iter:
         for data_name in plot_targets:
           value = data[data_name][i]
@@ -277,10 +299,10 @@ def get_stats(file_data: dict, plot_targets: tuple, shortest_iter: int):
 
 def unify_points(file_data: dict, iters: list, plot_targets: tuple) -> dict:
   new_iters = []
-  result_file = {'iter': new_iters}
+  result_file = {X_KEY: new_iters}
   for pt in plot_targets:
     file_idx = 0
-    file_iters = file_data['iter']
+    file_iters = file_data[X_KEY]
     file_values = file_data[pt]
     result_values = []
     result_file[pt] = result_values
@@ -305,13 +327,13 @@ def _get_iters(files_data: dict) -> (list, str, str):
   shortest_len = None
   # Find all the 'iters' in every file so we can build values for all files.
   for name, data in files_data.items():
-    found_iters.update(data['iter'])
-    if longest is None or longest_len < data['iter'][-1]:
+    found_iters.update(data[X_KEY])
+    if longest is None or longest_len < data[X_KEY][-1]:
       longest = name
-      longest_len = data['iter'][-1]
-    if shortest is None or shortest_len > data['iter'][-1]:
+      longest_len = data[X_KEY][-1]
+    if shortest is None or shortest_len > data[X_KEY][-1]:
       shortest = name
-      shortest_len = data['iter'][-1]
+      shortest_len = data[X_KEY][-1]
   iters = list(found_iters)
   iters.sort()
   return dict(iters=iters, longest=longest, shortest=shortest)
@@ -322,17 +344,17 @@ def _diff_to_target(files_data: dict, target: str, plot_targets: tuple) -> dict:
   result_files = dict()
   # Then we subtract the longest one's value from their values to normalize against it.
   for file_name, data in files_data.items():
-    result_file = {'iter': data['iter'].copy()}
+    result_file = {X_KEY: data[X_KEY].copy()}
     result_files[file_name] = result_file
     for pt in plot_targets:
       target_values = []
       result_file[pt] = target_values
-      for i in range(len(data['iter'])):
+      for i in range(len(data[X_KEY])):
         if len(target[pt]) > i:
           target_values.append(data[pt][i] - target[pt][i])
         else:
           # Looks like the target is shorter than this run. We should trim it and not display the rest.
-          result_file['iter'] = result_file['iter'][:i]
+          result_file[X_KEY] = result_file[X_KEY][:i]
           break
   return result_files
 
@@ -356,15 +378,15 @@ def get_file_data(*files, plot_targets=('loss', 'accuracy')) -> (dict, dict):
         name = f"{basename}_{name_count}"
       csv_data = csv.DictReader(infile)
       data = {data_name: [] for data_name in plot_targets}
-      data['iter'] = []
+      data[X_KEY] = []
       for row in csv_data:
-        iter_val = int(row['iter'])
+        iter_val = int(row[X_KEY])
         if iter_val != 0:
           for data_name in plot_targets:
             value = float(row[data_name])
             data[data_name].append(value)
-          data['iter'].append(iter_val)
-      if len(data['iter']) > 0:
+          data[X_KEY].append(iter_val)
+      if len(data[X_KEY]) > 0:
         file_data[name] = data
   return file_data, _get_iters(file_data)
 
@@ -390,7 +412,7 @@ def plot(out_file,
   # now we have a spot for every iter. Let's get normalized value for every point by going through them all.
   # First we make sure that they all have values for every iter
   file_data = {name: unify_points(fd, file_meta['iters'], plot_targets) for name, fd in file_data.items()}
-  min_iter = int(file_data[file_meta['shortest']]['iter'][-1] * (1.0 - min_show))
+  min_iter = int(file_data[file_meta['shortest']][X_KEY][-1] * (1.0 - min_show))
   # min_iter = iters[0]
   max_iter = file_meta['iters'][-1]
   if diff_to_target:

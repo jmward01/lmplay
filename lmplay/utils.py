@@ -1,6 +1,27 @@
 import torch
 
-__all__ = ['gen_mask', 'create_linear', 'accepts_purpose', 'set_accepts_purpose']
+__all__ = ['gen_mask', 'create_linear', 'accepts_purpose', 'set_accepts_purpose', 'to_name', 'pstr']
+
+
+def pstr(v) -> str:
+  #Hacky way to convert parameter values to name friendly strings
+  if v is None:
+    return 'N'
+  if isinstance(v, str):
+    return v
+  if isinstance(v, float):
+    return f"{v:0.1f}"
+  if hasattr(v, "__iter__"):
+    return ''.join(pstr(vc) for vc in v)
+  return str(int(v))
+
+def to_name(version:str, *args, **kwargs):
+  name = version
+  if len(args) > 0:
+    name = f"{name}_{''.join(pstr(v) for v in args)}"
+  if len(kwargs) > 0:
+    name = f"{name}_{'_'.join(pstr(v) for v in kwargs.values())}"
+  return name
 
 
 def gen_mask(max_len: int) -> torch.Tensor:

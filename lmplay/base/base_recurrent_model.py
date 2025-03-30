@@ -64,8 +64,8 @@ class RMBase(MBase):
       # norm by number of tokens in the truth
       #total_target_loss = tl / token_count + total_target_loss
       total_target_loss = total_target_loss + tl
-    total_target_loss = total_target_loss/total_token_count
-    target_loss = total_target_loss
+    #total_target_loss = total_target_loss/total_token_count
+    #target_loss = total_target_loss
     # Get the predicted value so we can cut just that out as the result.
     predicted_tokens = torch.argmax(x_out, dim=-1)
     # for result, prediction_start, prediction_end, truth in zip(predicted_tokens, predictions_starts, predictions_ends, truths):
@@ -74,7 +74,7 @@ class RMBase(MBase):
       # the last value is end of sentence
       results.append(self.tokenizer.decode(result[prediction_start:prediction_end].tolist()))
     # target loss is normalized by example but not by batch. That will be done by the caller.
-    return results, target_loss
+    return results, total_target_loss, total_token_count
 
   def generate_prompts(self, prompts: Sequence[dict], max_len: Optional[int] == None) -> Sequence[str]:
     #BROKEN!

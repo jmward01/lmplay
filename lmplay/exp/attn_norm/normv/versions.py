@@ -3,26 +3,23 @@ from .model import GPT2
 from lmplay.base.runner_list import expose_runner
 
 
-
-@expose_runner('uw1_0', description="Unifeid Weights using the basic mbias, mbias_bias and bias_bias")
+@expose_runner('normv1_0', description="Layer norm applied to the value key")
 def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(),
                           **kwargs)
 
-@expose_runner('uw1_1', description="Turning on imbias")
+@expose_runner('normv1_1', description="Only applying norm to the second block on so that the embeddings can avoid it.")
 def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(imbias=True),
+                          overrides=dict(start_n=1),
                           **kwargs)
 
-@expose_runner('uw1_2', description="Turning on imbias")
+@expose_runner('normv1_2', description="Only applying norm to the first block on to see the impact.")
 def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
-                          overrides=dict(imbias=True,
-                                         iambias=True,
-                                         ambias=True),
+                          overrides=dict(end_n=1),
                           **kwargs)

@@ -1,10 +1,12 @@
 import torch
 from torch import nn
-from typing import Optional, Any, List
+from typing import Optional, List
 
-from .modules import Block
+from lmplay.modules import Block
 import tiktoken
-from lmplay.base.base_model import LMBase, LMRunnerBase
+from lmplay.base.base_model import LMBase
+from lmplay.utils import to_name
+
 
 
 class GPT2(LMBase):
@@ -16,15 +18,26 @@ class GPT2(LMBase):
                attn_dropout: Optional[float] = 0.1,
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
+               start_n=0,
+               end_n=None,
+               version="1.0",
+
                **ignore):
-    super().__init__(f"norm_v_{num_blocks}L_{max_len}",
+    super().__init__(to_name(version, start_n, end_n, num_blocks=num_blocks, max_len=max_len),
                      max_len=max_len,
                      num_heads=num_heads,
                      num_blocks=num_blocks,
                      embed_dim=embed_dim,
                      attn_dropout=attn_dropout,
                      ff_dropout=ff_dropout,
-                     embed_dropout=embed_dropout)
+                     embed_dropout=embed_dropout,
+                     start_n=start_n,
+                     end_n=end_n,
+                     version=version)
+
+    if end_n is None:
+      end_n =num_blocks
+
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
@@ -35,8 +48,9 @@ class GPT2(LMBase):
     self.blocks = nn.Sequential(*[Block(max_len,
                                         num_heads,
                                         embed_dim,
+                                        norm_v=i >= start_n and i < end_n,
                                         attn_dropout=attn_dropout,
-                                        ff_dropout=ff_dropout) for _ in range(num_blocks)])
+                                        ff_dropout=ff_dropout) for i in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 
@@ -67,27 +81,3 @@ class GPT2(LMBase):
       return x, cache
     return x
 
-from lmplay.base.runner_list import expose_runner
-
-@expose_runner('normv', description="Tests adding layer norm to the value in attn")
-class ModelRunner(LMRunnerBase):
-  def __init__(self, max_batch_size=25):
-    super().__init__(max_batch_size=max_batch_size)
-
-  def _construct_model(self,
-                       device,
-                       model_weights: dict = None,
-                       model_args=None,
-                       strict=False,
-                       **parameters) -> (LMBase, Any):
-    model_args = model_args if model_args else dict()
-    for k,v in parameters.items():
-      if k not in model_args:
-        model_args[k] = v
-    model = GPT2(**model_args)
-    if model_weights is not None:
-      missing, unexpected = model.load_state_dict(model_weights, strict=strict)
-      model.to(device)
-      return model, model.init_kwargs, missing, unexpected
-    model.to(device)
-    return model, model.init_kwargs
