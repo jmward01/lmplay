@@ -5,6 +5,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F, init
 from torch.nn.utils import rnn
+from lmplay.modules import NopModule
 
 __all__ = ['DistiledMultiheadAttention']
 
@@ -218,9 +219,9 @@ class DistiledMultiheadAttention(nn.Module):
                ff_dropout: Optional[float] = 0.1,
                add_position: bool = True,
                kv_first: bool = True,
+               layer_proj = None,
                **kwargs):
     super().__init__()
-
     assert embed_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
     self.num_distil_heads = num_distil_heads
     if num_distil_head_groups is None:
@@ -253,6 +254,7 @@ class DistiledMultiheadAttention(nn.Module):
     scale_distilations = []
     utility_predictors = []
     layer_buffers = []
+    layer_projections = []
 
     def build_scale_distilation():
       l1 = nn.Linear(scale_length * scale_dim, scale_length * 10)
@@ -273,12 +275,18 @@ class DistiledMultiheadAttention(nn.Module):
       utility_predictors.append(build_utility_prediction())
       # We need a buffer for each layer at the beginning so that we can stack things properly
       layer_buffers.append(nn.Parameter(torch.empty((scale_length - 1, scale_dim))))
+      if not layer_proj is None:
+        layer_projections.append(layer_proj(scale_dim))
     # The final scale doesn't need predictors for the next level
     layer_buffers.append(nn.Parameter(torch.empty((scale_lengths[-1] - 1, scale_dim))))
     # These construct the next layer
     self.scale_distilations = nn.ModuleList(scale_distilations)
     # These predict the utility of the next layer
     self.utility_predictors = nn.ModuleList(utility_predictors)
+    if layer_proj is None:
+      self.register_parameter("layer_projections", None)
+    else:
+      self.layer_projections = nn.ModuleList(layer_projections)
     self.layer_buffers = nn.ParameterList(layer_buffers)
     if add_position:
       self.position = nn.Parameter(torch.zeros(1, sum(self.scale_window_lengths), post_tile_dim))
@@ -394,7 +402,8 @@ class DistiledMultiheadAttention(nn.Module):
     #next_layer = torch.sum(next_layer, -2)
 
     next_layer = FlattenedBatch(next_layer, FlattenedBatchInfo(next_layer_lengths))
-
+    if not self.layer_projections is None:
+      next_layer = FlattenedBatch(self.layer_projections[layer](next_layer.data), next_layer.lengths)
     selected_expected_utility = FlattenedBatch(selected_expected_utility.unsqueeze(-1), next_layer.lengths)
     utility_buffer = torch.zeros((self.scale_window_lengths[layer + 1] - 1, 1),
                                  device=selected_expected_utility.data.device)

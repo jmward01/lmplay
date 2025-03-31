@@ -107,3 +107,19 @@ def runner(*args, **kwargs):
                                          front_embed_mul=3),
 
                           **kwargs)
+
+@expose_runner('rpa1_9',
+               description='1.8 but with more oompf!')
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(key_dim=12*3,
+                                         attn_scales=(((3, 3), (3, 3, 3), (3, 3, 3), (3, 3, 3, 3, 3), (5, 3, 3), (5, 3))),
+                                         num_distil_heads=4,
+                                         num_distil_head_groups=2,
+                                         add_model_attn=False,
+                                         mid_mul=3,
+                                         front_embed_mul=3,
+                                         layer_proj="M"),
+
+                          **kwargs)

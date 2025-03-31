@@ -26,7 +26,7 @@ class GPT2(LMBase):
                num_distil_head_groups=None,
                mid_mul=None,
                front_embed_mul=None,
-
+               layer_proj=None,
                version="1.0",
                **ignore):
     super().__init__(to_name(version,
@@ -34,6 +34,7 @@ class GPT2(LMBase):
                              add_attn_position,
                              kv_first,
                              key_dim,
+                             layer_proj,
                              num_distil_heads=num_distil_heads,
                              num_distil_head_groups=num_distil_head_groups,
                              attn_scales=attn_scales,
@@ -58,7 +59,8 @@ class GPT2(LMBase):
                      num_distil_head_groups=num_distil_head_groups,
                      expect_extra_loss=True,
                      flat_batch=True,
-                     pass_lengths=True)
+                     pass_lengths=True,
+                     layer_proj=layer_proj)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
     if isinstance(attn_scales[0], int):
@@ -80,6 +82,12 @@ class GPT2(LMBase):
     else:
       self.register_parameter("pos_embed", None)
     self.dropout = nn.Dropout(embed_dropout)
+    if layer_proj == 'L':
+      layer_proj = nn.Linear
+    elif layer_proj == 'M':
+      def layer_proj(emb_size:int) -> nn.Module:
+        m = nn.Sequential(nn.Linear(emb_size, emb_size*2), nn.GELU(), nn.Linear(emb_size*2, emb_size))
+        return m
     self.blocks = nn.Sequential(*[Block(num_heads,
                                         embed_dim,
                                         attn_scales[i],
@@ -89,7 +97,8 @@ class GPT2(LMBase):
                                         kv_first=kv_first,
                                         key_dim=key_dim,
                                         num_distil_heads=num_distil_heads,
-                                        num_distil_head_groups=num_distil_head_groups) for i in range(num_blocks)])
+                                        num_distil_head_groups=num_distil_head_groups,
+                                        layer_proj=layer_proj) for i in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 
