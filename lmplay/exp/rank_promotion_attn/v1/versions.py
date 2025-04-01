@@ -144,7 +144,7 @@ def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(key_dim=12*3,
-                                         attn_scales=(5, 3),
+                                         attn_scales=(3, 3, 3, 3),
                                          num_distil_heads=None, #direct distil
                                          add_model_attn=False,
                                          intermediate_mul=2),
