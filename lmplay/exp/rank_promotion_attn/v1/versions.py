@@ -114,7 +114,7 @@ def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(key_dim=12*3,
-                                         attn_scales=(((3, 3), (3, 3, 3), (3, 3, 3), (3, 3, 3, 3, 3), (5, 3, 3), (5, 3))),
+                                         attn_scales=((3, 3), (3, 3, 3), (3, 3, 3), (3, 3, 3, 3, 3), (5, 3, 3), (5, 3)),
                                          num_distil_heads=4,
                                          num_distil_head_groups=2,
                                          add_model_attn=False,
@@ -124,13 +124,27 @@ def runner(*args, **kwargs):
 
                           **kwargs)
 
+#Totally works. Less mem and better results.
 @expose_runner('rpa1_10',
-               description='1.8 but with more oompf!')
+               description='Trying out direct distil')
 def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(key_dim=12*3,
-                                         attn_scales=(((3, 3), (3, 3, 3), (3, 3, 3), (3, 3, 3, 3, 3), (5, 3, 3), (5, 3))),
+                                         attn_scales=((3, 3), (3, 3, 3), (3, 3, 3), (3, 3, 3, 3, 3), (5, 3, 3), (5, 3)),
+                                         num_distil_heads=None, #direct distil
+                                         add_model_attn=False,
+                                         intermediate_mul=2),
+
+                          **kwargs)
+
+@expose_runner('rpa1_11',
+               description='Trying a simpler and hopefuly more efficient pattern')
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(key_dim=12*3,
+                                         attn_scales=(3, 3, 3),
                                          num_distil_heads=None, #direct distil
                                          add_model_attn=False,
                                          intermediate_mul=2),
