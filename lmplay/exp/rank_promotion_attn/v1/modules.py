@@ -221,10 +221,11 @@ class DistiledMultiheadAttention(nn.Module):
                kv_first: bool = True,
                layer_proj = None,
                intermediate_mul: float = 10.0,
+               utility_intermediate_mul: float|None = None,
                **kwargs):
     super().__init__()
-    if intermediate_mul is None:
-      intermediate_mul = embed_dim
+    if utility_intermediate_mul is None:
+      utility_intermediate_mul = intermediate_mul
     assert embed_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
     if num_distil_heads is None:
       assert layer_proj is None, "If you are directly distilling then you shouldn't provide a layer projection."
@@ -276,8 +277,8 @@ class DistiledMultiheadAttention(nn.Module):
       return nn.Sequential(l1, nn.GELU(), l2)
 
     def build_utility_prediction():
-      l1 = nn.Linear(scale_length * scale_dim, int(scale_length * intermediate_mul))
-      l2 = nn.Linear(int(scale_length * intermediate_mul), 1)
+      l1 = nn.Linear(scale_length * scale_dim, int(scale_length * utility_intermediate_mul))
+      l2 = nn.Linear(int(scale_length * utility_intermediate_mul), 1)
       return nn.Sequential(l1, nn.GELU(), l2)
 
     # Don't need to distil or predict the last layer anymore

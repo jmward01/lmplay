@@ -28,6 +28,7 @@ class GPT2(LMBase):
                front_embed_mul=None,
                layer_proj=None,
                intermediate_mul=10,
+               utility_intermediate_mul=None,
                version="1.0",
                **ignore):
     super().__init__(to_name(version,
@@ -37,6 +38,7 @@ class GPT2(LMBase):
                              key_dim,
                              layer_proj,
                              intermediate_mul=intermediate_mul,
+                             utility_intermediate_mul=utility_intermediate_mul,
                              num_distil_heads=num_distil_heads,
                              num_distil_head_groups=num_distil_head_groups,
                              attn_scales=attn_scales,
@@ -63,7 +65,8 @@ class GPT2(LMBase):
                      flat_batch=True,
                      pass_lengths=True,
                      layer_proj=layer_proj,
-                     intermediate_mul=intermediate_mul)
+                     intermediate_mul=intermediate_mul,
+                     utility_intermediate_mul=utility_intermediate_mul)
     self.tokenizer = tiktoken.get_encoding("gpt2")
     vocab_size = self.tokenizer.n_vocab
     if isinstance(attn_scales[0], int):
@@ -102,7 +105,8 @@ class GPT2(LMBase):
                                         num_distil_heads=num_distil_heads,
                                         num_distil_head_groups=num_distil_head_groups,
                                         layer_proj=layer_proj,
-                                        intermediate_mul=intermediate_mul) for i in range(num_blocks)])
+                                        intermediate_mul=intermediate_mul,
+                                        utility_intermediate_mul=utility_intermediate_mul) for i in range(num_blocks)])
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 
