@@ -134,7 +134,8 @@ def runner(*args, **kwargs):
                                          attn_scales=((3, 3), (3, 3, 3), (3, 3, 3), (3, 3, 3, 3, 3), (5, 3, 3), (5, 3)),
                                          num_distil_heads=None, #direct distil
                                          add_model_attn=False,
-                                         intermediate_mul=2),
+                                         intermediate_mul=2,
+                                         utility_intermediate_mul=50),
 
                           **kwargs)
 

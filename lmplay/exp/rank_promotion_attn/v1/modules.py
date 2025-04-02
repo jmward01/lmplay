@@ -261,6 +261,7 @@ class DistiledMultiheadAttention(nn.Module):
 
     # A scale length is the number of elements dedicated to that scale level. sum(*scale_lengths) = context length
     self.scale_window_lengths = scale_lengths
+    self.total_window_length = sum(self.scale_window_lengths)
     scale_distilations = []
     utility_predictors = []
     layer_buffers = []
@@ -473,17 +474,27 @@ class DistiledMultiheadAttention(nn.Module):
 
     expected_utilities = []
     scale_histories = []
-
-    for take_map, scale_history, expected_utility in take_maps:
+    last_scale_history = 0
+    for i, (take_map, scale_history, expected_utility) in enumerate(take_maps):
+      next_scale_history = last_scale_history + self.scale_window_lengths[-(i + 1)]
+      position_end = self.total_window_length - last_scale_history
+      position_start = self.total_window_length - next_scale_history
       if self.kv_first:
+        if not self.position is None:
+          scale_history = scale_history + self.position[:,position_start:position_end]
         scale_histories.insert(0, scale_history[take_map])
       else:
-        scale_histories.insert(0, self.key_value(scale_history)[take_map])
+        scale_history = self.key_value(scale_history)
+        if not self.position is None:
+          scale_history = scale_history + self.position[:,position_start:position_end]
+        scale_histories.insert(0, scale_history[take_map])
       expected_utilities.insert(0, expected_utility[take_map])
-    if self.kv_first:
-      scale_histories.insert(0, last_kv)
-    else:
-      scale_histories.insert(0, self.key_value(last_kv))
+      last_scale_history = next_scale_history
+    if not self.kv_first:
+      last_kv = self.key_value(last_kv)
+    if not self.position is None:
+      last_kv = last_kv + self.position[:,0:self.total_window_length - last_scale_history]
+    scale_histories.insert(0, last_kv)
     kv = torch.concat(scale_histories, dim=-2)
     expected_utility = torch.concat(expected_utilities, dim=-2)
     q = self.query(x.data).view(-1, 1, self.key_dim)
