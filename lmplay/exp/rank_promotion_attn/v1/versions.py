@@ -131,7 +131,7 @@ def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(key_dim=12*3,
-                                         attn_scales=((3, 5, 5)),
+                                         attn_scales=((3,3),(3, 5, 5)),
                                          num_distil_heads=None, #direct distil
                                          add_model_attn=False,
                                          intermediate_mul=3,
@@ -145,11 +145,11 @@ def runner(*args, **kwargs):
   return BasicModelRunner(GPT2,
                           *args,
                           overrides=dict(key_dim=12*3,
-                                         attn_scales=(3, 5),
+                                         attn_scales=(3, 3, 3, 3, 3),
                                          num_distil_heads=None, #direct distil
                                          add_model_attn=False,
-                                         add_attn_position=False, #Not sure this is needed with direct distil
-                                         intermediate_mul=2,
+                                         add_attn_position=True, #Makes a difference with direct distil. Probably makes a bigger diff with larger initial scale windows
+                                         intermediate_mul=3,
                                          utility_intermediate_mul=50),
 
                           **kwargs)
