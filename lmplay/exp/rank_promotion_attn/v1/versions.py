@@ -148,6 +148,7 @@ def runner(*args, **kwargs):
                                          attn_scales=(3, 5),
                                          num_distil_heads=None, #direct distil
                                          add_model_attn=False,
+                                         add_attn_position=False, #Not sure this is needed with direct distil
                                          intermediate_mul=2,
                                          utility_intermediate_mul=50),
 
