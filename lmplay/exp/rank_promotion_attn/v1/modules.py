@@ -499,8 +499,8 @@ class DistiledMultiheadAttention(nn.Module):
     expected_utility = torch.concat(expected_utilities, dim=-2)
     q = self.query(x.data).view(-1, 1, self.key_dim)
     # q: seq_len, 1, num_heads, head_size
-    if not self.position is None:
-      kv = kv + self.position
+    #if not self.position is None:
+    #  kv = kv + self.position
     k = kv[:, :, :self.key_dim]
     v = kv[:, :, self.key_dim:]
     x, utility = scaled_dot_product_attention(q, k, v, self.num_heads)
