@@ -150,7 +150,9 @@ def runner(*args, **kwargs):
                                          add_model_attn=False,
                                          add_attn_position=True, #Makes a difference with direct distil. Probably makes a bigger diff with larger initial scale windows
                                          intermediate_mul=3,
-                                         utility_intermediate_mul=50),
+                                         utility_intermediate_mul=50,
+                                         front_embed_mul=4,
+                                         mid_mul=16), #Activate UE
 
                           **kwargs)
 
