@@ -129,7 +129,7 @@ class FlattenedBatchInfo:
       self._flat_size = sum(self.sample_lengths_list)
     return self._flat_size
 
-  def tile_within2(self, data: torch.Tensor, buffer: torch.Tensor) -> torch.Tensor:
+  def tile_within(self, data: torch.Tensor, buffer: torch.Tensor) -> torch.Tensor:
     # Buffer size dictates the tile size. Tile = buffer.shape[0] + 1
     # buffer: len, emb_size
     buff_len = buffer.shape[0]
@@ -158,7 +158,7 @@ class FlattenedBatchInfo:
     tiled_data = tiled_data.view(data.shape[0], -1, *data.shape[1:])
     return tiled_data
 
-  def tile_within(self, data: torch.Tensor, buffer: torch.Tensor) -> torch.Tensor:
+  def tile_within2(self, data: torch.Tensor, buffer: torch.Tensor) -> torch.Tensor:
     # Buffer size dictates the tile size. Tile = buffer.shape[0] + 1
     # buffer: len, emb_size
     buff_len = int(buffer.shape[0])
