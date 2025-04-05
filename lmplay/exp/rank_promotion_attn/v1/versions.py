@@ -181,7 +181,8 @@ def runner(*args, **kwargs):
                                          num_distil_heads=None, #direct distil
                                          add_model_attn=False,
                                          add_attn_position=True, #Makes a difference with direct distil. Probably makes a bigger diff with larger initial scale windows
-                                         intermediate_mul=3,
-                                         utility_intermediate_mul=50),
+                                         intermediate_mul=0,
+                                         utility_intermediate_mul=50,
+                                         layer_proj="M"),
 
                           **kwargs)

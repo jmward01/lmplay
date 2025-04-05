@@ -2,11 +2,13 @@ import torch
 from torch import nn
 from typing import Optional, List
 
-from .modules import Block, FlattenedBatch, FlattenedBatchInfo
+from .modules import Block, FlattenedBatch, FlattenedBatchInfo, SimpleResidualMLP
 import tiktoken
 from lmplay.base.base_model import LMBase
 from lmplay.utils import to_name
 from lmplay.modules import UnifiedEmbedding
+
+
 
 class GPT2(LMBase):
   def __init__(self,
@@ -94,6 +96,11 @@ class GPT2(LMBase):
       def layer_proj(emb_size:int) -> nn.Module:
         m = nn.Sequential(nn.Linear(emb_size, emb_size*2), nn.GELU(), nn.Linear(emb_size*2, emb_size))
         return m
+    elif layer_proj == 'R':
+      def layer_proj(emb_size:int) -> nn.Module:
+        m = SimpleResidualMLP(emb_size, 2)
+        return m
+
     self.blocks = nn.Sequential(*[Block(num_heads,
                                         embed_dim,
                                         attn_scales[i],

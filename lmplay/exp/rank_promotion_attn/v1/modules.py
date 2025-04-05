@@ -9,6 +9,16 @@ from lmplay.modules import NopModule
 
 __all__ = ['DistiledMultiheadAttention']
 
+class SimpleResidualMLP(nn.Module):
+  def __int__(self, embedding_size:int, mid_mul=1.0):
+    super().__int__()
+    self.embedding_size = embedding_size
+    self.mid_size = int(self.embedding_size*self.mid_size)
+    self.l1 = nn.Linear(self.embedding_size, self.mid_size)
+    self.l2 = nn.Linear(self.mid_size, self.embedding_size)
+
+  def forward(self, x):
+    return x + self.l2(F.gelu(self.l1(x)))
 
 # stolen from pytorch docs and modified.
 def scaled_dot_product_attention(query, key, value, num_heads: int, dropout_p=0.0, training: bool = True) -> (
@@ -228,7 +238,7 @@ class DistiledMultiheadAttention(nn.Module):
       utility_intermediate_mul = intermediate_mul
     assert embed_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
     if num_distil_heads is None:
-      assert layer_proj is None, "If you are directly distilling then you shouldn't provide a layer projection."
+      #assert layer_proj is None, "If you are directly distilling then you shouldn't provide a layer projection."
       #We will directly distil instead of doing MHA to build it.
       self.direct_distl = True
     else:
@@ -269,13 +279,18 @@ class DistiledMultiheadAttention(nn.Module):
 
     def build_scale_distilation():
       if not self.direct_distl:
+        #We are just building the attn values
         l1 = nn.Linear(scale_length * scale_dim, int(scale_length * intermediate_mul))
         l2 = nn.Linear(int(scale_length * intermediate_mul), scale_length*num_distil_heads)
+        return nn.Sequential(l1, nn.GELU(), l2)
+      #Direct distil is directly creating the next layer so the out is the embedding dim.
+
+      if intermediate_mul == 0:
+        return nn.Linear(scale_length * scale_dim,  scale_dim)
       else:
-        #Direct distil is directly creating the next layer so the out is the embedding dim.
         l1 = nn.Linear(scale_length * scale_dim, int(intermediate_mul*embed_dim))
         l2 = nn.Linear(int(intermediate_mul*embed_dim), scale_dim)
-      return nn.Sequential(l1, nn.GELU(), l2)
+        return nn.Sequential(l1, nn.GELU(), l2)
 
     def build_utility_prediction():
       l1 = nn.Linear(scale_length * scale_dim, int(scale_length * utility_intermediate_mul))
