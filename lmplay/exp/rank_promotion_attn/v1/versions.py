@@ -183,6 +183,6 @@ def runner(*args, **kwargs):
                                          add_attn_position=True, #Makes a difference with direct distil. Probably makes a bigger diff with larger initial scale windows
                                          intermediate_mul=0,
                                          utility_intermediate_mul=50,
-                                         layer_proj="M"),
+                                         layer_proj="R"),
 
                           **kwargs)

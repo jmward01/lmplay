@@ -10,10 +10,10 @@ from lmplay.modules import NopModule
 __all__ = ['DistiledMultiheadAttention']
 
 class SimpleResidualMLP(nn.Module):
-  def __int__(self, embedding_size:int, mid_mul=1.0):
-    super().__int__()
+  def __init__(self, embedding_size:int, mid_mul=1.0):
+    super().__init__()
     self.embedding_size = embedding_size
-    self.mid_size = int(self.embedding_size*self.mid_size)
+    self.mid_size = int(self.embedding_size*mid_mul)
     self.l1 = nn.Linear(self.embedding_size, self.mid_size)
     self.l2 = nn.Linear(self.mid_size, self.embedding_size)
 
