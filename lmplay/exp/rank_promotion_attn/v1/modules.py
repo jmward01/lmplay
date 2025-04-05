@@ -129,7 +129,7 @@ class FlattenedBatchInfo:
       self._flat_size = sum(self.sample_lengths_list)
     return self._flat_size
 
-  def tile_within(self, data: torch.Tensor, buffer: torch.Tensor) -> torch.Tensor:
+  def tile_within2(self, data: torch.Tensor, buffer: torch.Tensor) -> torch.Tensor:
     # Buffer size dictates the tile size. Tile = buffer.shape[0] + 1
     # buffer: len, emb_size
     buff_len = buffer.shape[0]
@@ -157,6 +157,29 @@ class FlattenedBatchInfo:
 
     tiled_data = tiled_data.view(data.shape[0], -1, *data.shape[1:])
     return tiled_data
+
+  def tile_within(self, data: torch.Tensor, buffer: torch.Tensor) -> torch.Tensor:
+    # Buffer size dictates the tile size. Tile = buffer.shape[0] + 1
+    # buffer: len, emb_size
+    buff_len = int(buffer.shape[0])
+    fold_len = buff_len + 1
+    temp_fb = []
+    for s in data.split(self.sample_lengths_list):
+      temp_fb.append(buffer)
+      temp_fb.append(s)
+    data = torch.concat(temp_fb)
+    folded = data.unfold(0, fold_len, 1).transpose(-1, -2)
+    data = folded
+    lengths_with_buffer = [l + buff_len for l in self.sample_lengths_list]
+    lengths_with_buffer[-1] -= buff_len
+    temp_fb = []
+    for i, s in enumerate(data.split(lengths_with_buffer)):
+      if i < len(lengths_with_buffer) - 1:
+        temp_fb.append(s[:-buff_len])
+      else:
+        temp_fb.append(s)
+    data = torch.concat(temp_fb)
+    return data
 
   def unflatten(self, data) -> torch.Tensor:
     # Turn this back into a batch. I assume the pytorch routines here are fast.
@@ -204,6 +227,10 @@ class FlattenedBatch:
 
   def tile_within(self, buffer: torch.Tensor) -> "FlattenedBatch":
     tile_data = self.lengths.tile_within(self.data, buffer)
+    return FlattenedBatch(tile_data, self.lengths)
+
+  def tile_within2(self, buffer: torch.Tensor) -> "FlattenedBatch":
+    tile_data = self.lengths.tile_within2(self.data, buffer)
     return FlattenedBatch(tile_data, self.lengths)
 
   def unflatten(self) -> torch.Tensor:
