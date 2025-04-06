@@ -159,8 +159,16 @@ class FlattenedBatchInfo:
     return tiled_data
 
   def tile_within2(self, data: torch.Tensor, buffer: torch.Tensor) -> torch.Tensor:
+    """Tiles in reverse compared to the other method. Not sure which is more performant/memory efficient.
+    This would probably be faster in a normal batch version. It definitely is simpler. This -may- be slightly slower.
+
+    :param data:
+    :param buffer:
+    :return:
+    """
     # Buffer size dictates the tile size. Tile = buffer.shape[0] + 1
     # buffer: len, emb_size
+
     buff_len = int(buffer.shape[0])
     fold_len = buff_len + 1
     temp_fb = []
