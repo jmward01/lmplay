@@ -185,6 +185,6 @@ def runner(*args, **kwargs):
                                          utility_intermediate_mul=50,
                                          front_embed_mul=4,
                                          mid_mul=16,
-                                         utility_cut=2.0), #Activate UE
+                                         utility_cut=0.5), #Activate UE
 
                           **kwargs)
