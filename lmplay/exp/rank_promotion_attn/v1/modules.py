@@ -267,8 +267,10 @@ class DistiledMultiheadAttention(nn.Module):
                layer_proj = None,
                intermediate_mul: float = 10.0,
                utility_intermediate_mul: float|None = None,
+               utility_cut = None,
                **kwargs):
     super().__init__()
+    self.utility_cut = utility_cut
     if utility_intermediate_mul is None:
       utility_intermediate_mul = intermediate_mul
     assert embed_dim % num_heads == 0, "Embed dim must be a multiple of num_heads."
@@ -417,7 +419,11 @@ class DistiledMultiheadAttention(nn.Module):
       running_ave_utility = running_ave_utility / idxs
       # We will always take until our scale is filled so set those appropriately
       required_idxs = idxs <= self.scale_window_lengths[layer]
-      selected = expected_utility > running_ave_utility
+      if not self.utility_cut is None:
+        selected = expected_utility >= running_ave_utility * self.utility_cut
+      else:
+        selected = expected_utility >= running_ave_utility
+
       selected = torch.logical_or(selected, required_idxs, out=selected)
 
     # We need to know how long the new sample lengths are. To do that we count up the selected and use that to find the new lengths
