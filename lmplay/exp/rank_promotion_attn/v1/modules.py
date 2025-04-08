@@ -418,13 +418,16 @@ class DistiledMultiheadAttention(nn.Module):
         idxs = torch.arange(1, f_x.data.shape[0] + 1, device=f_x.data.device)
       running_ave_utility = running_ave_utility / idxs
       # We will always take until our scale is filled so set those appropriately
-      required_idxs = idxs <= self.scale_window_lengths[layer]
+      selected = idxs <= self.scale_window_lengths[layer]
       if not self.utility_cut is None:
-        selected = expected_utility >= running_ave_utility * self.utility_cut
-      else:
-        selected = expected_utility >= running_ave_utility
+        running_ave_utility *= self.utility_cut
 
-      selected = torch.logical_or(selected, required_idxs, out=selected)
+      made_cut = expected_utility[1:] >= running_ave_utility[:-1]
+      selected[1:] = selected[1:] | made_cut
+      #selected = expected_utility >= running_ave_utility
+
+      #selected = torch.logical_or(selected, required_idxs, out=selected)
+      #selected = torch.logical_or(selected, required_idxs)
 
     # We need to know how long the new sample lengths are. To do that we count up the selected and use that to find the new lengths
     cumsum = torch.cumsum(selected, 0)
