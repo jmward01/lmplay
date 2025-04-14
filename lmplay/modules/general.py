@@ -61,10 +61,14 @@ class LRAdd(nn.Module):
     #Let's apply the floor/ceil/target logic
     scale = self.ceil - self.floor
     weights = F.sigmoid(weights)*scale + self.floor
-    batch, sequence, features = weights.shape
-    weights = weights.reshape(batch, sequence, 2, -1)
-    alpha = weights[:,:,0,:]
-    beta = weights[:,:,1,:]
+    shape = weights.shape[:-1]
+    weights = weights.reshape(*shape, 2, -1)
+    if len(shape) == 2:
+      alpha = weights[:,:,0,:]
+      beta = weights[:,:,1,:]
+    else:
+      alpha = weights[:,0,:]
+      beta = weights[:,1,:]
 
     ##Now we split between the alpha and beta
     ##Get alpha between 0 and 2. We want to allow going above 1
@@ -78,6 +82,22 @@ class LRAdd(nn.Module):
     #a = weights[...,0:1]
     #b = weights[...,1:2]
     return x*alpha + y*beta
+
+
+class CAdd(nn.Module):
+  def __init__(self, features:int, add_type:str|None = "A"):
+    super().__init__()
+    if add_type is None:
+      self.add_f = lambda x, y:y
+    elif add_type == "A":
+      self.add_f = lambda x, y: x + y
+    elif add_type == "L":
+      self.add_f = LRAdd(features)
+    else:
+      raise ValueError(f"Unknown add {add_type}")
+
+  def forward(self, x, y):
+    return self.add_f(x, y)
 
 
 class NopModule(nn.Module):
