@@ -150,8 +150,13 @@ class MBase(nn.Module):
     results = []
     if self.flat_batch:
       # num classes is always second. For, reasons?
-      target_loss = F.cross_entropy(x.unsqueeze(0).permute(0, 2, 1), truths.unsqueeze(0), reduction="none")
-      target_loss = torch.split(target_loss.squeeze(0), predictions_ends)
+      target_loss = F.cross_entropy(x.unsqueeze(0).permute(0, 2, 1), truths.unsqueeze(0), reduction="none").squeeze(0)
+
+      if extra_loss.shape[0] == target_loss.shape[0]:
+        target_loss = target_loss + extra_loss
+        extra_loss = None
+
+      target_loss = torch.split(target_loss, predictions_ends)
     else:
       target_loss = F.cross_entropy(x.permute(0, 2, 1), truths, reduction="none")
 
