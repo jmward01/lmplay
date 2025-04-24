@@ -152,7 +152,7 @@ class MBase(nn.Module):
       # num classes is always second. For, reasons?
       target_loss = F.cross_entropy(x.unsqueeze(0).permute(0, 2, 1), truths.unsqueeze(0), reduction="none").squeeze(0)
 
-      if extra_loss.shape[0] == target_loss.shape[0]:
+      if not extra_loss is None and extra_loss.shape[0] == target_loss.shape[0]:
         target_loss = target_loss + extra_loss
         extra_loss = None
 
