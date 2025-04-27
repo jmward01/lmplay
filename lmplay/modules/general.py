@@ -1,13 +1,14 @@
 from torch import nn
 import torch
 import torch.nn.functional as F
-
+from lmplay.utils import ignore_default, DEFAULT
 
 __all__ = ['LRAdd', 'hide_net', 'NopModule']
 
 
 
 class LRAdd(nn.Module):
+  @ignore_default
   def __init__(self,
                features:int,
                floor=0.4,
@@ -85,6 +86,7 @@ class LRAdd(nn.Module):
 
 
 class CAdd(nn.Module):
+  @ignore_default
   def __init__(self, features:int, add_type:str|None = "A"):
     super().__init__()
     if add_type is None:

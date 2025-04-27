@@ -7,12 +7,14 @@ def pstr(v) -> str:
   #Hacky way to convert parameter values to name friendly strings
   if v is None:
     return 'N'
+  if v is DEFAULT:
+    return 'D'
   if isinstance(v, str):
     return v
   if isinstance(v, float):
     return f"{v:0.1f}"
   if hasattr(v, "__iter__"):
-    return ''.join(pstr(vc) for vc in v)
+    return f"_{''.join(pstr(vc) for vc in v)}"
   return str(int(v))
 
 def to_name(version:str, *args, **kwargs):
@@ -23,6 +25,16 @@ def to_name(version:str, *args, **kwargs):
     name = f"{name}_{'_'.join(pstr(v) for v in kwargs.values())}"
   return name
 
+class _DEFAULT():
+  pass
+
+DEFAULT = _DEFAULT.__class__
+
+def ignore_default(f:callable) -> callable:
+  def new_f(*args, **kwargs):
+    kwargs = {k:v for k,v in kwargs.items() if not v is DEFAULT}
+    return f(*args, **kwargs)
+  return new_f
 
 def gen_mask(max_len: int) -> torch.Tensor:
   return torch.tril(torch.ones(max_len, max_len)).unsqueeze(0).unsqueeze(0)

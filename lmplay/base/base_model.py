@@ -9,6 +9,7 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.nn.utils.rnn import pad_sequence
 from shutil import copyfile
 import torch.nn.functional as F
+from lmplay.utils import ignore_default
 
 DEFAULT_LR = 6e-4
 # DEFAULT_LR = 3e-5
@@ -38,6 +39,7 @@ class OptimizerWarmupLRScheduler(LRScheduler):
 
 
 class MBase(nn.Module):
+  @ignore_default
   def __init__(self,
                name: str,
                *init_args,
