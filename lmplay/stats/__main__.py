@@ -1,8 +1,42 @@
+"""
+Command-line interface for plotting training statistics.
+
+This module provides the main entry point for the lmp_plotstats command,
+which generates publication-quality plots from training statistics CSV files.
+It supports comparing multiple experiments, smoothing noisy data, and creating
+differential plots to highlight performance differences.
+
+Key features:
+- Automatic discovery of statistics files in output directories
+- Smoothed trend lines with configurable averaging windows
+- Differential plotting against baseline or target models
+- Support for both training and validation statistics
+- Raw data scatter plots with trend overlays
+- Outlier detection and removal for cleaner visualizations
+
+Example usage:
+  python -m lmplay.stats out_gpt/ --target gpt2ish_6L --out-type jpg
+"""
+
 from .plot import plot, find_stat_files, get_file_data
 from argparse import ArgumentParser
 import time
 
 def main():
+  """
+  Main entry point for the statistics plotting command-line interface.
+  
+  Parses command-line arguments and generates training/validation plots
+  from CSV statistics files. Creates four standard plots:
+  1. Loss curves (log scale)
+  2. Accuracy curves (log scale) 
+  3. Differential loss plots (compared to target/baseline)
+  4. Differential accuracy plots (compared to target/baseline)
+  
+  The function automatically discovers statistics files in the specified
+  directories, applies smoothing and outlier removal, and saves publication-
+  quality plots in the current directory.
+  """
   args = ArgumentParser("Graph some things!")
   args.add_argument('locations', help="Directories to look for training stats. Default is just out_gpt", nargs="*", default=["out_gpt"])
   args.add_argument('--plot-train', help="Generate plots for train stats instead of validate.", action="store_true")

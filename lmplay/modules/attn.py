@@ -1,3 +1,17 @@
+"""Multi-head attention implementations with experimental features.
+
+This module provides flexible multi-head attention implementations that support:
+- Swappable linear layer implementations for experimenting with different weight types
+- Optional layer normalization on query, key, and value projections
+- Learnable scaling factors for attention scores
+- Support for both causal and non-causal attention
+- Key-value caching for efficient inference
+- Cross-attention capabilities
+
+The implementations are designed to be drop-in replacements for standard PyTorch
+multi-head attention while providing additional hooks for experimentation.
+"""
+
 import math
 from typing import Optional
 
@@ -11,8 +25,24 @@ __all__ = ['MultiheadAttention']
 
 
 class MultiheadAttention(nn.Module):
-  """This allows testing different ideas. The default behavior (I think) is implemented like the ref transformer block.
-  This allows layernorm on kqv and swapping the linear implementation.
+  """Flexible multi-head attention implementation for experimentation.
+  
+  This class provides a configurable multi-head attention mechanism that supports
+  various experimental features while maintaining compatibility with standard
+  transformer architectures. It allows testing different linear layer implementations,
+  normalization strategies, and scaling mechanisms.
+  
+  Key features:
+  - Swappable linear layer implementations for Q, K, V, and output projections
+  - Optional layer normalization on query, key, and value projections
+  - Learnable or fixed scaling of attention scores
+  - Support for both causal (autoregressive) and non-causal attention
+  - Key-value caching for efficient autoregressive generation
+  - Cross-attention support (when x_cross is provided)
+  
+  The implementation provides both a reference version using PyTorch's
+  scaled_dot_product_attention and a custom implementation for better
+  visibility into the attention mechanism.
   """
 
   def __init__(self,
@@ -33,14 +63,45 @@ class MultiheadAttention(nn.Module):
                value_linear=None,
                causal=True,
                learn_scale: bool|str=False):  # Passing in the class we want for a linear layer since this can be swapped for different exp
-    """
-    :param max_len: Max sequence generation length. Needed for mask generation. Better implementations don't need this.
-    :param num_heads: Guess
-    :param embed_dim: Guess - must be a multiple of num_heads
-    :param attn_dropout: Not implemented. Here mainly as a placeholder to point out it is missing.
-    :param ff_dropout: Guess
-    :param force_ref: Force the pytorch ref implementation. Only makes a performance difference.
-    :param linear: The linear layer class/factory method to instantiate linear layers with.
+    """Initialize multi-head attention module.
+    
+    Args:
+        max_len (int): Maximum sequence length for mask generation. This is needed
+            for causal attention masks but better implementations could generate
+            masks dynamically.
+        num_heads (int): Number of attention heads. The embed_dim must be divisible
+            by this value.
+        embed_dim (int): Embedding dimension. Must be divisible by num_heads to
+            determine the dimension per head.
+        attn_dropout (float, optional): Dropout probability for attention weights.
+            Currently not implemented but kept as placeholder. Defaults to 0.1.
+        ff_dropout (float, optional): Dropout probability for the output projection.
+            Defaults to 0.1.
+        force_ref (bool): If True, forces use of PyTorch's reference implementation
+            (scaled_dot_product_attention) when available. Defaults to False.
+        norm_v (bool): If True, applies layer normalization to value projections.
+            Defaults to False.
+        norm_k (bool): If True, applies layer normalization to key projections.
+            Defaults to False.
+        norm_q (bool): If True, applies layer normalization to query projections.
+            Defaults to False.
+        linear (type): Linear layer class or factory function to use for creating
+            linear projections. Defaults to nn.Linear.
+        query_linear (type, optional): Specific linear layer type for query projection.
+            If None, uses the general linear parameter.
+        key_linear (type, optional): Specific linear layer type for key projection.
+            If None, uses the general linear parameter.
+        proj_linear (type, optional): Specific linear layer type for output projection.
+            If None, uses the general linear parameter.
+        value_linear (type, optional): Specific linear layer type for value projection.
+            If None, uses the general linear parameter.
+        causal (bool): If True, uses causal (autoregressive) attention masking.
+            Defaults to True.
+        learn_scale (bool|str): Controls learnable scaling of attention scores.
+            - False: Use standard 1/sqrt(d_k) scaling
+            - True or 'full': Learn per-head, per-position scaling factors
+            - 'simple': Learn a single global scaling factor
+            Defaults to False.
     """
     # The mask here is generated by the 'casual' value.
     # There are a lot of good reasons to generate a custom mask but for simplicity and clarity this class will deal with mask generation as needed.
@@ -101,9 +162,19 @@ class MultiheadAttention(nn.Module):
     self.force_ref = force_ref
 
   def _kv_cache_prep(self, cache: Optional[list]) -> bool:
-    """ preps the cache with 'None' so that future sets have space.
-    :param cache:
-    :return: if the cache has a value that should be appended to.
+    """Prepare the key-value cache for storing attention states.
+    
+    This method initializes the cache structure if needed and determines
+    whether the cache contains previous key-value pairs that should be
+    concatenated with new ones.
+    
+    Args:
+        cache (Optional[list]): A list that will store [keys, values] tensors.
+            Modified in place. If None, caching is disabled.
+    
+    Returns:
+        bool: True if the cache contains previous key-value pairs that should
+            be concatenated with new computations, False otherwise.
     """
     if cache is None:
       return False
@@ -113,10 +184,34 @@ class MultiheadAttention(nn.Module):
     return True
 
   def forward(self, x, x_cross=None, cache: Optional[list] = None) -> torch.Tensor:
-    """ Runns mha!
-    :param x: How mysterious!
-    :param cache: modified in place. The caller shouldn't touch it!
-    :return:
+    """Perform multi-head attention forward pass.
+    
+    This method computes multi-head attention with support for both self-attention
+    and cross-attention modes. It handles key-value caching for efficient
+    autoregressive generation and supports both PyTorch's optimized implementation
+    and a custom implementation for experimentation.
+    
+    Args:
+        x (torch.Tensor): Input tensor of shape (batch_size, seq_len, embed_dim).
+            This is used to compute queries in all cases, and also keys/values
+            for self-attention.
+        x_cross (torch.Tensor, optional): Cross-attention input of shape
+            (cross_batch_size, cross_seq_len, embed_dim). When provided, keys and
+            values are computed from this tensor instead of x. Defaults to None.
+        cache (Optional[list]): Key-value cache for autoregressive generation.
+            Should be an empty list on first call. The method will populate it
+            with [keys, values] and update it on subsequent calls. Modified in place.
+            Not supported for cross-attention. Defaults to None.
+    
+    Returns:
+        torch.Tensor: Attention output of shape (batch_size, seq_len, embed_dim)
+            after applying multi-head attention and output projection.
+    
+    Note:
+        The implementation automatically chooses between causal and non-causal
+        attention based on the sequence length and mask settings. For single
+        token generation (seq_len=1), causal masking is not applied since
+        there are no future tokens to mask.
     """
 
     if not x_cross is None:

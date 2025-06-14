@@ -1,6 +1,23 @@
+"""
+lmplay: A framework for rapid experimentation with language model architectures.
+
+This package provides a modular system for building, training, and experimenting with
+transformer-based language models. It features:
+
+- Modular architecture with swappable components (attention, embeddings, blocks)
+- Runner pattern for exposing models to CLI tools
+- Multi-stage training plans with automatic dataset management
+- Built-in experiment tracking and statistics
+- Support for various experimental architectures
+
+The MODEL_RUNNERS registry is populated by importing experiment version modules below,
+which register their runners when loaded.
+"""
+
 from lmplay.base.runner_list import MODEL_RUNNERS
 
-#gotta force the classes to load so that the model runner list will populate with them. This needs to be somewhere so why not centralized here?
+# Import experiment versions to register their runners in MODEL_RUNNERS.
+# This enables the CLI tools to discover and use these experiments.
 
 import lmplay.exp.weights.uw1.versions
 import lmplay.exp.weights.uw2.versions

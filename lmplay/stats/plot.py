@@ -1,3 +1,41 @@
+"""
+Advanced plotting and visualization system for training statistics.
+
+This module provides a comprehensive plotting system for visualizing training
+and validation metrics from language model experiments. It includes sophisticated
+features for multi-experiment comparison, data smoothing, outlier detection,
+and differential analysis.
+
+Key features:
+- Multi-experiment comparison with automatic legend generation
+- Advanced smoothing with adaptive averaging windows
+- Outlier detection and removal for cleaner visualizations
+- Differential plotting to highlight performance differences
+- Log-scale plotting for better visualization of training curves
+- Raw data scatter plots with smoothed trend overlays
+- Automatic baseline detection and comparison
+- Memory-efficient processing using multiprocessing
+- Publication-quality output with configurable formats
+
+The plotting system uses tokens as the primary x-axis metric for more
+meaningful comparisons across different batch sizes and training configurations.
+It supports both training and validation statistics with automatic file
+discovery and intelligent data processing.
+
+Data Processing Pipeline:
+1. File discovery and CSV parsing
+2. Data unification across different experiment lengths
+3. Outlier detection and bounds calculation
+4. Adaptive smoothing with triangular weighting
+5. Optional differential analysis against baseline
+6. Multi-process rendering for memory management
+7. Publication-quality output generation
+
+Constants:
+  X_KEY (str): CSV column name for x-axis data (tokens)
+  X_LABEL (str): Display label for x-axis (Tokens)
+"""
+
 import math
 import os
 from typing import Optional
@@ -11,12 +49,26 @@ import numpy
 import numpy as np
 import bisect
 
-#X_KEY = "iter"
-#X_LABEL = "Iteration"
+# Primary x-axis metric for plotting - using tokens provides more meaningful
+# comparisons across different batch sizes and training configurations
 X_KEY = "tokens"
 X_LABEL = "Tokens"
 
 def find_stat_files(path: str) -> (tuple, tuple):
+  """
+  Discover and categorize training statistics CSV files in a directory.
+  
+  Searches for files ending with '_stats.csv' and separates them into
+  regular experiment files and baseline files (containing 'baseline' in name).
+  Files are sorted by modification time with most recent first.
+  
+  Args:
+    path (str): Directory path to search for statistics files
+  
+  Returns:
+    tuple: (experiment_files, baseline_files) - both as tuples of file paths
+           sorted by modification time (newest first)
+  """
   path = os.path.expanduser(path)
   found_files = dict()
   found_baseline_files = dict()
@@ -37,6 +89,20 @@ def find_stat_files(path: str) -> (tuple, tuple):
   return found_files, found_baseline_files
 
 def max_toss_outliers(d:np.ndarray|list[float], prev_max:float|None, worst_mul=10.0) -> float:
+  """
+  Calculate a robust maximum value with outlier detection and removal.
+  
+  Uses the 80th-90th percentile slope to extrapolate a reasonable maximum
+  that excludes extreme outliers while preserving important data characteristics.
+  
+  Args:
+    d (np.ndarray|list[float]): Data array to analyze
+    prev_max (float|None): Previous maximum to ensure monotonic behavior
+    worst_mul (float): Multiplier for worst-case outlier detection
+  
+  Returns:
+    float: Robust maximum value with outliers excluded
+  """
   if isinstance(d, list):
     d = np.array(d)
   d = np.sort(d)
@@ -51,6 +117,20 @@ def max_toss_outliers(d:np.ndarray|list[float], prev_max:float|None, worst_mul=1
 
 
 def min_toss_outliers(d:np.ndarray|list[float], prev_min:float|None, worst_mul=10.0) -> float:
+  """
+  Calculate a robust minimum value with outlier detection and removal.
+  
+  Uses the 10th-20th percentile slope to extrapolate a reasonable minimum
+  that excludes extreme outliers while preserving important data characteristics.
+  
+  Args:
+    d (np.ndarray|list[float]): Data array to analyze
+    prev_min (float|None): Previous minimum to ensure monotonic behavior
+    worst_mul (float): Multiplier for worst-case outlier detection
+  
+  Returns:
+    float: Robust minimum value with outliers excluded
+  """
   if isinstance(d, list):
     d = np.array(d)
   d = np.sort(d)
@@ -82,6 +162,33 @@ def _plot_worker(out_file,
                  satart_ac=5,
                  ac_inc=6,
                  target_points=40000):
+  """
+  Core plotting worker function with advanced smoothing and visualization.
+  
+  Generates publication-quality plots with adaptive smoothing, outlier removal,
+  and sophisticated data processing. Uses triangular weighting for smooth curves
+  and handles both raw scatter plots and trend lines.
+  
+  Args:
+    out_file (str): Output file path for the generated plot
+    file_data (dict): Dictionary mapping experiment names to data arrays
+    plot_targets (tuple): Metric names to plot (e.g., 'loss', 'accuracy')
+    log_plot (bool): Use logarithmic x-axis scaling
+    show (bool): Display plot in interactive window
+    scale (bool): Auto-scale axes to focus on interesting regions
+    min_iter (int): Minimum x-axis value to display
+    max_iter (int): Maximum x-axis value to display  
+    abs_min_value (float): Global minimum y-value across all data
+    abs_max_value (float): Global maximum y-value across all data
+    max_min_value (float): Maximum of all dataset minimums
+    min_max_value (float): Minimum of all dataset maximums
+    min_show (float): Fraction of shortest run to display
+    plot_raw (bool): Show raw data points as scatter plot
+    average_count (Optional[int]): Maximum smoothing window size
+    satart_ac (int): Initial smoothing window size
+    ac_inc (int): Smoothing window increment rate
+    target_points (int): Target number of points for performance optimization
+  """
   # with plt.xkcd():
   acs = dict()
   #This is horrible nog good bad code. Sorry. Please don't think of this as something to use.
@@ -98,6 +205,19 @@ def _plot_worker(out_file,
   #  return acs[i]
 
   def get_ac(i, center):
+    """
+    Generate triangular averaging weights for smooth data interpolation.
+    
+    Creates normalized triangular weights centered around a specific point
+    for sophisticated data smoothing that preserves trends while reducing noise.
+    
+    Args:
+      i (int): Window size for averaging
+      center (int): Center position within the window
+    
+    Returns:
+      np.ndarray: Normalized triangular weights summing to 1.0
+    """
     if (i,center) not in acs:
       ac = []
       #center = int(i / 2)
@@ -251,6 +371,16 @@ def _plot_worker(out_file,
 
 
 def _plot(*args):
+  """
+  Memory-safe plotting wrapper using multiprocessing.
+  
+  Matplotlib has memory leaks during intensive plotting. This function
+  creates a separate process for plotting and kills it afterwards to
+  ensure memory is properly released.
+  
+  Args:
+    *args: Arguments passed directly to _plot_worker
+  """
   # matplotlib has a memory leak. This constructs a process then kills it which clears the used memory.
   proc = mp.Process(target=_plot_worker, args=args)
   proc.daemon = True
@@ -259,6 +389,21 @@ def _plot(*args):
 
 
 def get_stats(file_data: dict, plot_targets: tuple, shortest_iter: int):
+  """
+  Calculate global statistics across all datasets for plot scaling.
+  
+  Analyzes all data to determine appropriate axis bounds and scaling
+  parameters for consistent visualization across multiple experiments.
+  
+  Args:
+    file_data (dict): Dictionary mapping experiment names to data arrays
+    plot_targets (tuple): Metric names to analyze
+    shortest_iter (int): Minimum iteration threshold for inclusion
+  
+  Returns:
+    tuple: (abs_min_value, abs_max_value, max_min_value, min_max_value)
+           Global statistics for plot scaling
+  """
   abs_min_value = None
   abs_max_value = None
   max_min_value = None
@@ -298,6 +443,20 @@ def get_stats(file_data: dict, plot_targets: tuple, shortest_iter: int):
 
 
 def unify_points(file_data: dict, iters: list, plot_targets: tuple) -> dict:
+  """
+  Unify data points across experiments with different iteration counts.
+  
+  Creates aligned datasets where all experiments have data points at the
+  same iteration values, enabling proper comparison and differential analysis.
+  
+  Args:
+    file_data (dict): Single experiment's data arrays
+    iters (list): Master list of all iteration values across experiments
+    plot_targets (tuple): Metric names to unify
+  
+  Returns:
+    dict: Unified data with consistent iteration points
+  """
   new_iters = []
   result_file = {X_KEY: new_iters}
   for pt in plot_targets:
@@ -319,7 +478,20 @@ def unify_points(file_data: dict, iters: list, plot_targets: tuple) -> dict:
   return result_file
 
 
-def _get_iters(files_data: dict) -> (list, str, str):
+def _get_iters(files_data: dict) -> dict:
+  """
+  Extract iteration metadata from multiple experiment datasets.
+  
+  Analyzes all experiments to find the complete set of iteration values
+  and identifies the longest and shortest runs for comparison purposes.
+  
+  Args:
+    files_data (dict): Dictionary mapping experiment names to data arrays
+  
+  Returns:
+    dict: Contains 'iters' (sorted list), 'longest' (experiment name),
+          'shortest' (experiment name)
+  """
   found_iters = set()
   longest = None
   longest_len = None
@@ -336,10 +508,24 @@ def _get_iters(files_data: dict) -> (list, str, str):
       shortest_len = data[X_KEY][-1]
   iters = list(found_iters)
   iters.sort()
-  return dict(iters=iters, longest=longest, shortest=shortest)
+  return {'iters': iters, 'longest': longest, 'shortest': shortest}
 
 
 def _diff_to_target(files_data: dict, target: str, plot_targets: tuple) -> dict:
+  """
+  Create differential plots by subtracting target experiment values.
+  
+  Transforms absolute metric values into differences from a baseline,
+  making it easier to see relative performance improvements or degradations.
+  
+  Args:
+    files_data (dict): Dictionary mapping experiment names to data arrays
+    target (str): Name of target/baseline experiment to subtract
+    plot_targets (tuple): Metric names to transform
+  
+  Returns:
+    dict: Transformed data with differential values
+  """
   target = files_data[target]
   result_files = dict()
   # Then we subtract the longest one's value from their values to normalize against it.
@@ -360,6 +546,21 @@ def _diff_to_target(files_data: dict, target: str, plot_targets: tuple) -> dict:
 
 
 def get_file_data(*files, plot_targets=('loss', 'accuracy')) -> (dict, dict):
+  """
+  Load and parse CSV statistics files into plottable data structures.
+  
+  Reads multiple CSV files, extracts specified metrics, and creates
+  a unified data structure for plotting. Handles name deduplication
+  and filters out zero-iteration entries.
+  
+  Args:
+    *files: Paths to CSV statistics files
+    plot_targets (tuple): Metric column names to extract
+  
+  Returns:
+    tuple: (file_data_dict, metadata_dict) where file_data maps experiment
+           names to data arrays and metadata contains iteration information
+  """
   file_data = dict()
   for file in files:
     file = os.path.expanduser(file)
@@ -403,6 +604,31 @@ def plot(out_file,
          use_process=True,
          target=None,
          plot_raw=False):
+  """
+  Main plotting function for training statistics visualization.
+  
+  Creates publication-quality plots comparing multiple experiments with
+  advanced features like smoothing, outlier removal, differential analysis,
+  and memory-safe rendering.
+  
+  Args:
+    out_file (str): Output file path for the generated plot
+    file_data (tuple): (data_dict, metadata_dict) from get_file_data()
+    min_show (float): Fraction of shortest run to display (0.0-1.0)
+    log_plot (bool): Use logarithmic x-axis scaling
+    show (bool): Display plot in interactive window
+    plot_targets (tuple): Metric names to plot (e.g., 'loss', 'accuracy')
+    scale (bool): Auto-scale axes to focus on interesting regions
+    average_count (Optional[int]): Maximum smoothing window size
+    diff_to_target (bool): Create differential plot against baseline
+    use_process (bool): Use multiprocessing for memory safety
+    target (str, optional): Target experiment name for differential plots
+    plot_raw (bool): Show raw data points as scatter plot
+  
+  The function automatically handles data unification, outlier detection,
+  adaptive smoothing, and creates a professional visualization with proper
+  legends, grid lines, and axis scaling.
+  """
   out_file = os.path.expanduser(out_file)
   # We want to center the graph on the interesting areas so we need to track the overall min/max and the worst min value
   # across all datasets we are plotting. Then we will show from the absolute min to abve the worst min but below the abs max.

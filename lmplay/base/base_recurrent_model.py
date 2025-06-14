@@ -1,3 +1,18 @@
+"""Base classes for recurrent models in the lmplay framework.
+
+This module provides specialized base classes for recurrent neural networks
+and recurrent language models that process sequences step-by-step with
+hidden state propagation.
+
+Key classes:
+- RMBase: Base class for general recurrent models
+- RLMBase: Base class for recurrent language models
+
+The recurrent models handle batching differently from standard models,
+processing sequences one timestep at a time and maintaining hidden states
+across timesteps.
+"""
+
 from .base_model import MBase
 import torch
 from typing import Optional, Sequence, List
@@ -5,6 +20,15 @@ from abc import abstractmethod
 import torch.nn.functional as F
 
 def _prune_cache(cache:list, keep_map):
+  """Prune cache entries to keep only active sequences.
+  
+  When some sequences in a batch finish early, this function removes
+  their entries from the cache to save memory.
+  
+  Args:
+    cache: List of cached tensors
+    keep_map: Indices of sequences to keep
+  """
   for entry in cache:
     for i, t in enumerate(entry):
       t = t[keep_map]
@@ -12,7 +36,27 @@ def _prune_cache(cache:list, keep_map):
 
 
 class RMBase(MBase):
+  """Base class for recurrent models.
+  
+  This class extends MBase with recurrent-specific training logic that processes
+  sequences step-by-step, maintaining hidden states across timesteps. It handles
+  variable-length sequences efficiently by pruning completed sequences from the
+  batch during processing.
+  """
+  
   def train_prompts(self, prompts: Sequence[dict], include_prompts=True) -> (Sequence[str], torch.Tensor):
+    """Train on prompts using recurrent processing.
+    
+    Processes each timestep sequentially, maintaining hidden states and
+    pruning completed sequences from the batch for efficiency.
+    
+    Args:
+      prompts: Sequence of prompt dictionaries with 'prompt' and 'truth'
+      include_prompts: Whether to include prompt tokens in loss
+      
+    Returns:
+      tuple: (predictions, total_loss, total_token_count)
+    """
     # We want to pad them together so that the truths will line up with the prompts.
     x, predictions_starts, predictions_ends = self._tokenize_batch(prompts)
     # Truth doesn't have the first EOT char. It needs to start on prediction start
@@ -77,6 +121,17 @@ class RMBase(MBase):
     return results, total_target_loss, total_token_count
 
   def generate_prompts(self, prompts: Sequence[dict], max_len: Optional[int] == None) -> Sequence[str]:
+    """Generate text using recurrent processing.
+    
+    Note: This method needs to be updated for proper recurrent generation.
+    
+    Args:
+      prompts: Sequence of prompt dictionaries
+      max_len: Maximum generation length
+      
+    Returns:
+      List of generated strings
+    """
     #BROKEN!
     results = []
     if not max_len:
@@ -102,6 +157,22 @@ class RMBase(MBase):
 
 
 class RLMBase(RMBase):
+  """Base class specifically for recurrent language models.
+  
+  Extends RMBase with a forward signature appropriate for recurrent
+  language modeling with hidden state propagation.
+  """
+  
   @abstractmethod
   def forward(self, x: torch.Tensor, s: torch.Tensor|None, cache: List) -> (torch.Tensor, torch.Tensor):
+    """Forward pass for recurrent language modeling.
+    
+    Args:
+      x: Input tokens of shape (batch_size, sequence_length)
+      s: Hidden state tensor or None for initial state
+      cache: Cache list for storing intermediate values
+      
+    Returns:
+      tuple: (output logits, updated hidden state)
+    """
     pass

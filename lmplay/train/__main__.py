@@ -1,3 +1,26 @@
+"""
+Main training entry point for lmplay language models.
+
+This module provides the command-line interface for training language models with
+various configurations and experimental setups. It handles:
+
+- Multi-stage training plans with different datasets
+- Model initialization and resumption from checkpoints
+- Gradient accumulation for memory-efficient training
+- Automatic Mixed Precision (AMP) training
+- Validation and statistics tracking
+- Model compilation optimizations
+- Optimizer warmup for fine-tuning scenarios
+
+The trainer supports various experimental model architectures through the runner
+system and can work with multiple datasets including Wikipedia, OpenOrca, and
+custom HuggingFace datasets.
+
+Example usage:
+    python -m lmplay.train --amp --device cuda --exp gpt2ish
+    python -m lmplay.train --amp --device cuda --training-plan full
+"""
+
 import os.path, json
 
 from lmplay.train.datasets.utils import batcher
@@ -9,7 +32,20 @@ from lmplay.base.base_model import LMRunnerBase
 from lmplay.train.datasets.plan import steps, get_first_step_name, get_step_names
 from lmplay.train.datasets.plan_configs import DEFAULT_PLANS
 
-def render_pbar(exp:str, device, ms:ModelStats, ss: ModelStats, current_step:str) -> str:
+def render_pbar(exp: str, device, ms: ModelStats, ss: ModelStats, current_step: str) -> str:
+  """
+  Render progress bar description with training statistics.
+  
+  Args:
+    exp: Experiment name
+    device: Training device (cuda, cpu, mps)
+    ms: Overall model statistics across all steps
+    ss: Current step statistics
+    current_step: Name of current training step
+    
+  Returns:
+    Formatted string for progress bar description
+  """
   if device is None:
     device = ""
   if ss.total_train_samples > 0:
@@ -29,13 +65,40 @@ def render_pbar(exp:str, device, ms:ModelStats, ss: ModelStats, current_step:str
   return f"{exp}-{device}-{current_step}-train l:{train_loss}, a:{train_acc}/val l:{validate_loss}, a:{validate_acc}, st:{b_step_tokens_trained:0.2f}B, tt:{b_tokens_trained:0.2f}B"
 
 
-def calc_next(interval: int, current: int):
+def calc_next(interval: int, current: int) -> int:
+  """
+  Calculate the next checkpoint based on interval and current position.
+  
+  Args:
+    interval: Checkpoint interval (e.g., save every 10000 samples)
+    current: Current sample count
+    
+  Returns:
+    Next checkpoint position
+  """
   if current == 0:
     return interval
   return current + (interval - current % interval)
 
 
 def main():
+  """
+  Main training function that handles argument parsing and training loop.
+  
+  This function:
+  1. Parses command line arguments for training configuration
+  2. Initializes the model runner with specified experiment
+  3. Loads or creates training datasets according to the training plan
+  4. Executes multi-stage training with validation and checkpointing
+  5. Handles graceful shutdown on interruption
+  
+  The training loop supports:
+  - Multi-stage training plans (e.g., pretraining -> fine-tuning)
+  - Gradient accumulation for effective larger batch sizes
+  - Regular validation with example output
+  - Automatic model saving at specified intervals
+  - Resume training from interruptions
+  """
   known_plans = ', '.join(plan_name for plan_name in DEFAULT_PLANS)
   from argparse import ArgumentParser
   args = ArgumentParser('Trains a GPT style model!')

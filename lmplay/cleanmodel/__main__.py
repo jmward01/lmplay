@@ -1,9 +1,48 @@
+"""
+Command-line interface for cleaning and preparing trained models.
+
+This module provides the main entry point for model cleaning, accessible via
+the 'lmp_cleanmodel' command. It processes trained models to remove 
+training-specific parameters and prepare them for efficient deployment.
+
+Usage:
+  lmp_cleanmodel model.lmp --model-out clean_model.lmp
+  lmp_cleanmodel model.lmp --exp
+
+The cleaning process:
+1. Loads the trained model using the appropriate runner
+2. Removes training-specific parameters (sacrificial weights, etc.)
+3. Converts complex architectures to inference-optimized forms
+4. Saves a cleaned model suitable for production deployment
+
+This is particularly useful for models trained with experimental features
+like Unified Embeddings, sacrificial networks, or other training aids
+that should be removed for deployment.
+"""
+
 from lmplay.base.encoder.model import ModelRunner as GPT2ModelRunner
 from lmplay import CurrentExpModelRunner as ModelRunner
 import os
 
 
 def main():
+  """Main entry point for model cleaning CLI.
+  
+  Parses command-line arguments, loads the specified model, and saves a cleaned
+  version optimized for deployment. The cleaning process removes training-specific
+  parameters and converts complex architectures to efficient inference forms.
+  
+  Command-line Arguments:
+    model (str): Path to the trained model file (.lmp) to clean.
+    --model-out (str): Output path for the cleaned model. Defaults to 
+      'gpt_model_clean.lmp'.
+    --exp: Use experimental model runner instead of default GPT2 runner.
+      Should match the runner used during training.
+  
+  The function handles model loading, cleaning, and saving with proper error
+  handling for missing files. The cleaned model will be suitable for production
+  deployment with reduced memory usage and faster loading.
+  """
   from argparse import ArgumentParser
   args = ArgumentParser('Removes all but the weights from a model.')
   args.add_argument('model', help="Model name to load from. Default is gpt_model.lmp", default="gpt_model.lmp")

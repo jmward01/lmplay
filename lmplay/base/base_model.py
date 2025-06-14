@@ -1,3 +1,19 @@
+"""Base model classes and training infrastructure for the lmplay framework.
+
+This module provides the core abstractions for building and training neural network models,
+particularly language models. It includes:
+
+- MBase: The foundational model class that all models inherit from
+- LMBase: Specialized base class for language models
+- LMRunnerBase: Abstract base for model runners that handle training/inference
+- BasicModelRunner: Simple implementation of a model runner
+- OptimizerWarmupLRScheduler: Learning rate scheduler with warmup
+- Helper utilities for gradient freezing and context management
+
+The module implements a runner pattern where models are wrapped in runners that
+manage the training loop, optimization, checkpointing, and statistics tracking.
+"""
+
 import os.path
 from abc import ABC, abstractmethod
 from typing import Optional, Sequence, Union, Any, List
@@ -17,6 +33,18 @@ DEFAULT_WEIGHT_DECAY = 0.00
 
 
 class OptimizerWarmupLRScheduler(LRScheduler):
+  """Learning rate scheduler that implements warmup for stable training.
+  
+  This scheduler gradually increases the learning rate from an initial fraction
+  to the target learning rate over a specified number of steps. This helps
+  prevent instability in the early stages of training.
+  
+  Args:
+    optimizer: The optimizer to schedule
+    steps: Number of warmup steps (default: 100)
+    initial_fraction: Starting learning rate as fraction of target (default: 0.2)
+  """
+  
   def __init__(self, optimizer: Optimizer, steps: Optional[int] = 100, initial_fraction: Optional[float] = 0.2):
     steps = steps if steps else 40
     initial_fraction = initial_fraction if initial_fraction else 0.1
@@ -30,6 +58,11 @@ class OptimizerWarmupLRScheduler(LRScheduler):
     super().__init__(optimizer)
 
   def get_lr(self):
+    """Calculate and return the next learning rate values.
+    
+    Returns:
+      List[float]: Learning rates for each parameter group
+    """
     if self.increasing:
       next_lr = [min(m, c + s) for m, c, s in zip(self.max_lrs, self.current_lrs, self.step_size)]
     else:
@@ -39,6 +72,21 @@ class OptimizerWarmupLRScheduler(LRScheduler):
 
 
 class MBase(nn.Module):
+  """Base class for all models in the lmplay framework.
+  
+  This class provides core functionality for model initialization, tokenization,
+  training, generation, and device management. All models should inherit from
+  this class or one of its subclasses.
+  
+  Attributes:
+    name: Model name for identification and file saving
+    max_len: Maximum sequence length the model can handle
+    expect_extra_loss: Whether the model returns additional loss terms
+    pass_lengths: Whether to pass sequence lengths to the forward method
+    flat_batch: Whether to flatten batches for processing
+    tokenizer: Tokenizer instance for text processing
+  """
+  
   @ignore_default
   def __init__(self,
                name: str,
@@ -55,12 +103,42 @@ class MBase(nn.Module):
     self.expect_extra_loss = expect_extra_loss
     self.pass_lengths = pass_lengths
     self.flat_batch = flat_batch
+    self._cached_device = None
+
+  @property
+  def device(self):
+    """Get the device of the model, with caching for performance.
+    
+    Returns:
+      torch.device: The device where the model parameters are located
+    """
+    if self._cached_device is None:
+      # Use fc.weight.device as the reference for the model's device
+      self._cached_device = self.fc.weight.device
+    return self._cached_device
 
   def initialize(self, device):
+    """Initialize model components after moving to device.
+    
+    This method can be overridden by subclasses to perform device-specific
+    initialization.
+    
+    Args:
+      device: The device to initialize on
+    """
     pass
     # self.unified_tok_embed.initialize(self.tok_embed, device)
 
   def _kv_cache(self, cache: Optional[list], idx):
+    """Get or create cache entry for key-value caching.
+    
+    Args:
+      cache: Optional list of cached values
+      idx: Index for the cache entry
+      
+    Returns:
+      The cache entry at the specified index, or None if cache is None
+    """
     if cache is None:
       return None
     if len(cache) <= idx:
@@ -68,6 +146,16 @@ class MBase(nn.Module):
     return cache[idx]
 
   def _tokenize_str(self, sample: dict, device, trim=True) -> (torch.Tensor, int):
+    """Tokenize a single sample into tensor format.
+    
+    Args:
+      sample: Dictionary with 'prompt' and optionally 'truth' keys
+      device: Device to place the tensor on
+      trim: Whether to trim sequences that exceed max_len
+      
+    Returns:
+      tuple: (tokens tensor, prediction_starts index)
+    """
     prompt = sample['prompt']
     tokens = [self.tokenizer.eot_token] + self.tokenizer.encode(prompt, allowed_special={"<|endoftext|>"})
     # adjusting because the the model is - 1 on its prediction.
@@ -93,7 +181,16 @@ class MBase(nn.Module):
     return tokens, prediction_starts
 
   def _tokenize_batch(self, batch: Sequence[dict], dont_pad=False) -> (torch.Tensor, Sequence[int]):
-    device = self.fc.weight.device
+    """Tokenize a batch of samples and optionally pad them.
+    
+    Args:
+      batch: Sequence of sample dictionaries
+      dont_pad: If True, skip padding (used for flat_batch mode)
+      
+    Returns:
+      tuple: (padded tokens tensor, prediction_starts list, prediction_ends list)
+    """
+    device = self.device  # Use cached device property
     predictions_starts = []
     predictions_ends = []
     x = []
@@ -107,8 +204,20 @@ class MBase(nn.Module):
     return x, predictions_starts, predictions_ends
 
   def to(self, *args, **kwargs):
+    """Move model to specified device/dtype, with cache invalidation.
+    
+    Overrides PyTorch's to() method to ensure cached device is cleared
+    when the model is moved.
+    
+    Returns:
+      Self for method chaining
+    """
     # Modified from pytorch 2.1 source
     device, dtype, non_blocking, convert_to_format = torch._C._nn._parse_to(*args, **kwargs)
+    
+    # Clear cached device when model is moved
+    if device is not None:
+      self._cached_device = None
 
     def convert(t):
       if convert_to_format is not None and t.dim() in (4, 5):
@@ -125,9 +234,23 @@ class MBase(nn.Module):
 
   @abstractmethod
   def forward(self, *args, **kwargs):
+    """Forward pass of the model. Must be implemented by subclasses.
+    
+    Returns:
+      Model outputs (specific format depends on the model type)
+    """
     pass
 
   def train_prompts(self, prompts: Sequence[dict], include_prompts=True) -> (Sequence[str], torch.Tensor):
+    """Process prompts for training, computing loss and predictions.
+    
+    Args:
+      prompts: Sequence of prompt dictionaries with 'prompt' and 'truth' keys
+      include_prompts: Whether to include prompt tokens in loss calculation
+      
+    Returns:
+      tuple: (predictions list, total loss, total token count)
+    """
     # We want to pad them together so that the truths will line up with the prompts.
     x, predictions_starts, predictions_ends = self._tokenize_batch(prompts, dont_pad=self.flat_batch)
     if self.flat_batch:
@@ -199,6 +322,15 @@ class MBase(nn.Module):
     return results, total_target_loss, total_token_count
 
   def generate_prompts(self, prompts: Sequence[dict], max_len: Optional[int] == None) -> Sequence[str]:
+    """Generate text completions for given prompts.
+    
+    Args:
+      prompts: Sequence of prompt dictionaries
+      max_len: Maximum generation length (uses model max_len if None)
+      
+    Returns:
+      List of generated text strings
+    """
     results = []
     if not max_len:
       max_len = self.max_len
@@ -222,6 +354,11 @@ class MBase(nn.Module):
     return results
 
   def parameter_count(self) -> int:
+    """Count total number of parameters in the model.
+    
+    Returns:
+      int: Total parameter count
+    """
     pc = 0
     for p in self.parameters():
       p_count = 1
@@ -232,12 +369,35 @@ class MBase(nn.Module):
 
 
 class LMBase(MBase):
+  """Base class specifically for language models.
+  
+  This class extends MBase with a forward signature appropriate for
+  autoregressive language modeling with optional key-value caching.
+  """
+  
   @abstractmethod
   def forward(self, x: torch.Tensor, cache: Optional[List] = None) -> torch.Tensor:
+    """Forward pass for language modeling.
+    
+    Args:
+      x: Input token indices of shape (batch_size, sequence_length)
+      cache: Optional key-value cache for efficient generation
+      
+    Returns:
+      Output logits and optionally updated cache
+    """
     pass
 
 
 def detect_freeze(module: nn.Module):
+  """Detect and apply gradient freezing based on module/parameter attributes.
+  
+  This function looks for 'freeze' attributes on modules and parameters.
+  If freeze is True, gradients are disabled for those components.
+  
+  Args:
+    module: The module to check for freeze attributes
+  """
   for m in module.modules():
     if hasattr(m, 'freeze') and m.freeze is not None:
       freeze = m.freeze
@@ -249,6 +409,12 @@ def detect_freeze(module: nn.Module):
 
 
 class NopWith:
+  """No-op context manager for conditional context usage.
+  
+  Used as a placeholder when AMP (automatic mixed precision) is disabled,
+  allowing the same code structure regardless of AMP status.
+  """
+  
   def __init__(self, *args, **kwargs):
     pass
 
@@ -260,6 +426,21 @@ class NopWith:
 
 
 class LMRunnerBase(ABC):
+  """Abstract base class for model runners that handle training and inference.
+  
+  Runners wrap models and provide high-level functionality for:
+  - Model initialization and device management
+  - Training loops with gradient accumulation
+  - Validation and generation
+  - Checkpoint saving/loading
+  - Statistics tracking
+  - Optimizer and scheduler management
+  
+  Attributes:
+    max_batch_size: Maximum batch size for gradient accumulation
+    stats_dir: Directory for saving statistics files
+  """
+  
   def __init__(self, max_batch_size: int = 1, stats_dir="./out_gpt"):
     self.max_batch_size = max_batch_size
     self._model: Optional[LMBase] = None
@@ -278,18 +459,41 @@ class LMRunnerBase(ABC):
     self.max_len: Optional[int] = None
 
   def set_current_step(self, step_name: str):
+    """Set the current training step/stage name.
+    
+    Changes the active step for statistics tracking. Writes out stats
+    for the previous step if switching to a new one.
+    
+    Args:
+      step_name: Name of the new step
+    """
     if not self.current_step is None and step_name != self.current_step:
       self.get_step_stats().write_train()
       self.get_step_stats().write_validate()
     self.current_step = step_name
 
   def is_trainable(self) -> bool:
+    """Check if the runner is configured for training.
+    
+    Returns:
+      bool: True if optimizers are initialized
+    """
     return self._optimizers is not None
 
   def is_initialzed(self) -> bool:
+    """Check if the runner has been initialized with a model.
+    
+    Returns:
+      bool: True if model is loaded
+    """
     return self._model is not None
 
   def get_step_stats(self) -> modelstats.ModelStats:
+    """Get or create statistics tracker for current step.
+    
+    Returns:
+      ModelStats: Statistics tracker for the current step
+    """
     if self.current_step not in self.step_stats:
       self.step_stats[self.current_step] = modelstats.ModelStats(
         model_name=f"{self._model.name}{self.run_name}_step_{self.current_step}",
@@ -318,6 +522,31 @@ class LMRunnerBase(ABC):
                  check_grads=False,
                  include_prompts=True,
                  **parameters):
+    """Initialize the runner with a model and training configuration.
+    
+    Args:
+      device: Device to run on (e.g., 'cuda', 'cpu')
+      locations: Optional checkpoint file path(s) to load from
+      for_train: Whether to initialize for training (vs inference only)
+      load_optimizer: Whether to load optimizer state from checkpoint
+      strict: Whether to enforce strict checkpoint loading
+      run_name: Name suffix for this run
+      default_freeze: Whether to freeze all parameters by default
+      optimizer_warmup_fraction: Initial LR as fraction of target
+      optimizer_warmup_steps: Number of warmup steps
+      disable_optimizer_warmup: Disable LR warmup even if loading checkpoint
+      compile_model: Whether to compile model with torch.compile
+      compile_mode: Compilation mode (e.g., 'default', 'reduce-overhead')
+      compile_backend: Compilation backend (e.g., 'inductor')
+      amp: Enable automatic mixed precision
+      no_grad_scale: Disable gradient scaling with AMP
+      reset_history: Clear training statistics when loading checkpoint
+      first_step: Name of first training step
+      grad_clip: Gradient clipping value
+      check_grads: Print parameters without gradients
+      include_prompts: Include prompt tokens in loss calculation
+      **parameters: Additional model-specific parameters
+    """
     self.include_prompts = include_prompts
     self.check_grads = check_grads
     self.grad_clip = grad_clip
@@ -436,12 +665,28 @@ class LMRunnerBase(ABC):
     self.max_len = self._model.max_len
 
   def get_model_args(self):
+    """Get the model initialization arguments.
+    
+    Returns:
+      Model initialization arguments dictionary
+    """
     return self._model_args
 
   def get_optimizer_args(self):
+    """Get the optimizer initialization arguments.
+    
+    Returns:
+      Optimizer initialization arguments dictionary
+    """
     return self._optimizer_args
 
   def save(self, location: str, prod_save=False):
+    """Save model checkpoint to disk.
+    
+    Args:
+      location: Path to save the checkpoint
+      prod_save: If True, only save model weights (no optimizer/stats)
+    """
     assert self.is_initialzed(), "Runner not initialized"
     assert self.is_trainable() or prod_save, "Runner not trainable"
     if prod_save:
@@ -466,6 +711,15 @@ class LMRunnerBase(ABC):
     torch.save(checkpoint, location)
 
   def _calculate_stats(self, prompts_data: Sequence[dict], results: Sequence[str]):
+    """Calculate accuracy statistics for predictions.
+    
+    Args:
+      prompts_data: Original prompt data with ground truth
+      results: Model predictions
+      
+    Returns:
+      tuple: (total_words, total_errors, total_matches)
+    """
     total_words = 0
     total_errors = 0
     total_matches = 0
@@ -486,6 +740,16 @@ class LMRunnerBase(ABC):
                       prompts: Sequence[dict],
                       train: bool,
                       actual_samples_read: int) -> (Sequence[str], torch.Tensor):
+    """Run model on prompts with ground truth, handling batching and gradients.
+    
+    Args:
+      prompts: Sequence of prompt dictionaries
+      train: Whether to compute and accumulate gradients
+      actual_samples_read: Actual number of samples (for statistics)
+      
+    Returns:
+      tuple: (predictions, loss, token_count)
+    """
     # This will batch to max batch size and pass to the model then re-package the results to return the result.
     # If the passed in batch is more than max_batch_size then gradient accumulation will be used.
     # Tokenization is not done here because the model is the only thing that knows how to do all that.
@@ -577,6 +841,15 @@ class LMRunnerBase(ABC):
 
   def train(self, prompts: Sequence[dict], actual_samples_read: Optional[int] = None) -> (
   Sequence[str], torch.Tensor, int):
+    """Execute a training step on the given prompts.
+    
+    Args:
+      prompts: Training samples with prompts and ground truth
+      actual_samples_read: Actual samples read (for accurate statistics)
+      
+    Returns:
+      tuple: (predictions, loss, total_tokens)
+    """
     # The assumption is they have sent in a whole batch that they want loss accumulated over
     # But the model may not support the size they send to us.
     # So we will break it into mini batches and do gradient accumulation.
@@ -610,6 +883,15 @@ class LMRunnerBase(ABC):
 
   def validate(self, prompts: Sequence[dict], actual_samples_read: Optional[int] = None) -> (
           Sequence[str], torch.Tensor, int):
+    """Execute a validation step on the given prompts.
+    
+    Args:
+      prompts: Validation samples with prompts and ground truth
+      actual_samples_read: Actual samples read (for accurate statistics)
+      
+    Returns:
+      tuple: (predictions, loss, total_tokens)
+    """
     self._model.train(False)
     if not actual_samples_read:
       actual_samples_read = len(prompts)
@@ -618,11 +900,28 @@ class LMRunnerBase(ABC):
     return results, current_loss, total_tokens
 
   def generate(self, prompts: Sequence[str], max_len: Optional[int] = None):
+    """Generate text completions for prompts.
+    
+    Args:
+      prompts: Text prompts to complete
+      max_len: Maximum generation length
+      
+    Returns:
+      List of generated completions
+    """
     prompts = [{'prompt': f"{prompt}\n"} for prompt in prompts]
     with self.amp(device_type=self.device_type):
       return self._model.generate_prompts(prompts, max_len)
 
   def run(self, prompts: Sequence[dict]) -> Sequence[str]:
+    """Run inference on prompts without ground truth.
+    
+    Args:
+      prompts: Sequence of prompt dictionaries
+      
+    Returns:
+      List of model outputs
+    """
     # This will batch to max batch size and pass to _run then re-package the results to return the result
     # Tokenization is not done here because the model is the only thing that knows how to do all that.
     batch = []
@@ -640,6 +939,18 @@ class LMRunnerBase(ABC):
   @abstractmethod
   def _construct_model(self, device, model_weights: dict = None, model_args=None, strict=False, **parameters) -> (
           LMBase, Any):
+    """Construct the model instance. Must be implemented by subclasses.
+    
+    Args:
+      device: Device to place model on
+      model_weights: Optional pre-trained weights
+      model_args: Optional saved model arguments
+      strict: Whether to enforce strict weight loading
+      **parameters: Additional parameters
+      
+    Returns:
+      tuple: (model instance, model arguments)
+    """
     pass
 
   def construct_optimizer(self,
@@ -654,22 +965,30 @@ class LMRunnerBase(ABC):
                           optimizer_warmup_steps: Optional[int] = None,
                           disable_optimizer_warmup=False,
                           **parameters) -> (Optimizer, Any, Optional[LRScheduler]):
-    """Construct one or more optimizers to manage the model. The first optimier is the 'primary' and will have scaling and lr scheduling applied if availale.
-    secondary optimizers are needed if training on different types of devices (CPU + GPU) with amp. Multiple optimizers is rarely needed.
-    To fix parameters to a secondary optizer just tag them with 'blah.actual_parameter.secondary_optimizer = True' when they are constructed.
-
-    :param device:
-    :param model:
-    :param missing:
-    :param unexpected:
-    :param load_optimizer:
-    :param optimizer_weights:
-    :param optimizer_args:
-    :param optimizer_warmup_fraction:
-    :param optimizer_warmup_steps:
-    :param disable_optimizer_warmup:
-    :param parameters:
-    :return:
+    """Construct one or more optimizers to manage the model.
+    
+    The first optimizer is the 'primary' and will have scaling and lr scheduling
+    applied if available. Secondary optimizers are needed if training on different
+    types of devices (CPU + GPU) with AMP. Multiple optimizers are rarely needed.
+    
+    To assign parameters to a secondary optimizer, tag them with
+    'param.secondary_optimizer = True' when they are constructed.
+    
+    Args:
+      device: Device the model is on
+      model: The model to optimize
+      missing: Missing keys from checkpoint loading
+      unexpected: Unexpected keys from checkpoint loading
+      load_optimizer: Whether to load optimizer state
+      optimizer_weights: Saved optimizer state
+      optimizer_args: Saved optimizer arguments
+      optimizer_warmup_fraction: Initial LR fraction for warmup
+      optimizer_warmup_steps: Number of warmup steps
+      disable_optimizer_warmup: Disable warmup scheduler
+      **parameters: Additional parameters
+      
+    Returns:
+      tuple: (optimizer(s), optimizer_args, lr_scheduler)
     """
 
     if optimizer_args is None:
@@ -727,6 +1046,17 @@ class LMRunnerBase(ABC):
 
 
 class BasicModelRunner(LMRunnerBase):
+  """Simple model runner implementation for standard models.
+  
+  This runner provides a straightforward way to wrap a model class
+  for training and inference without complex customization.
+  
+  Args:
+    model_class: The model class to instantiate
+    max_batch_size: Maximum batch size for gradient accumulation
+    overrides: Parameter overrides to apply when loading models
+  """
+  
   def __init__(self, model_class, max_batch_size=25, overrides: dict = None, **kwargs):
     super().__init__(max_batch_size=max_batch_size, **kwargs)
     self.model_class = model_class
@@ -738,6 +1068,19 @@ class BasicModelRunner(LMRunnerBase):
                        model_args=None,
                        strict=False,
                        **parameters) -> (LMBase, Any):
+    """Construct model instance from class and parameters.
+    
+    Args:
+      device: Device to place model on
+      model_weights: Optional saved weights
+      model_args: Optional saved model arguments
+      strict: Whether to enforce strict loading
+      **parameters: Additional model parameters
+      
+    Returns:
+      tuple: (model instance, model init_kwargs, missing keys, unexpected keys)
+            or (model instance, model init_kwargs) if not loading weights
+    """
 
     model_args = model_args if model_args else dict()
     for k, v in parameters.items():
