@@ -5,6 +5,7 @@ from typing import Optional, List
 from lmplay.modules import Block
 import tiktoken
 from lmplay.base.base_model import LMBase
+from lmplay.utils import to_name
 
 class GPT2(LMBase):
   def __init__(self,
@@ -17,7 +18,7 @@ class GPT2(LMBase):
                embed_dropout: Optional[float] = 0.1,
                version="gpt2ish",
                **ignore):
-    super().__init__(f"{version}_{num_blocks}L_{max_len}",
+    super().__init__(to_name(version, num_blocks=num_blocks, max_len=max_len),
                      version=version,
                      max_len=max_len,
                      num_heads=num_heads,
