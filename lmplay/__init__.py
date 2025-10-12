@@ -48,4 +48,4 @@ import lmplay.exp.rgpt2ish.versions
 
 import lmplay.exp.focus.v1.versions
 
-import lmplay.exp.rank_promotion_attn.v1.versions
+#import lmplay.exp.rank_promotion_attn.v1.versions
