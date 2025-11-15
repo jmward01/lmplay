@@ -42,3 +42,12 @@ def runner(*args, **kwargs):
                                          #num_blocks=0,
                                          embed_dim=64),
                           **kwargs)
+
+@expose_runner('s_gpt2ish', description='Trying small and deep models')
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(num_heads=6,
+                                         num_blocks=18,
+                                         embed_dim=96*3),
+                          **kwargs)
