@@ -124,17 +124,17 @@ class MultiheadAttention(nn.Module):
     if norm_v:
       self.value_norm = nn.LayerNorm(head_size)
     else:
-      self.value_norm = lambda x: x
+      self.value_norm = nn.Identity()
 
     if norm_k:
       self.key_norm = nn.LayerNorm(head_size)
     else:
-      self.key_norm = lambda x: x
+      self.key_norm = nn.Identity()
 
     if norm_q:
       self.query_norm = nn.LayerNorm(head_size)
     else:
-      self.query_norm = lambda x: x
+      self.query_norm = nn.Identity()
 
     self.query = create_linear(query_linear, 'mha_query', embed_dim, embed_dim)
 
@@ -258,7 +258,7 @@ class MultiheadAttention(nn.Module):
       q = self.query_norm(self.query(x).reshape(batch_size, seq_len, self.num_heads, -1)).transpose(1, 2)
 
       if self._kv_cache_prep(cache):
-        k = torch.concat((cache[0], k), dim=-1)
+        k = torch.concat((cache[0], k), dim=3)
         v = torch.concat((cache[1], v), dim=2)
       if cache:
         # Update the cache with the new k&v from this token generation.

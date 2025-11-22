@@ -11,7 +11,19 @@ Everything here is targeted at quick testing and turnaround on commodity hardwar
 The structure of the project is designed for copy/paste/change, not to provide a stable prod library. Most of the training code has been extracted but the model has been left wide open.
 That being said, the training has been designed to be simple. No multi-gpu, multi-process, etc, so hopefully it is a very accessible project for other to try things in.
 
-A note of caution here, because this is a playground the code here will likely change. That means that while you can import this in and use the classes, there is basically no guarantee that updates to this codebase won't badly break your code. Backward compatability is a very low priority compared to creating and comparing experiments. That being said, as results are posted I am trying to make `lmplay.modules` a one stop location to import useful, partially stable, classes. 
+A note of caution here, because this is a playground the code here will likely change. That means that while you can import this in and use the classes, there is basically no guarantee that updates to this codebase won't badly break your code. Backward compatability is a very low priority compared to creating and comparing experiments. That being said, as results are posted I am trying to make `lmplay.modules` a one stop location to import useful, partially stable, classes.
+
+## Documentation
+
+For detailed developer documentation, see the `docs/` directory:
+
+- **[docs/overview.md](./docs/overview.md)** - Getting started, quick navigation, and key concepts
+- **[docs/architecture.md](./docs/architecture.md)** - High-level system design and data flow
+- **[docs/models.md](./docs/models.md)** - Model and runner abstractions, base classes
+- **[docs/training.md](./docs/training.md)** - Training system, datasets, batching, multi-stage training
+- **[docs/gpt2ish_baseline.md](./docs/gpt2ish_baseline.md)** - Baseline implementation and template for new experiments
+
+These documents explain the framework architecture, how to create new experiments, and how to extend the system. Start with `docs/overview.md` if you're new to LMPlay.
 
 ## The experiments
 I have been playing with ideas 'on the side' for a while now and several show promise. The [wiki](https://github.com/jmward01/lmplay/wiki) is the best place to see the latest crazy ideas I am playing with but here are a few: 
@@ -33,7 +45,16 @@ This gives a respectible boost to the 'standard' transformer block by applying a
 This series combines the sucessful sacraficial techniques into one model to see how well they stack.
 
 ## Experiment details
-Unless otherwise stated experiments are run using the Adagrad optimizer with a batch size of 50, fixed lr of 0.0006 and no weight decay. Training is all done single GPU with --amp enabled. Mini-batch sizes are generally either 4, 10 or 25 depending on the GPU available and the test being run but quick tests show no significant deviation in results with different mini-batch sizes. --amp does have a minor, but noticable, impact but the performance gains make it a requirement and the impacts are much smaller than the gap between experiment results and baseline results.    
+**Optimizer**: Recently updated to AdamW as the default optimizer with weight decay of 0.01. Older experiments in this repository were run using Adagrad with no weight decay. Current runs use AdamW by default (`--optimizer adamw`, changeable to `adagrad`, `adam`, `sgd`, `rmsprop`).
+
+Unless otherwise stated, current experiments are run with:
+- **Optimizer**: AdamW (weight decay: 0.01)
+- **Batch size**: 50 (effective)
+- **Learning rate**: 0.0006 (fixed)
+- **Device**: Single GPU with --amp enabled
+- **Mini-batch sizes**: Generally 4, 10, or 25 depending on GPU available
+
+Tests show no significant deviation in results with different mini-batch sizes. --amp does have a minor but noticeable impact, but the performance gains make it a requirement and the impacts are much smaller than the gap between experiment results and baseline results.    
 ### Training data
 The code currently points to the official wikipedia datasets on huggingface (wikimedia/wikipedia 20231101.XX). More may be added later (I want to add more robust datasets to make a more functional tiny model). Many of the graphs show results from models trained on other versions of the wiki corpus. I will likely try to re-train al the experiments on the official wiki datasets but that is weeks of GPU time on my tiny 3060. Any graph that shows results between different experiments had all models trained on the same data with the same seed.  
 

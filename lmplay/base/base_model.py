@@ -15,6 +15,7 @@ manage the training loop, optimization, checkpointing, and statistics tracking.
 """
 
 import os.path
+import logging
 from abc import ABC, abstractmethod
 from typing import Optional, Sequence, Union, Any, List
 import torch
@@ -26,6 +27,8 @@ from torch.nn.utils.rnn import pad_sequence
 from shutil import copyfile
 import torch.nn.functional as F
 from lmplay.utils import ignore_default
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_LR = 6e-4
 # DEFAULT_LR = 3e-5
@@ -389,12 +392,127 @@ class LMBase(MBase):
     pass
 
 
+def get_weight_decay_exclusion_patterns() -> Sequence[str]:
+  """Get default parameter name patterns to exclude from weight decay.
+
+  Returns standard patterns for parameters that should not have weight decay applied:
+  - "bias": All bias parameters
+  - "LayerNorm": All LayerNorm module parameters (weight and bias)
+  - "embed": All embedding layer parameters (token embeddings, positional embeddings, etc.)
+
+  Returns:
+    Sequence[str]: List of patterns to match against parameter names
+  """
+  return [".bias", "_bias", ".ln", "_ln", "embed"]
+
+
+def categorize_parameters_by_weight_decay(
+    model: nn.Module,
+    exclude_patterns: Optional[Sequence[str]] = None
+) -> tuple[list, list]:
+  """Categorize model parameters into decay and no-decay groups.
+
+  Separates parameters based on exclusion patterns and explicit tagging for proper
+  weight decay handling. Parameters can be excluded in two ways:
+
+  1. Pattern matching: Parameters whose names contain any exclusion pattern
+  2. Explicit tagging: Parameters with `skip_weight_decay=True` attribute set
+
+  This is useful for non-standard layers that should not have weight decay applied.
+
+  Args:
+    model: The model to categorize parameters from
+    exclude_patterns: Sequence of strings to match against parameter names.
+                     If None, uses default exclusion patterns (bias, LayerNorm, embed)
+
+  Returns:
+    tuple: (decay_params, no_decay_params) - Lists of parameters
+
+  Example:
+    To mark a specific parameter to skip weight decay in model code:
+      param = nn.Parameter(torch.randn(10, 10))
+      param.skip_weight_decay = True
+      self.register_parameter('custom_param', param)
+  """
+  if exclude_patterns is None:
+    exclude_patterns = get_weight_decay_exclusion_patterns()
+
+  decay_params = []
+  no_decay_params = []
+
+  for name, param in model.named_parameters():
+    # Check if explicitly tagged to skip weight decay
+    skip_decay = hasattr(param, 'skip_weight_decay') and param.skip_weight_decay
+
+    # Check if this parameter matches any exclusion pattern
+    pattern_match = any(pattern in name for pattern in exclude_patterns)
+
+    if skip_decay or pattern_match:
+      no_decay_params.append(param)
+    else:
+      decay_params.append(param)
+
+  return decay_params, no_decay_params
+
+
+def get_default_weight_decay(optimizer_type: str) -> float:
+  """Get the default weight decay for each optimizer type.
+
+  Args:
+    optimizer_type: Type of optimizer ('adagrad', 'adam', 'adamw', 'sgd', 'rmsprop')
+
+  Returns:
+    Default weight decay value for the optimizer type
+
+  Note:
+    - AdamW defaults to 1e-2 (0.01) for weight decay
+    - All others default to 0.0 (no weight decay)
+  """
+  optimizer_type = optimizer_type.lower()
+  if optimizer_type == 'adamw':
+    return 1e-2  # 0.01
+  else:  # adagrad, adam, sgd, rmsprop
+    return 0.0
+
+
+def create_optimizer(optimizer_type: str, param_groups: List, lr: float, weight_decay: float = 0.0) -> Optimizer:
+  """Create an optimizer instance of the specified type.
+
+  Args:
+    optimizer_type: Type of optimizer ('adagrad', 'adam', 'adamw', 'sgd', 'rmsprop')
+    param_groups: List of parameter groups for the optimizer
+    lr: Learning rate
+    weight_decay: Default weight decay (can be overridden per parameter group)
+
+  Returns:
+    Optimizer instance
+
+  Raises:
+    ValueError: If optimizer_type is not supported
+  """
+  optimizer_type = optimizer_type.lower()
+
+  if optimizer_type == 'adagrad':
+    return torch.optim.Adagrad(param_groups, lr=lr, weight_decay=weight_decay)
+  elif optimizer_type == 'adam':
+    return torch.optim.Adam(param_groups, lr=lr, weight_decay=weight_decay)
+  elif optimizer_type == 'adamw':
+    return torch.optim.AdamW(param_groups, lr=lr, weight_decay=weight_decay)
+  elif optimizer_type == 'sgd':
+    return torch.optim.SGD(param_groups, lr=lr, momentum=0.9, weight_decay=weight_decay)
+  elif optimizer_type == 'rmsprop':
+    return torch.optim.RMSprop(param_groups, lr=lr, weight_decay=weight_decay)
+  else:
+    raise ValueError(f"Unsupported optimizer type: {optimizer_type}. "
+                     f"Supported types: adagrad, adam, adamw, sgd, rmsprop")
+
+
 def detect_freeze(module: nn.Module):
   """Detect and apply gradient freezing based on module/parameter attributes.
-  
+
   This function looks for 'freeze' attributes on modules and parameters.
   If freeze is True, gradients are disabled for those components.
-  
+
   Args:
     module: The module to check for freeze attributes
   """
@@ -480,9 +598,9 @@ class LMRunnerBase(ABC):
     """
     return self._optimizers is not None
 
-  def is_initialzed(self) -> bool:
+  def is_initialized(self) -> bool:
     """Check if the runner has been initialized with a model.
-    
+
     Returns:
       bool: True if model is loaded
     """
@@ -652,8 +770,24 @@ class LMRunnerBase(ABC):
 
     self._raw_model = self._model
     if compile_model:
+      # Ensure sensible defaults for torch.compile
+      # For CUDA, 'inductor' is the recommended backend
+      if compile_backend is None:
+        compile_backend = 'inductor' if 'cuda' in device else 'eager'
+      # For training loops with repeated calls, 'reduce-overhead' mode is better than 'default'
+      # Default mode has higher compilation overhead but better kernel fusion
+      if compile_mode is None:
+        compile_mode = 'reduce-overhead'
+      # Compile the model with explicit parameters
       # ['cudagraphs', 'inductor', 'onnxrt', 'openxla', 'openxla_eval', 'tvm']
-      self._model = torch.compile(self._model, backend=compile_backend, mode=compile_mode)
+      print(f"Compiling model using {compile_backend}:{compile_mode}")
+      self._model = torch.compile(
+          self._model,
+          backend=compile_backend,
+          mode=compile_mode,
+          fullgraph=False,  # Allow graph breaks to prevent recompilation issues
+          disable=False,    # Enable compilation
+      )
 
     self.scaler = None
     self.amp = NopWith
@@ -687,7 +821,7 @@ class LMRunnerBase(ABC):
       location: Path to save the checkpoint
       prod_save: If True, only save model weights (no optimizer/stats)
     """
-    assert self.is_initialzed(), "Runner not initialized"
+    assert self.is_initialized(), "Runner not initialized"
     assert self.is_trainable() or prod_save, "Runner not trainable"
     if prod_save:
 
@@ -753,56 +887,54 @@ class LMRunnerBase(ABC):
     # This will batch to max batch size and pass to the model then re-package the results to return the result.
     # If the passed in batch is more than max_batch_size then gradient accumulation will be used.
     # Tokenization is not done here because the model is the only thing that knows how to do all that.
-    assert self.is_initialzed(), "Runner not initialized"
+    assert self.is_initialized(), "Runner not initialized"
     assert self.is_trainable(), "Runner not trainable"
     mini_batch = []
     batch_results = []
     batch_loss = 0.0
     total_tokens = 0
     # Break this into mini-batches that the model can handle
-    # amp warns against enclosing the 'backward' but it appears that doing so provides an advantage at least to the optimizer used.
-    # leaving it here for now. This should be looked at more in the future.
-    with self.amp(device_type=self.device_type):
-      for prompt in prompts:
-        mini_batch.append(prompt)
-        if len(mini_batch) >= self.max_batch_size:
-          # with self.amp(device_type=self.device_type):
+    # AMP autocast should only wrap the forward pass, not backward.
+    # Backward pass must occur outside autocast for proper numerical stability.
+    for prompt in prompts:
+      mini_batch.append(prompt)
+      if len(mini_batch) >= self.max_batch_size:
+        # Forward pass inside autocast
+        with self.amp(device_type=self.device_type):
           mini_batch_results, mini_batch_loss, mini_batch_token_count = self._model.train_prompts(mini_batch,
                                                                                                   include_prompts=self.include_prompts)
-          batch_results.extend(mini_batch_results)
-          batch_loss = float(mini_batch_loss) + batch_loss
-          total_tokens += mini_batch_token_count
-          # mini_batch_loss = mini_batch_loss / (len(mini_batch)/len(prompts))
-          # So, you can imagine we would want to norm loss by the tokens but the problem is we don't know the final number of tokens.
-          # The best we can do is norm by tokens already seen and assume the rest of the batch we are processing will have a similar number per example.
-          # This means batch size does (slightly) impact training but the reality is that it shouldn't be by that much.
-          mini_batch_fraction = len(mini_batch) / len(prompts)
-          mini_batch_loss = (mini_batch_loss * mini_batch_fraction) / mini_batch_token_count
-          if train:
-            # accumulate the gradients
-            if self.scaler is not None:
-              self.scaler.scale(mini_batch_loss).backward()
-            else:
-              mini_batch_loss.backward()
-
-          mini_batch = []
-      if len(mini_batch) > 0:
-        # with self.amp(device_type=self.device_type):
-        mini_batch_results, mini_batch_loss, mini_batch_token_count = self._model.train_prompts(mini_batch,
-                                                                                                include_prompts=self.include_prompts)
-        total_tokens += mini_batch_token_count
         batch_results.extend(mini_batch_results)
-        batch_loss = float(mini_batch_loss) + batch_loss
-        # mini_batch_loss = mini_batch_loss / (len(mini_batch)/len(prompts))
+        batch_loss = float(mini_batch_loss.item()) + batch_loss
+        total_tokens += mini_batch_token_count
+        # Loss computation and backward outside autocast
         mini_batch_fraction = len(mini_batch) / len(prompts)
         mini_batch_loss = (mini_batch_loss * mini_batch_fraction) / mini_batch_token_count
-
         if train:
-          # accumulate the gradients
+          # accumulate the gradients - outside autocast for stability
           if self.scaler is not None:
             self.scaler.scale(mini_batch_loss).backward()
           else:
             mini_batch_loss.backward()
+
+        mini_batch = []
+    if len(mini_batch) > 0:
+      # Forward pass inside autocast
+      with self.amp(device_type=self.device_type):
+        mini_batch_results, mini_batch_loss, mini_batch_token_count = self._model.train_prompts(mini_batch,
+                                                                                                include_prompts=self.include_prompts)
+      total_tokens += mini_batch_token_count
+      batch_results.extend(mini_batch_results)
+      batch_loss = float(mini_batch_loss.item()) + batch_loss
+      # Loss computation and backward outside autocast
+      mini_batch_fraction = len(mini_batch) / len(prompts)
+      mini_batch_loss = (mini_batch_loss * mini_batch_fraction) / mini_batch_token_count
+
+      if train:
+        # accumulate the gradients - outside autocast for stability
+        if self.scaler is not None:
+          self.scaler.scale(mini_batch_loss).backward()
+        else:
+          mini_batch_loss.backward()
 
     # normalize on total tokens.
     batch_loss = batch_loss / total_tokens
@@ -853,6 +985,7 @@ class LMRunnerBase(ABC):
     # The assumption is they have sent in a whole batch that they want loss accumulated over
     # But the model may not support the size they send to us.
     # So we will break it into mini batches and do gradient accumulation.
+    torch.compiler.cudagraph_mark_step_begin()
     if not actual_samples_read:
       actual_samples_read = len(prompts)
     for optimizer in self._optimizers:
@@ -867,7 +1000,7 @@ class LMRunnerBase(ABC):
     if self.check_grads:
       for name, param in self._model.named_parameters():
         if param.grad is None:
-          print(f"{name} - no gradient found")
+          logger.warning(f"No gradient found for parameter: {name}")
 
     if self.scaler is not None:
       # Scaling only applies to the primary optimizer.
@@ -994,18 +1127,74 @@ class LMRunnerBase(ABC):
     if optimizer_args is None:
       optimizer_args = dict()
     lr = parameters.get('lr', optimizer_args.get('lr', DEFAULT_LR))
-    weight_decay = parameters.get('weight_decay', optimizer_args.get('weight_decay', DEFAULT_WEIGHT_DECAY))
+
+    # Get optimizer type early so we can determine default weight decay
+    optimizer_type = parameters.get('optimizer', optimizer_args.get('optimizer', 'adamw')).lower()
+
+    # Get weight decay, handling None by mapping to optimizer-specific default
+    weight_decay = parameters.get('weight_decay', optimizer_args.get('weight_decay', None))
+    if weight_decay is None:
+      weight_decay = get_default_weight_decay(optimizer_type)
+
     primary_weights = []
     secondary_weights = []
+    primary_no_decay_weights = []
+    secondary_no_decay_weights = []
+
     # Detect primary and secondary optimizer targets.
-    for parameter in model.parameters():
-      if hasattr(parameter, "secondary_optimizer") and parameter.secondary_optimizer:
-        secondary_weights.append(parameter)
-      else:
-        primary_weights.append(parameter)
-    optimizers = [torch.optim.Adagrad(primary_weights, lr=lr, weight_decay=weight_decay)]
-    if len(secondary_weights) > 0:
-      optimizers.append(torch.optim.Adagrad(secondary_weights, lr=lr, weight_decay=weight_decay))
+    # If weight_decay > 0, also separate parameters that should not have decay applied
+    if weight_decay > 0:
+      decay_params, no_decay_params = categorize_parameters_by_weight_decay(model)
+      for parameter in decay_params:
+        if hasattr(parameter, "secondary_optimizer") and parameter.secondary_optimizer:
+          secondary_weights.append(parameter)
+        else:
+          primary_weights.append(parameter)
+      for parameter in no_decay_params:
+        if hasattr(parameter, "secondary_optimizer") and parameter.secondary_optimizer:
+          secondary_no_decay_weights.append(parameter)
+        else:
+          primary_no_decay_weights.append(parameter)
+    else:
+      for parameter in model.parameters():
+        if hasattr(parameter, "secondary_optimizer") and parameter.secondary_optimizer:
+          secondary_weights.append(parameter)
+        else:
+          primary_weights.append(parameter)
+
+    # Create parameter groups with appropriate weight decay settings
+    # Only use separate groups if weight_decay > 0 and we have parameters to exclude
+    param_groups = []
+
+    if weight_decay > 0 and len(primary_no_decay_weights) > 0:
+      # Separate decay and no-decay groups only when weight_decay > 0
+      if len(primary_weights) > 0:
+        param_groups.append({'params': primary_weights, 'weight_decay': weight_decay})
+      param_groups.append({'params': primary_no_decay_weights, 'weight_decay': 0.0})
+    else:
+      # Single group (either weight_decay==0 or no no-decay params)
+      all_primary = primary_weights + primary_no_decay_weights if weight_decay > 0 else primary_weights
+      if not all_primary:
+        all_primary = [p for p in model.parameters() if not hasattr(p, "secondary_optimizer")]
+      param_groups.append({'params': all_primary, 'weight_decay': weight_decay})
+
+    optimizers = [create_optimizer(optimizer_type, param_groups, lr, weight_decay)]
+
+    # Handle secondary optimizer with same decay/no-decay logic
+    secondary_param_groups = []
+
+    if weight_decay > 0 and len(secondary_no_decay_weights) > 0:
+      # Separate decay and no-decay groups only when weight_decay > 0
+      if len(secondary_weights) > 0:
+        secondary_param_groups.append({'params': secondary_weights, 'weight_decay': weight_decay})
+      secondary_param_groups.append({'params': secondary_no_decay_weights, 'weight_decay': 0.0})
+    elif len(secondary_weights) > 0 or len(secondary_no_decay_weights) > 0:
+      # Single group
+      all_secondary = secondary_weights + secondary_no_decay_weights if weight_decay > 0 else secondary_weights
+      secondary_param_groups.append({'params': all_secondary, 'weight_decay': weight_decay})
+
+    if secondary_param_groups:
+      optimizers.append(create_optimizer(optimizer_type, secondary_param_groups, lr, weight_decay))
     lr_scheduler = None
     if optimizer_weights is not None and not isinstance(optimizer_weights, list):
       optimizer_weights = [optimizer_weights]
@@ -1025,8 +1214,9 @@ class LMRunnerBase(ABC):
             optimizer.load_state_dict(weights)
           except ValueError:
             optimizer_loaded = False
-            print(
-              "Unable to load optimizer. Probably a new parameter that is throwing things off. (This optimizer doesn't belong to this model)")
+            logger.error(
+              "Unable to load optimizer state. Probably a new parameter that is throwing things off. "
+              "(This optimizer doesn't belong to this model)")
         else:
           optimizer_loaded = False
     else:
@@ -1034,10 +1224,38 @@ class LMRunnerBase(ABC):
     create_warmup_scheduler = not disable_optimizer_warmup and optimizer_weights is not None and not optimizer_loaded and len(
       optimizers) == 1
     if create_warmup_scheduler:
-      print("Using warmup scheduler.")
+      logger.info("Creating learning rate warmup scheduler.")
       lr_scheduler = OptimizerWarmupLRScheduler(optimizers[0],
                                                 steps=optimizer_warmup_steps,
                                                 initial_fraction=optimizer_warmup_fraction)
+
+    # Log optimizer configuration summary
+    total_params = sum(p.numel() for p in model.parameters())
+    logger.info(
+      f"Optimizer setup: {len(optimizers)} instance(s) of {optimizer_type.upper()}, "
+      f"total parameters: {total_params:,}, "
+      f"lr={lr}, weight_decay={weight_decay}"
+    )
+
+    # Store optimizer type in optimizer_args so it persists in checkpoints
+    optimizer_args['optimizer'] = optimizer_type
+
+    # Log detailed parameter group information (INFO level for summary, DEBUG for individual params)
+    for opt_idx, optimizer in enumerate(optimizers):
+      for group_idx, param_group in enumerate(optimizer.param_groups):
+        num_params = sum(p.numel() for p in param_group['params'])
+        decay_val = param_group.get('weight_decay', weight_decay)
+        logger.info(
+          f"  Optimizer {opt_idx}, Group {group_idx}: "
+          f"{num_params:,} parameters, weight_decay={decay_val}"
+        )
+        if logger.isEnabledFor(logging.DEBUG):
+          # Use object identity (id) instead of tensor comparison to avoid shape mismatch errors
+          param_ids_in_group = {id(p) for p in param_group['params']}
+          param_names = [name for name, p in model.named_parameters() if id(p) in param_ids_in_group]
+          for name in param_names:  # Log all parameter names
+            logger.debug(f"    - {name}")
+
     optimizer_args['lr'] = lr
     optimizer_args['weight_decay'] = weight_decay
     if len(optimizers) > 1:

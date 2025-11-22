@@ -1,13 +1,42 @@
+"""GPT2-like baseline model for language modeling experiments.
+
+This module implements a reference transformer-based language model loosely based on GPT-2.
+It serves as the baseline for all experiments in the lmplay framework. The model uses
+standard transformer blocks with multi-head attention and feed-forward layers.
+
+Note: This is not a faithful GPT-2 implementation and should not be used as reference code.
+It is designed for research and experimentation, not production use.
+"""
+
 import torch
 from torch import nn
 from typing import Optional, List
 
 from lmplay.modules import Block
-import tiktoken
 from lmplay.base.base_model import LMBase
-from lmplay.utils import to_name
+from lmplay.utils import to_name, get_tokenizer
+
 
 class GPT2(LMBase):
+  """GPT2-like transformer encoder model for language generation.
+
+  A relatively simple transformer-based autoregressive language model with:
+  - Token and positional embeddings
+  - Stacked transformer blocks with multi-head attention
+  - Layer normalization and output projection
+
+  The model supports efficient generation through key-value caching during inference.
+
+  Attributes:
+    max_len: Maximum sequence length the model can process
+    tok_embed: Token embedding layer
+    pos_embed: Learnable positional embeddings
+    dropout: Embedding dropout layer
+    blocks: Sequential stack of transformer blocks
+    ln: Final layer normalization
+    fc: Output projection to vocabulary size
+  """
+
   def __init__(self,
                max_len=1024,
                num_heads=12,
@@ -27,7 +56,7 @@ class GPT2(LMBase):
                      attn_dropout=attn_dropout,
                      ff_dropout=ff_dropout,
                      embed_dropout=embed_dropout)
-    self.tokenizer = tiktoken.get_encoding("gpt2")
+    self.tokenizer = get_tokenizer("gpt2")
     vocab_size = self.tokenizer.n_vocab
 
     self.max_len = max_len
@@ -42,7 +71,17 @@ class GPT2(LMBase):
     self.ln = nn.LayerNorm(embed_dim)
     self.fc = nn.Linear(embed_dim, vocab_size)
 
-  def forward(self, x:torch.Tensor, cache:Optional[List] = None):
+  def forward(self, x: torch.Tensor, cache: Optional[List] = None):
+    """Forward pass through the model.
+
+    Args:
+      x: Input token indices of shape (batch_size, seq_len)
+      cache: Optional list of key-value caches from previous blocks for efficient generation
+
+    Returns:
+      If cache is None: logits of shape (batch_size, seq_len, vocab_size) for training
+      If cache is provided: (logits of shape (batch_size, 1, vocab_size), updated cache) for generation
+    """
     seq_len = x.size(1)
     x_start = 0
     if cache is not None and len(cache) > 0:

@@ -14,8 +14,31 @@ import torch
 import torch.nn.functional as F
 from lmplay.utils import ignore_default, DEFAULT
 
-__all__ = ['LRAdd', 'hide_net', 'NopModule']
+__all__ = ['Add', 'LRAdd', 'hide_net', 'NopModule']
 
+
+class Add(nn.Module):
+  """Simple element-wise addition of two tensors.
+
+  This module provides a PyTorch module wrapper for element-wise addition,
+  enabling it to be fully recognized by torch.compile and maintaining consistency
+  with other residual connection implementations.
+
+  Replaces the lambda `lambda x, y: x + y` pattern with a proper nn.Module
+  for better composability and compiler support.
+  """
+
+  def forward(self, x, y):
+    """Add two tensors element-wise.
+
+    Args:
+        x (torch.Tensor): First tensor to add.
+        y (torch.Tensor): Second tensor to add.
+
+    Returns:
+        torch.Tensor: Element-wise sum of x and y (x + y).
+    """
+    return x + y
 
 
 class LRAdd(nn.Module):

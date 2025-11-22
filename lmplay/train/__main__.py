@@ -22,6 +22,7 @@ Example usage:
 """
 
 import os.path, json
+import logging
 
 from lmplay.train.datasets.utils import batcher
 from lmplay.stats.modelstats import ModelStats
@@ -31,6 +32,8 @@ from lmplay import MODEL_RUNNERS
 from lmplay.base.base_model import LMRunnerBase
 from lmplay.train.datasets.plan import steps, get_first_step_name, get_step_names
 from lmplay.train.datasets.plan_configs import DEFAULT_PLANS
+
+logger = logging.getLogger('lmplay.train')
 
 def render_pbar(exp: str, device, ms: ModelStats, ss: ModelStats, current_step: str) -> str:
   """
@@ -68,17 +71,93 @@ def render_pbar(exp: str, device, ms: ModelStats, ss: ModelStats, current_step: 
 def calc_next(interval: int, current: int) -> int:
   """
   Calculate the next checkpoint based on interval and current position.
-  
+
   Args:
     interval: Checkpoint interval (e.g., save every 10000 samples)
     current: Current sample count
-    
+
   Returns:
     Next checkpoint position
   """
   if current == 0:
     return interval
   return current + (interval - current % interval)
+
+
+def log_training_configuration(args, mr, batch_size, validation_batch_size, mini_batch_size, device):
+  """
+  Log comprehensive training configuration details.
+
+  Args:
+    args: Parsed command line arguments
+    mr: Model runner instance
+    batch_size: Effective batch size
+    validation_batch_size: Validation batch size
+    mini_batch_size: Mini batch size (GPU memory limited)
+    device: Training device
+  """
+  print("=" * 70)
+  print("TRAINING CONFIGURATION")
+  print("=" * 70)
+
+  # Model configuration
+  print(f"Model: {mr._model.name}")
+  print(f"Total Parameters: {mr._model.parameter_count():,} ({mr._model.parameter_count() / 1e9:.3f}B)")
+
+  # Device configuration
+  print(f"Device: {device}")
+  print(f"AMP Enabled: {args.amp}")
+  if args.compile_model:
+    print(f"Model Compilation: Enabled (backend={args.compile_backend}, mode={args.compile_mode})")
+
+  # Optimizer configuration
+  if mr._optimizers:
+    num_optimizers = len(mr._optimizers) if isinstance(mr._optimizers, list) else 1
+    optimizer_list = mr._optimizers if isinstance(mr._optimizers, list) else [mr._optimizers]
+
+    print(f"Optimizer: {num_optimizers} instance(s) of Adagrad")
+
+    for opt_idx, optimizer in enumerate(optimizer_list):
+      opt_lr = optimizer.param_groups[0].get('lr') if optimizer.param_groups else 'N/A'
+      opt_weight_decay = optimizer.param_groups[0].get('weight_decay') if optimizer.param_groups else 'N/A'
+      print(f"  Optimizer {opt_idx}:")
+      print(f"    Learning Rate: {opt_lr}")
+      print(f"    Weight Decay: {opt_weight_decay}")
+      print(f"    Parameter Groups: {len(optimizer.param_groups)}")
+
+      for group_idx, param_group in enumerate(optimizer.param_groups):
+        num_params = sum(p.numel() for p in param_group['params'])
+        decay = param_group.get('weight_decay', 'N/A')
+        print(f"      Group {group_idx}: {num_params:,} parameters, decay={decay}")
+
+  # Learning rate scheduling
+  if mr._lr_scheduler:
+    print(f"LR Scheduler: Enabled (warmup)")
+
+  # Batch configuration
+  print(f"Effective Batch Size: {batch_size}")
+  print(f"Mini Batch Size (GPU): {mini_batch_size}")
+  print(f"Gradient Accumulation Steps: {batch_size // mini_batch_size}")
+  print(f"Validation Batch Size: {validation_batch_size}")
+
+  # Training intervals
+  print(f"Validation Interval: {args.validation_interval} samples")
+  print(f"Save Interval: {args.save_interval} samples")
+
+  # Other settings
+  if args.grad_clip:
+    print(f"Gradient Clipping: {args.grad_clip}")
+  if args.default_freeze:
+    print(f"Default Freeze: Enabled")
+  print(f"Include Prompts in Loss: {not args.dont_include_prompts}")
+  print(f"Check Gradients: {args.check_grads}")
+
+  # Training data
+  print(f"Training Plan: {args.training_plan}")
+  print(f"Run Name: {args.run_name}")
+  print(f"Model Save Location: {args.model}")
+
+  print("=" * 70)
 
 
 def main():
@@ -102,7 +181,7 @@ def main():
   known_plans = ', '.join(plan_name for plan_name in DEFAULT_PLANS)
   from argparse import ArgumentParser
   args = ArgumentParser('Trains a GPT style model!')
-  # while 'mps' wroks I have rarely seen it help and often seen it slow things down on mac.
+  # while 'mps' works I have rarely seen it help and often seen it slow things down on mac.
   # This really surprises me since you would think Apple would be dumping massive resources into this so that their hardware would become the 'standard' for ML dev.
   # 'cuda' clearly rocks especially when used with AMP. That being said, this code is not built for multi-gpu since it is trying to be as simple as possible.
   args.add_argument('--device', help="What device to use. default is CPU. 'cuda' and 'mps' are likely choices.",
@@ -128,6 +207,10 @@ def main():
   args.add_argument('--ignore-optimizer', help="don't load optimizer weights if found.", action='store_true')
   args.add_argument('--lr', help="Learning rate. Default is left up to the model. 0.0006 is normally ok.", default=None,
                     type=float)
+  args.add_argument('--optimizer', help="Optimizer to use. Options: adagrad, adam, adamw, sgd, rmsprop. Default is adamw.",
+                    default='adamw', type=str.lower, choices=['adagrad', 'adam', 'adamw', 'sgd', 'rmsprop'])
+  args.add_argument('--weight-decay', help="Weight decay (L2 regularization). Default is None (use optimizer default).",
+                    default=None, type=float)
   args.add_argument('--save-datasets',
                     help="Save the datasets to disk in the LMP_DATASETS directory or out_gpt/datasets if that env var isn't set then exit. This makes it easy to copy the data to another machine. You probably want to delete the ~/.cache/huggingface/datasets directory after this. Some training plans can take up .5TB or more of space in there.",
                     action="store_true")
@@ -187,7 +270,20 @@ def main():
   args.add_argument('--describe', help="Prints the model description and exits", action="store_true")
   args.add_argument('--dont-include-prompts', help="Include prompt in training loss. Default is to include.", action="store_true")
   args.add_argument('--context_len', help="Sets the context lengths to train against. Default is usually 1024 but it is up to the model.", default=None, type=int)
+  args.add_argument('--verbose', help="Enable verbose logging (DEBUG level). Default is INFO level.", action='store_true')
   args = args.parse_args()
+
+  # Configure logging based on verbose flag
+  log_level = logging.DEBUG if args.verbose else logging.INFO
+  logging.basicConfig(
+    level=log_level,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+  )
+
+  # Suppress verbose logging from third-party libraries to avoid debug output spam
+  logging.getLogger('matplotlib').setLevel(logging.WARNING)
+  logging.getLogger('PIL').setLevel(logging.WARNING)
 
 
   if args.exp not in MODEL_RUNNERS:
@@ -254,6 +350,8 @@ def main():
                 optimizer_warmup_steps=args.optimizer_warmup_steps,
                 disable_optimizer_warmup=args.disable_optimizer_warmup,
                 lr=args.lr,
+                optimizer=args.optimizer,
+                weight_decay=args.weight_decay,
                 compile_model=args.compile_model,
                 compile_mode=args.compile_mode,
                 compile_backed=args.compile_backend,
@@ -266,6 +364,9 @@ def main():
                 version=args.exp,
                 include_prompts=not args.dont_include_prompts,
                 max_len=args.context_len)
+
+  # Log training configuration if verbose is enabled
+  log_training_configuration(args, mr, batch_size, validation_batch_size, mini_batch_size, device)
 
   early_exit = False
   for step_name, epochs, train, validation in steps(training_plan, current_step=mr.current_step):
@@ -295,6 +396,7 @@ def main():
       total_parameters = mr._model.parameter_count()
       print(f"\nTraining {mr._model.name} with {total_parameters}({total_parameters / 1e9:0.3f}b) parameters.\n")
       try:
+
         for batch, new_train_samples_read in train_batcher:
           did_training = True
           # Hack because hugging face doesn't have a way to restart where you left off.

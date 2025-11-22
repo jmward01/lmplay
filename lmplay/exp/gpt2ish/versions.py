@@ -1,4 +1,12 @@
+"""GPT2ish model runner definitions.
 
+This module defines multiple versions of the GPT2-like baseline model with different
+configurations (small, medium, large, etc.). Each version is registered as a CLI command
+via the @expose_runner decorator, making it available to the training framework.
+
+The runners wrap the GPT2 model class with specific architecture configurations suitable
+for different hardware constraints and experimentation goals.
+"""
 
 from lmplay.base.base_model import BasicModelRunner
 from .model import GPT2

@@ -8,14 +8,17 @@ lmplay framework for various common operations including:
 - Mask generation for causal attention
 - Factory functions for creating linear layers with optional purpose tracking
 - Default value handling and decorator utilities
+- Tokenizer initialization with proper caching setup
 
 These utilities support the framework's emphasis on experimental reproducibility
 and modular architecture design.
 """
 
 import torch
+import os
+import tiktoken
 
-__all__ = ['gen_mask', 'create_linear', 'accepts_purpose', 'set_accepts_purpose', 'to_name', 'pstr']
+__all__ = ['gen_mask', 'create_linear', 'accepts_purpose', 'set_accepts_purpose', 'to_name', 'pstr', 'get_tokenizer']
 
 
 def pstr(v) -> str:
@@ -217,4 +220,49 @@ def create_linear(linear_class, purpose:str, *args, **kwargs):
     l = linear_class(*args, **kwargs)
   return l
 
+
+def get_tokenizer(encoding_name: str = "gpt2"):
+  """Get a tokenizer with proper cache directory configuration.
+
+  This function ensures that tiktoken can cache tokenizer data locally.
+  It checks the TIKTOKEN_CACHE_DIR environment variable and, if not set,
+  configures it to use {output_dir}/tokenizer where output_dir is determined by:
+  1. LMP_DATASETS environment variable if set
+  2. ./out_gpt otherwise
+
+  The cache directory is created if it doesn't exist. This avoids repeated
+  downloads of tokenizer data and improves startup time.
+
+  Args:
+    encoding_name (str): Name of the tiktoken encoding to load.
+      Defaults to "gpt2".
+
+  Returns:
+    tiktoken encoding object ready for use.
+
+  Environment Variables:
+    TIKTOKEN_CACHE_DIR: If set, used directly as the cache directory.
+    LMP_DATASETS: Base output directory (falls back to ./out_gpt).
+
+  Example:
+    tokenizer = get_tokenizer("gpt2")
+    tokens = tokenizer.encode("Hello, world!")
+  """
+  # Check if TIKTOKEN_CACHE_DIR is already set
+  if "TIKTOKEN_CACHE_DIR" not in os.environ:
+    # Determine the output directory
+    if "LMP_DATASETS" in os.environ:
+      output_dir = os.path.expanduser(os.environ["LMP_DATASETS"])
+    else:
+      output_dir = "./out_gpt"
+
+    # Set the cache directory
+    cache_dir = os.path.join(output_dir, "tokenizer")
+    os.environ["TIKTOKEN_CACHE_DIR"] = cache_dir
+
+    # Create the directory if it doesn't exist
+    os.makedirs(cache_dir, exist_ok=True)
+
+  # Load and return the tokenizer
+  return tiktoken.get_encoding(encoding_name)
 

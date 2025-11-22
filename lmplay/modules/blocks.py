@@ -16,7 +16,7 @@ from torch import nn
 from typing import Optional
 
 from .attn import MultiheadAttention
-from .general import LRAdd
+from .general import Add, LRAdd
 from lmplay.utils import create_linear
 
 __all__ = ['Block']
@@ -105,20 +105,20 @@ class Block(nn.Module):
     if ln_attn:
       self.ln1 = nn.LayerNorm(embed_dim)
     else:
-      self.ln1 = lambda x: x
+      self.ln1 = nn.Identity()
     if ln_mlp:
       self.ln2 = nn.LayerNorm(embed_dim)
     else:
-      self.ln2 = lambda x: x
+      self.ln2 = nn.Identity()
     if lradd:
       self.ff_lradd = LRAdd(embed_dim, simple=lradd_simple, predict=lradd_predict, floor=lradd_floor, ceil=lradd_ceil)
     else:
-      self.ff_lradd = lambda x, y: x + y
+      self.ff_lradd = Add()
 
     if lradd:
       self.mha_lradd = LRAdd(embed_dim, simple=lradd_simple, predict=lradd_predict, floor=lradd_floor, ceil=lradd_ceil)
     else:
-      self.mha_lradd = lambda x, y: x + y
+      self.mha_lradd = Add()
 
     self.attn = mha(max_len,
                     num_heads,
