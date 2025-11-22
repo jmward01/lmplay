@@ -1,16 +1,57 @@
+"""
+Dataset processing utilities for lmplay training.
+
+This module provides utilities for dataset path management and batch processing
+with intelligent text continuation. Key features:
+
+- Configurable dataset storage paths via environment variables
+- Smart text chunking that preserves sentence boundaries
+- Batch processing with automatic continuation of long texts
+- Support for both language modeling and instruction following formats
+
+The batching system is designed to handle variable-length texts efficiently
+while maintaining training stability by avoiding cross-batch continuations.
+"""
+
 import os
 from typing import Optional
 
-DEFAULT_DATASET_DIR = "out_gpt/datasets"
-LMP_DATASETS_ENV = "LMP_DATASETS"
+# Configuration constants
+DEFAULT_DATASET_DIR = "out_gpt/datasets"  # Default dataset storage directory
+LMP_DATASETS_ENV = "LMP_DATASETS"  # Environment variable for custom dataset path
 
 def dataset_path():
+  """
+  Get the path for dataset storage.
+  
+  Returns the dataset storage path, either from the LMP_DATASETS environment
+  variable or the default directory.
+  
+  Returns:
+    Expanded path to the dataset storage directory
+  """
   return os.path.expanduser(os.environ.get(LMP_DATASETS_ENV, DEFAULT_DATASET_DIR))
 
 
 
 
-def to_row(row: dict, max_length:int=None) -> (dict, Optional[int]):
+def to_row(row: dict, max_length: int = None) -> (dict, Optional[int]):
+  """
+  Convert dataset row to standard lmplay format with intelligent chunking.
+  
+  Handles both instruction following format (prompt/truth) and language modeling
+  format (title/text). For long texts, finds appropriate split points at sentence
+  boundaries to create continuable chunks.
+  
+  Args:
+    row: Dataset row with 'prompt'/'truth' or 'title'/'text' fields
+    max_length: Maximum estimated token length for output (uses ~1.5 tokens per word)
+    
+  Returns:
+    Tuple of (formatted_row, continuation_position)
+    - formatted_row: Dict with 'prompt' and 'truth' fields
+    - continuation_position: Character position for continuation, or None if complete
+  """
   if 'truth' in row and not row['truth'] is None:
     if 'prompt' in row and not row['prompt'] is None:
       return {'prompt':row['prompt'], 'truth':row['truth']}, None
@@ -37,7 +78,23 @@ def to_row(row: dict, max_length:int=None) -> (dict, Optional[int]):
       continuation = nearest_period + 2
   return {'prompt':prompt, 'truth': truth}, continuation
 
-def continue_row(row:dict, continuation:int, max_length:int=None) -> (dict, Optional[int]):
+def continue_row(row: dict, continuation: int, max_length: int = None) -> (dict, Optional[int]):
+  """
+  Create a continuation of a long text starting from a specific position.
+  
+  Generates a new training example that continues from where the previous chunk
+  ended, with appropriate context and continuation markers.
+  
+  Args:
+    row: Original dataset row
+    continuation: Character position to continue from
+    max_length: Maximum estimated token length for output
+    
+  Returns:
+    Tuple of (formatted_row, next_continuation_position)
+    - formatted_row: Dict with continuation prompt and remaining truth text
+    - next_continuation_position: Position for next continuation, or None if complete
+  """
   next_nearest_period = row['text'].find('. ', continuation)
   if 'title' in row and row['title'] is not None:
     prompt = f'Title: {row["title"]}\n...'
@@ -68,22 +125,38 @@ def batcher(dataset,
             batch_size: int,
             default_to_row=to_row,
             default_continue_row=continue_row,
-            epochs:Optional[float]=None,
+            epochs: Optional[float] = None,
             allow_short=True,
-            fast_forward:int=0,
-            max_length:int=None):
-  """Why build things this way? The 'standard' training that just concatenates strings together never really made sense to me.
-  This will take each example and if it is too long, break it and continue it as another sample in the batch.
-  If an example would go to a new batch it will be dropped since we don't want to cheat and let a new batch learn from previous batches.
-
-  :param dataset: dataset to batch from
-  :param batch_size: guess
-  :param row_reader: converts rows from the dataset into a standard format for the model/continuation function.
-  :param row_continuation: Function to create a continuation from a sample that is too long.
-  :param epochs: I hate epochs but they are easy to think about. Curriculum is a different exp
-  :param allow_short: let the final batch be short.
-  :param fast_forward: For model re-starts
-  :return:
+            fast_forward: int = 0,
+            max_length: int = None):
+  """
+  Create batches from dataset with intelligent text continuation.
+  
+  This batching approach differs from standard concatenation by preserving
+  example boundaries while handling long texts through continuation. Long
+  examples are split at sentence boundaries and continued in the same batch,
+  but continuations never cross batch boundaries to prevent information leakage.
+  
+  Args:
+    dataset: HuggingFace dataset to batch
+    batch_size: Number of examples per batch
+    default_to_row: Function to convert dataset rows to standard format
+    default_continue_row: Function to create continuations of long rows
+    epochs: Number of epochs to run (can be fractional)
+    allow_short: Allow final batch to be smaller than batch_size
+    fast_forward: Number of samples to skip (for resuming training)
+    max_length: Maximum token length for examples (triggers continuation)
+    
+  Yields:
+    Tuple of (batch, new_samples_count)
+    - batch: List of formatted examples with 'prompt' and 'truth' fields
+    - new_samples_count: Number of new samples processed in this batch
+    
+  Notes:
+    - Continuations within a batch maintain training stability
+    - Cross-batch continuations are avoided to prevent information leakage
+    - Custom row readers can be specified per dataset row
+    - Token estimation uses ~1.5 tokens per word heuristic
   """
   batch = []
   #Total count of samples used accross all epochs

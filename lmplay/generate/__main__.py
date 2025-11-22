@@ -1,9 +1,44 @@
+"""
+Command-line interface for text generation with language models.
+
+This module provides the main entry point for text generation, accessible via
+the 'lmp_generator' command. It loads trained models and generates text based
+on provided prompts.
+
+Usage:
+    lmp_generator "Your prompt here" --model model.lmp --device cuda
+    lmp_generator prompt.txt --exp gpt2ish --max-len 500
+
+The generator supports loading prompts from files and provides various
+configuration options for controlling generation behavior.
+"""
+
 from lmplay import MODEL_RUNNERS
 from lmplay.base.base_model import LMRunnerBase
 import os
 
 
 def main():
+  """Main entry point for text generation CLI.
+  
+  Parses command-line arguments, loads the specified model, and generates
+  text based on the provided prompt. Supports various configuration options
+  including device selection, model type, and generation parameters.
+  
+  Command-line Arguments:
+    prompt (str): Text prompt to start generation. Can be either direct text
+      or a filename containing the prompt text.
+    --device (str): Device to use for generation ('cpu', 'cuda', 'mps').
+      Defaults to 'cpu'.
+    --model (str): Path to the model file (.lmp). Defaults to 'gpt_model.lmp'.
+    --exp (str): Experiment type to use. Use 'list' to see available options.
+      Defaults to 'gpt2ish'.
+    --amp: Enable Automatic Mixed Precision for generation.
+    --max-len (int): Maximum generation length. Defaults to model's max_len.
+  
+  The function handles model loading, device configuration, and text generation
+  with proper error handling for missing files and invalid experiments.
+  """
   from argparse import ArgumentParser
   args = ArgumentParser('Generates text!')
   args.add_argument('prompt', help="Prompt text to start generation on. If this is a file name it will be loaded.")

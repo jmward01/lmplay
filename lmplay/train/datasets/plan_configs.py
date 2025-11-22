@@ -1,3 +1,25 @@
+"""
+Predefined dataset configurations and training plans for lmplay.
+
+This module contains predefined configurations for commonly used datasets and
+complete training plans that combine multiple datasets in multi-stage training.
+
+Dataset Configurations:
+- ALL_DATASETS: Registry of dataset loading configurations
+- Each dataset config specifies the loader type, arguments, and column mappings
+
+Training Plans:
+- Predefined multi-stage training plans for different scenarios
+- Plans combine pretraining on general text with instruction fine-tuning
+- Support for different dataset combinations and training curricula
+
+Plan Types:
+- Single dataset plans (wiki_en_es, openorca, tinystories, etc.)
+- Multi-stage plans (full, full_v1) with pretraining -> fine-tuning
+- Specialized plans for different model sizes and training objectives
+"""
+
+# Dataset configurations with loader specifications
 ALL_DATASETS = {'wiki_en': {'ds_loader': 'wiki', 'args': ['en']},
                 'wiki_es': {'ds_loader': 'wiki', 'args': ['es']},
                 'openorca': {'ds_loader': 'openorca'},
@@ -14,12 +36,13 @@ ALL_DATASETS = {'wiki_en': {'ds_loader': 'wiki', 'args': ['en']},
                                   'args': ['cosmopedia_v2', 'HuggingFaceTB/smollm-corpus', 'cosmopedia-v2'],
                                   'kwargs': {'text_column': 'text'}}}
 
-# Too big
+# Too big for most use cases - commented out
 # 'fineweb_edu': {'ds_loader': 'hf',
 #                 'args': ['fineweb_edu', 'HuggingFaceTB/smollm-corpus', 'fineweb-edu-dedup'],
 #                 'kwargs': {'text_column': 'text'}}}
 
 
+# Individual training step definitions
 WIKI_EN_ES_STEP = {'datasets': ['wiki_en', 'wiki_es'],
                    'epochs': 1.0,
                    'step_name': 'wiki_en_es'}
@@ -49,10 +72,14 @@ LARGE_INSTRUCTION_FT_STEP = {'datasets': ['openorca', 'orcamathword200', 'smolta
                              'step_name': 'l_instruction_ft',
                              'interleve_stopping_strategy': "all_exhausted"}
 
+# Combined step using all available datasets
 ALL_STEP = {'datasets': list(ALL_DATASETS),
             'epochs': 1.0,
             'step_name': 'all',
             'interleve_stopping_strategy': "all_exhausted"}
+
+# Training plan definitions
+# Each plan specifies datasets and sequence of training steps
 
 DEFAULT_PLAN = {'datasets': ALL_DATASETS,
                 'seed': 0,
@@ -134,6 +161,7 @@ ALL = {'datasets': ALL_DATASETS,
        'seed': 0,
        'steps': [ALL_STEP]}
 
+# Registry of all available training plans
 DEFAULT_PLANS = {'default': DEFAULT_PLAN,
                  'cosmopedia_v2': COSMOPEDIA_V2,
                  'wiki_en_es': WIKI_EN_ES,

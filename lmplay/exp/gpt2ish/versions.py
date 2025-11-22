@@ -1,4 +1,12 @@
+"""GPT2ish model runner definitions.
 
+This module defines multiple versions of the GPT2-like baseline model with different
+configurations (small, medium, large, etc.). Each version is registered as a CLI command
+via the @expose_runner decorator, making it available to the training framework.
+
+The runners wrap the GPT2 model class with specific architecture configurations suitable
+for different hardware constraints and experimentation goals.
+"""
 
 from lmplay.base.base_model import BasicModelRunner
 from .model import GPT2
@@ -41,4 +49,13 @@ def runner(*args, **kwargs):
                           overrides=dict(num_heads=2,
                                          #num_blocks=0,
                                          embed_dim=64),
+                          **kwargs)
+
+@expose_runner('s_gpt2ish', description='Trying small and deep models')
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(num_heads=6,
+                                         num_blocks=18,
+                                         embed_dim=96*3),
                           **kwargs)

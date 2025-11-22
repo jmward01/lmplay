@@ -11,3 +11,13 @@ def gpt2ish(*args, **kwargs):
                           *args,
                           overrides=dict(),
                           **kwargs)
+
+
+@expose_runner('rtest_runner', description='Tiny! Built to just test the plumbing quickly.')
+def runner(*args, **kwargs):
+  return BasicModelRunner(GPT2,
+                          *args,
+                          overrides=dict(num_heads=2,
+                                         #num_blocks=0,
+                                         embed_dim=64),
+                          **kwargs)

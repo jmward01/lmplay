@@ -1,3 +1,19 @@
+"""Embedding implementations including experimental Unified Embeddings.
+
+This module provides embedding layers for transformer models with a focus on
+the Unified Embedding (UE) architecture. UEs are designed to improve training
+stability and performance by using a larger intermediate embedding space during
+training that can be collapsed to standard embeddings for inference.
+
+Key components:
+- ConvertableEmbedding: Standard embedding that can load UE weights
+- UnifiedEmbedding: Advanced embedding with sacrificial training parameters
+
+The Unified Embedding approach addresses issues with rare token updates disrupting
+the model by providing a more stable embedding representation through an
+over-parameterized training architecture.
+"""
+
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -8,8 +24,21 @@ from lmplay.utils import create_linear
 __all__ = ['ConvertableEmbedding', 'UnifiedEmbedding']
 
 class ConvertableEmbedding(nn.Embedding):
-  """This acts like a normal embedding but when it sees a UE loaded with its name it converts it to a normal embedding and deletes the UE weights.
-
+  """Standard embedding layer that can automatically convert from Unified Embeddings.
+  
+  This class extends nn.Embedding to provide compatibility with Unified Embeddings.
+  When loading a checkpoint that contains UE weights, it automatically converts
+  them to standard embedding weights by computing all token embeddings through
+  the UE network and storing them as a regular embedding table.
+  
+  This allows models to use UEs during training for better stability while
+  deploying with standard embeddings for efficiency.
+  
+  Attributes:
+      num_embeddings (int): Size of the vocabulary.
+      embedding_dim (int): Dimension of the embedding vectors.
+      front_embed_mul (float): Multiplier used by the UE during training.
+          Stored for compatibility when loading UE checkpoints.
   """
   def __init__(self, num_embeddings: int, embedding_dim: int, front_embed_mul: float):
     super().__init__(num_embeddings, embedding_dim)
@@ -19,6 +48,22 @@ class ConvertableEmbedding(nn.Embedding):
     self._register_load_state_dict_pre_hook(self.check_initialize)
 
   def check_initialize(self, state_dict:dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+    """Pre-hook for loading state dict that converts UE weights to standard embeddings.
+    
+    This method is called before loading the state dict. If it detects Unified
+    Embedding weights (by checking for 'integration1.weight'), it creates a
+    temporary UE instance, loads the weights, computes all embeddings, and
+    replaces the state dict with standard embedding weights.
+    
+    Args:
+        state_dict (dict): The state dictionary being loaded.
+        prefix (str): The prefix for this module in the state dict.
+        local_metadata: Metadata for this module.
+        strict (bool): Whether to strictly enforce matching keys.
+        missing_keys (list): List to append missing keys to.
+        unexpected_keys (list): List to append unexpected keys to.
+        error_msgs (list): List to append error messages to.
+    """
     if f'{prefix}integration1.weight' in state_dict:
       with torch.no_grad():
         me = UnifiedEmbedding(self.num_embeddings, self.embedding_dim, self.front_embed_mul)
@@ -31,6 +76,29 @@ class ConvertableEmbedding(nn.Embedding):
 
 
 class UnifiedEmbedding(nn.Module):
+  """Advanced embedding layer with sacrificial training parameters.
+  
+  Unified Embeddings (UEs) address training instability caused by infrequent token
+  updates by using a larger intermediate embedding space during training. The key
+  insight is that rare tokens can disrupt training when their embeddings are
+  suddenly updated after long periods of inactivity.
+  
+  Architecture:
+  1. Large embedding table (vocab_size × embed_dim × front_embed_mul)
+  2. Integration layers that project down to the target embedding dimension
+  3. Optional activation functions and layer normalization
+  4. Efficient reordering for common tokens to minimize computation
+  
+  During inference, the entire network can be collapsed to a standard embedding
+  table by pre-computing all token embeddings, eliminating any overhead.
+  
+  Benefits:
+  - More stable training, especially for rare tokens
+  - Better gradient flow to embedding parameters
+  - Can be converted to standard embeddings for deployment
+  - Supports CPU offloading for memory-constrained training
+  """
+  
   def __init__(self,
                vocab_size: int,
                embed_dim: int,
@@ -43,14 +111,40 @@ class UnifiedEmbedding(nn.Module):
                integration1_5=False,
                integration2=True,
                linear=nn.Linear):
-    """UEs are a better way to train embeddings. This is a drop in replacement for nn.Embedding
+    """Initialize Unified Embedding layer.
 
-    :param vocab_size:
-    :param embed_dim: This is the output size that your network will see.
-    :param front_embed_mul: Bigger is better. This is the hidden embedding size used just for training.
-    :param keep_embed_on_cpu: Big front embeddings take a lot of memory. Storing them on the CPU has a performance hit but as the batch size grows the hit is minimized. Basically, do things on the CPU to be able to train larger networks.
-    :param emb_training_epochs: This is only used for converting a normal embedding into a UE. This allows you to 'bolt on' a UE to an existing well-trained network that doesn't have the sacrificial UE network. It works but there is still a bit of model shock when UEs first start training.
-    :param ln: LN the value before returning. Just trying different approaches here.
+    Args:
+        vocab_size (int): Size of the vocabulary.
+        embed_dim (int): Output embedding dimension that the model sees.
+        front_embed_mul (float): Multiplier for the internal embedding dimension.
+            Larger values (e.g., 16) work better but use more memory. The internal
+            embedding dimension is embed_dim * front_embed_mul.
+        keep_embed_on_cpu (bool): If True, keep embeddings and first integration
+            layer on CPU to save GPU memory. This has a performance cost but enables
+            training with larger front_embed_mul values. The tradeoff becomes
+            worthwhile when sequence_length * batch_size > 2000. Defaults to False.
+        emb_training_epochs (int): Number of epochs for training the UE when
+            initializing from existing embeddings. Only used when converting a
+            pre-trained model to use UEs. Defaults to 50.
+        ln (bool): If True, apply layer normalization to output embeddings.
+            Defaults to False.
+        emb_activation (bool): If True, apply activation function to the initial
+            embedding lookup. Defaults to False.
+        activation (callable): Activation function to use in integration layers.
+            Defaults to F.gelu.
+        integration1_5 (bool): If True, add an additional integration layer
+            between integration1 and integration2. Defaults to False.
+        integration2 (bool): If True, use a second integration layer. If False,
+            integration1 projects directly to embed_dim. Defaults to True.
+        linear (type): Linear layer class to use for integration layers.
+            Defaults to nn.Linear.
+    
+    Note:
+        The large front embeddings help because:
+        1. Rare tokens have more parameters to store information
+        2. The integration layers can learn to ignore outdated information
+        3. Common tokens benefit from the reordering optimization
+        4. The network is less sensitive to sudden embedding updates
     """
     super().__init__()
     if isinstance(integration2, int):
@@ -112,6 +206,21 @@ class UnifiedEmbedding(nn.Module):
     self.initialized_from_small_embed = False
 
   def initialize(self, embedding_w: torch.Tensor):
+    """Initialize UE from existing embedding weights.
+    
+    This method trains the UE network to reproduce given embedding weights,
+    allowing UEs to be added to pre-trained models. It uses a small neural
+    network training loop to learn the integration weights.
+    
+    Args:
+        embedding_w (torch.Tensor): Existing embedding weights of shape
+            (vocab_size, embedding_dim) to reproduce.
+    
+    Note:
+        The training uses AdaGrad optimizer with exponential learning rate
+        decay. The initial embeddings are copied to the front part of the
+        large embedding table to speed up convergence.
+    """
     print("Initializing UEs from an existing embedding layer.")
     # The embedding is our source of 'truth' we are trying to learn to predict.
     device = embedding_w.device
@@ -154,10 +263,50 @@ class UnifiedEmbedding(nn.Module):
     self.initialized_from_small_embed = True
 
   def check_initialize(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+    """Pre-hook to initialize from standard embedding weights if present.
+    
+    Args:
+        state_dict (dict): State dictionary being loaded.
+        prefix (str): Module prefix in state dict.
+        local_metadata: Module metadata.
+        strict (bool): Whether to strictly match keys.
+        missing_keys (list): List of missing keys.
+        unexpected_keys (list): List of unexpected keys.
+        error_msgs (list): List of error messages.
+    """
     if f'{prefix}weight' in state_dict:
       self.initialize(state_dict[f'{prefix}weight'])
 
   def forward(self, idxs: torch.Tensor = None, start_slice = None, end_slice = None, allow_reorder=True) -> torch.Tensor:
+    """Compute embeddings for given token indices.
+    
+    This method supports several optimizations:
+    1. Reordering tokens to compute common tokens only once
+    2. CPU-GPU transfer minimization when embeddings are on CPU
+    3. Batch computation of all embeddings when idxs is None
+    
+    Args:
+        idxs (torch.Tensor, optional): Token indices to embed. Shape can be
+            (batch_size, sequence_length) or (sequence_length,). If None,
+            returns all embeddings from start_slice to end_slice.
+        start_slice (int, optional): Start index when computing all embeddings.
+            Only used when idxs is None. Defaults to 0.
+        end_slice (int, optional): End index when computing all embeddings.
+            Only used when idxs is None. Defaults to vocab_size.
+        allow_reorder (bool): If True and sequence length > 1, reorder tokens
+            to compute each unique token only once. This optimization is
+            especially effective for common tokens. Defaults to True.
+    
+    Returns:
+        torch.Tensor: Embedded representations. Shape is the same as input
+            idxs but with an additional embedding dimension. If idxs was None,
+            returns embeddings of shape (num_tokens, embed_dim).
+    
+    Note:
+        The reordering optimization finds unique tokens, computes their
+        embeddings once, then scatters results back to original positions.
+        This significantly reduces computation for repeated tokens.
+    """
     #If they send in 'none' then we will send back all embeddings.
     tok_embed_device = self.tok_embed.weight.device
     if not idxs is None:

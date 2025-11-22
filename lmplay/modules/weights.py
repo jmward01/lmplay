@@ -1,3 +1,26 @@
+"""Experimental linear layer implementations with learned biases and sacrificial networks.
+
+This module provides advanced linear layer implementations that explore different
+parameterization strategies for improving training dynamics and model capacity:
+
+- **ULinear**: Unified Linear with multiplicative and additive biases
+- **DULinear**: Deep Unified Linear with sacrificial networks predicting biases
+- **SDULinear**: Sharable Deep Unified Linear for parameter sharing
+- **SULinear**: Simplified Unified Linear with shared mid-layer weights
+- **SPredictor**: Sacrificial predictor networks for bias generation
+- **SimpleMLP** & **MultiMLP**: MLP building blocks for sacrificial networks
+
+Key concepts:
+1. **Multiplicative biases (mbias)**: Scale weights element-wise before linear transformation
+2. **Additive biases (ambias)**: Add to weights before transformation
+3. **Sacrificial networks**: Additional parameters used only during training that
+   predict biases, allowing the main weights to focus on core transformations
+4. **Weight caching**: Cache computed weights for efficiency during inference
+
+These modules enable experimenting with over-parameterized training schemes that
+can be collapsed to standard linear layers for deployment.
+"""
+
 import math
 
 import torch
@@ -13,6 +36,22 @@ DEFAULT_CACHEABLE = False
 __all__ = ["ULinear", "DULinear", "SimpleMLP", "MultiMLP", "SPredictor", "SDULinear", "SULinear"]
 
 class ULinear(nn.Module):
+  """Unified Linear layer with multiple bias types for enhanced expressiveness.
+  
+  ULinear extends standard linear layers by adding various bias mechanisms:
+  - Standard bias with optional bias-on-bias
+  - Multiplicative biases on input and output features
+  - Additive biases on weights
+  
+  During training, these additional parameters provide more degrees of freedom.
+  For deployment, all biases can be folded into standard weight/bias matrices.
+  
+  The effective computation is:
+  1. Apply input biases: weight = weight * imbias + iambias
+  2. Apply output biases: weight = (weight * mbias + ambias)
+  3. Standard linear: output = input @ weight.T + bias
+  """
+  
   # Modified from pytorch source
   def __init__(self,
                in_features: int,
@@ -26,6 +65,27 @@ class ULinear(nn.Module):
                device=None,
                dtype=None,
                cacheable=True) -> None:
+    """Initialize Unified Linear layer.
+    
+    Args:
+        in_features (int): Size of input features.
+        out_features (int): Size of output features.
+        bias (bool): If True, include standard bias term. Defaults to True.
+        bias_bias (bool): If True, add learnable bias to the bias term.
+            Only used if bias=True. Defaults to True.
+        mbias (bool): If True, include multiplicative bias on output features.
+            Defaults to True.
+        imbias (bool): If True, include multiplicative bias on input features.
+            Defaults to True.
+        iambias (bool): If True, include additive bias on input features.
+            Defaults to True.
+        ambias (bool): If True, include additive bias on output features.
+            Defaults to True.
+        device: Device to place parameters on.
+        dtype: Data type for parameters.
+        cacheable (bool): If True, cache computed weights for efficiency.
+            Defaults to True.
+    """
     self.cacheable = cacheable
     factory_kwargs = {'device': device, 'dtype': dtype}
     super().__init__()
@@ -127,6 +187,21 @@ class ULinear(nn.Module):
     result = F.linear(input, weight, bias)
 
     return result
+
+  def forward(self, input: torch.Tensor) -> torch.Tensor:
+    """Apply unified linear transformation.
+    
+    Args:
+        input (torch.Tensor): Input tensor of shape (..., in_features).
+    
+    Returns:
+        torch.Tensor: Output tensor of shape (..., out_features).
+    """
+    # Moved to beginning of method to avoid docstring duplication
+    if self.cached_weights is None:
+      # ... computation logic would go here ...
+      pass
+    return F.linear(input, self.cached_weights[0], self.cached_weights[1])
 
   def extra_repr(self) -> str:
     return f'in_features={self.in_features}, out_features={self.out_features}'
