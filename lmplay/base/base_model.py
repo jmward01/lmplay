@@ -30,9 +30,111 @@ from lmplay.utils import ignore_default
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_LR = 2e-4  # Tuned for AdamW (default optimizer). Use 6e-4 with Adagrad
+DEFAULT_LR = 1e-4  # Tuned for AdamW (default optimizer). Use 6e-4 with Adagrad
 # DEFAULT_LR = 3e-5
 DEFAULT_WEIGHT_DECAY = 0.00
+
+
+def apply_temperature(logits: torch.Tensor, temperature: float) -> torch.Tensor:
+  """Scale logits by temperature for controlling output diversity.
+
+  Args:
+    logits: Model output logits of shape (batch, vocab_size)
+    temperature: Temperature value. < 1.0 makes distribution sharper (more deterministic),
+                 > 1.0 makes it softer (more random). 1.0 is unchanged.
+
+  Returns:
+    Temperature-scaled logits
+  """
+  if temperature == 1.0:
+    return logits
+  if temperature <= 0:
+    raise ValueError("Temperature must be positive")
+  return logits / temperature
+
+
+def apply_repetition_penalty(logits: torch.Tensor, input_ids: torch.Tensor,
+                             penalty: float) -> torch.Tensor:
+  """Apply repetition penalty to discourage repeated tokens.
+
+  Args:
+    logits: Model output logits of shape (vocab_size,)
+    input_ids: Previously generated token IDs
+    penalty: Penalty factor. > 1.0 discourages repetition. 1.0 is no penalty.
+
+  Returns:
+    Logits with repetition penalty applied
+  """
+  if penalty == 1.0:
+    return logits
+  if penalty <= 0:
+    raise ValueError("Repetition penalty must be positive")
+
+  # Get unique tokens that have been generated
+  unique_tokens = torch.unique(input_ids)
+  for token_id in unique_tokens:
+    # Reduce logit by dividing (makes tokens less likely)
+    logits[token_id] = logits[token_id] / penalty
+
+  return logits
+
+
+def top_k_filtering(logits: torch.Tensor, top_k: int) -> torch.Tensor:
+  """Filter to keep only top k tokens.
+
+  Args:
+    logits: Model output logits of shape (vocab_size,)
+    top_k: Number of highest probability tokens to keep. 0 or None disables.
+
+  Returns:
+    Logits with non-top-k values set to -inf
+  """
+  if top_k is None or top_k <= 0:
+    return logits
+
+  top_k = min(top_k, logits.size(-1))
+  top_k_logits, top_k_indices = torch.topk(logits, top_k)
+
+  # Create mask with -inf for non-top-k tokens
+  logits_mask = torch.full_like(logits, float('-inf'))
+  logits_mask.scatter_(0, top_k_indices, top_k_logits)
+
+  return logits_mask
+
+
+def top_p_filtering(logits: torch.Tensor, top_p: float) -> torch.Tensor:
+  """Apply nucleus sampling (top-p filtering).
+
+  Args:
+    logits: Model output logits of shape (vocab_size,)
+    top_p: Cumulative probability threshold. Tokens with cumulative prob > top_p are filtered.
+           1.0 disables. Typical values: 0.9, 0.95
+
+  Returns:
+    Logits with tokens outside cumulative probability set to -inf
+  """
+  if top_p >= 1.0:
+    return logits
+  if top_p <= 0:
+    raise ValueError("top_p must be in (0, 1]")
+
+  # Sort probabilities in descending order
+  sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+  sorted_probs = torch.softmax(sorted_logits, dim=-1)
+
+  # Compute cumulative probabilities
+  cumsum_probs = torch.cumsum(sorted_probs, dim=-1)
+
+  # Keep tokens until cumulative prob exceeds top_p, but always keep at least one token
+  mask = cumsum_probs <= top_p
+  mask[0] = True  # Always keep the highest probability token
+  sorted_logits[~mask] = float('-inf')
+
+  # Unsort back to original order
+  result = torch.full_like(logits, float('-inf'))
+  result.scatter_(0, sorted_indices, sorted_logits)
+
+  return result
 
 
 class OptimizerWarmupLRScheduler(LRScheduler):
@@ -324,19 +426,33 @@ class MBase(nn.Module):
     # target loss is normalized by example but not by batch. That will be done by the caller.
     return results, total_target_loss, total_token_count
 
-  def generate_prompts(self, prompts: Sequence[dict], max_len: Optional[int] == None) -> Sequence[str]:
-    """Generate text completions for given prompts.
-    
+  def generate_prompts(self,
+                       prompts: Sequence[dict],
+                       max_len: Optional[int] = None,
+                       temperature: float = 1.0,
+                       top_k: Optional[int] = None,
+                       top_p: float = 1.0,
+                       repetition_penalty: float = 1.0,
+                       do_sample: bool = False) -> Sequence[str]:
+    """Generate text completions for given prompts with sampling options.
+
     Args:
-      prompts: Sequence of prompt dictionaries
+      prompts: Sequence of prompt dictionaries with 'prompt' key
       max_len: Maximum generation length (uses model max_len if None)
-      
+      temperature: Sampling temperature. < 1.0 = sharper distribution (more deterministic),
+                   > 1.0 = softer distribution (more random). 1.0 = no change.
+      top_k: Keep only top k highest probability tokens. None/0 = disabled.
+      top_p: Nucleus sampling - keep tokens with cumulative prob <= top_p. 1.0 = disabled.
+      repetition_penalty: Penalty for repeated tokens. > 1.0 discourages repetition.
+      do_sample: If True, use sampling. If False, use greedy decoding (argmax).
+
     Returns:
       List of generated text strings
     """
     results = []
     if not max_len:
       max_len = self.max_len
+
     with torch.no_grad():
       for prompt in prompts:
         result = []
@@ -345,13 +461,35 @@ class MBase(nn.Module):
         x, _, _ = self._tokenize_batch([prompt])
         cache = []
         stop = False
+
         while not stop:
           x, cache = self(x, cache=cache)
-          # Should only be one token
-          x = torch.argmax(x, dim=-1)
-          result.append(x.squeeze().tolist())
-          if result[-1] == self.tokenizer.eot_token or len(result) == max_len:
+          # x shape: (batch, seq_len, vocab_size) -> take last token and squeeze batch
+          logits = x[0, -1, :] if x.dim() == 3 else x[-1, :]
+
+          # Apply generation filters in order
+          logits = apply_temperature(logits, temperature)
+          logits = apply_repetition_penalty(logits, torch.tensor(result, device=logits.device), repetition_penalty)
+          logits = top_k_filtering(logits, top_k)
+          logits = top_p_filtering(logits, top_p)
+
+          # Sample or argmax
+          if do_sample:
+            # Convert logits to probabilities
+            probs = torch.softmax(logits, dim=-1)
+            next_token = torch.multinomial(probs, num_samples=1)
+          else:
+            next_token = torch.argmax(logits, dim=-1, keepdim=True)
+
+          token_id = next_token.squeeze().item()
+          result.append(token_id)
+
+          if token_id == self.tokenizer.eot_token or len(result) == max_len:
             stop = True
+          else:
+            # Prepare input for next iteration: new token as long tensor
+            x = torch.tensor([[token_id]], dtype=torch.long, device=self.device)
+
         results.append(self.tokenizer.decode(result))
 
     return results
@@ -1032,19 +1170,38 @@ class LMRunnerBase(ABC):
     self._model.train(True)
     return results, current_loss, total_tokens
 
-  def generate(self, prompts: Sequence[str], max_len: Optional[int] = None):
+  def generate(self,
+               prompts: Sequence[str],
+               max_len: Optional[int] = None,
+               temperature: float = 1.0,
+               top_k: Optional[int] = None,
+               top_p: float = 1.0,
+               repetition_penalty: float = 1.0,
+               do_sample: bool = False):
     """Generate text completions for prompts.
-    
+
     Args:
       prompts: Text prompts to complete
       max_len: Maximum generation length
-      
+      temperature: Sampling temperature (< 1.0 = sharper, > 1.0 = softer)
+      top_k: Keep only top k tokens. None/0 = disabled.
+      top_p: Nucleus sampling threshold. 1.0 = disabled.
+      repetition_penalty: Penalty for repeated tokens. 1.0 = no penalty.
+      do_sample: Use sampling instead of greedy decoding.
+
     Returns:
       List of generated completions
     """
     prompts = [{'prompt': f"{prompt}\n"} for prompt in prompts]
     with self.amp(device_type=self.device_type):
-      return self._model.generate_prompts(prompts, max_len)
+      return self._model.generate_prompts(
+          prompts,
+          max_len=max_len,
+          temperature=temperature,
+          top_k=top_k,
+          top_p=top_p,
+          repetition_penalty=repetition_penalty,
+          do_sample=do_sample)
 
   def run(self, prompts: Sequence[dict]) -> Sequence[str]:
     """Run inference on prompts without ground truth.

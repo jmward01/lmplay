@@ -20,11 +20,11 @@ import os
 
 def main():
   """Main entry point for text generation CLI.
-  
+
   Parses command-line arguments, loads the specified model, and generates
   text based on the provided prompt. Supports various configuration options
   including device selection, model type, and generation parameters.
-  
+
   Command-line Arguments:
     prompt (str): Text prompt to start generation. Can be either direct text
       or a filename containing the prompt text.
@@ -35,7 +35,16 @@ def main():
       Defaults to 'gpt2ish'.
     --amp: Enable Automatic Mixed Precision for generation.
     --max-len (int): Maximum generation length. Defaults to model's max_len.
-  
+    --temperature (float): Sampling temperature (default 1.0).
+      < 1.0 = more deterministic, > 1.0 = more random.
+    --top-k (int): Keep only top k tokens (default: disabled).
+      Set to > 0 to enable.
+    --top-p (float): Nucleus sampling threshold (default 1.0, disabled).
+      Typical values: 0.9, 0.95
+    --repetition-penalty (float): Penalty for repeated tokens (default 1.0).
+      > 1.0 discourages repetition.
+    --do-sample: Use sampling instead of greedy decoding.
+
   The function handles model loading, device configuration, and text generation
   with proper error handling for missing files and invalid experiments.
   """
@@ -49,6 +58,17 @@ def main():
                     default="gpt2ish")
   args.add_argument('--amp', help="Use Automatic Mixed Precision (AMP) training.", action="store_true")
   args.add_argument('--max-len', help="Set the max generation length. Default is model's max length.", type=int, default=None)
+
+  # Generation control arguments
+  args.add_argument('--temperature', help="Sampling temperature (default 1.0). < 1.0 = more deterministic, > 1.0 = more random.",
+                    type=float, default=1.0)
+  args.add_argument('--top-k', help="Keep only top k tokens (default: disabled). Set to > 0 to enable.", type=int, default=None)
+  args.add_argument('--top-p', help="Nucleus sampling threshold (default 1.0, disabled). Typical values: 0.9, 0.95.",
+                    type=float, default=1.0)
+  args.add_argument('--repetition-penalty', help="Penalty for repeated tokens (default 1.0, no penalty). > 1.0 discourages repetition.",
+                    type=float, default=1.0)
+  args.add_argument('--do-sample', help="Use sampling instead of greedy decoding.", action="store_true")
+
   args = args.parse_args()
 
 
@@ -80,7 +100,14 @@ def main():
         prompt = infile.read()
 
 
-  results = mr.generate([prompt], max_len=args.max_len)[0]
+  results = mr.generate(
+      [prompt],
+      max_len=args.max_len,
+      temperature=args.temperature,
+      top_k=args.top_k,
+      top_p=args.top_p,
+      repetition_penalty=args.repetition_penalty,
+      do_sample=args.do_sample)[0]
   print(results)
 
 

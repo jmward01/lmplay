@@ -251,14 +251,13 @@ class MultiheadAttention(nn.Module):
       # This appears to be a little faster on non-cuda hardware for training than the pytorch ref implementation.
       # This also opens up how mha works to make it easier to play with parts of it.
 
-      k = self.key_norm(self.key(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).permute(0, 2,
-                                                                                                                   3, 1)
+      k = self.key_norm(self.key(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).transpose(1, 2)
       v = self.value_norm(
         self.value(x_target).reshape(target_batch_size, target_seq_len, self.num_heads, -1)).transpose(1, 2)
       q = self.query_norm(self.query(x).reshape(batch_size, seq_len, self.num_heads, -1)).transpose(1, 2)
 
       if self._kv_cache_prep(cache):
-        k = torch.concat((cache[0], k), dim=3)
+        k = torch.concat((cache[0], k), dim=2)
         v = torch.concat((cache[1], v), dim=2)
       if cache:
         # Update the cache with the new k&v from this token generation.
