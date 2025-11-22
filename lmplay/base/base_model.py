@@ -30,7 +30,7 @@ from lmplay.utils import ignore_default
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_LR = 6e-4
+DEFAULT_LR = 2e-4  # Tuned for AdamW (default optimizer). Use 6e-4 with Adagrad
 # DEFAULT_LR = 3e-5
 DEFAULT_WEIGHT_DECAY = 0.00
 
@@ -403,7 +403,7 @@ def get_weight_decay_exclusion_patterns() -> Sequence[str]:
   Returns:
     Sequence[str]: List of patterns to match against parameter names
   """
-  return [".bias", "_bias", ".ln", "_ln", "embed"]
+  return [".bias", "_bias", ".ln", "_ln", "ln.", "embed"]
 
 
 def categorize_parameters_by_weight_decay(
@@ -1204,6 +1204,19 @@ class LMRunnerBase(ABC):
       # only load old optimizers if the model parameters haven't changed.
       optimizer_loaded = True
       for optimizer, weights in zip(optimizers, optimizer_weights):
+        # Check if parameter group structure matches to avoid loading issues
+        saved_num_groups = len(weights.get('param_groups', []))
+        current_num_groups = len(optimizer.param_groups)
+
+        if saved_num_groups != current_num_groups:
+          # Parameter group structure has changed (e.g., new weight decay grouping)
+          logger.warning(
+            f"Parameter group structure changed: saved={saved_num_groups}, current={current_num_groups}. "
+            f"Skipping optimizer state loading to avoid mismatch."
+          )
+          optimizer_loaded = False
+          break
+
         for pg in weights['param_groups']:
           if 'lr' in pg:
             pg['lr'] = lr
@@ -1212,11 +1225,11 @@ class LMRunnerBase(ABC):
         if load_optimizer:
           try:
             optimizer.load_state_dict(weights)
-          except ValueError:
+          except (ValueError, RuntimeError) as e:
             optimizer_loaded = False
             logger.error(
-              "Unable to load optimizer state. Probably a new parameter that is throwing things off. "
-              "(This optimizer doesn't belong to this model)")
+              f"Unable to load optimizer state: {e}. Probably a new parameter or structure change. "
+              f"(This optimizer doesn't belong to this model)")
         else:
           optimizer_loaded = False
     else:
