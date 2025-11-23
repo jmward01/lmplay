@@ -4,7 +4,8 @@ from typing import Optional, Any, List
 
 from lmplay.modules import Block, DULinear
 import tiktoken
-from lmplay.base.base_model import LMBase, LMRunnerBase
+from lmplay.base.base_model import LMBase
+from lmplay.base.base_runner import LMRunnerBase
 from functools import partial
 #See the ULinear in the modules for more info on how this works.
 

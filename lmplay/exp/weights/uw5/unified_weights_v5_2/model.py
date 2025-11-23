@@ -1,6 +1,7 @@
 from typing import Any
 
-from lmplay.base.base_model import LMBase, LMRunnerBase
+from lmplay.base.base_model import LMBase
+from lmplay.base.base_runner import LMRunnerBase
 from ..unified_weights_v5_1.model import GPT2
 
 

@@ -4,7 +4,8 @@ from typing import Optional, Any, List
 
 from .modules import Block
 import tiktoken
-from lmplay.base.base_model import LMBase, LMRunnerBase
+from lmplay.base.base_model import LMBase
+from lmplay.base.base_runner import LMRunnerBase
 
 
 class GPT2(LMBase):

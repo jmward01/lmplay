@@ -6,7 +6,8 @@ from .modules import SULinear
 from lmplay.exp.weights.unified_weights_v1_0.modules import ULinear
 from lmplay.modules import Block
 import tiktoken
-from lmplay.base.base_model import LMBase, LMRunnerBase
+from lmplay.base.base_model import LMBase
+from lmplay.base.base_runner import LMRunnerBase
 from functools import partial
 
 

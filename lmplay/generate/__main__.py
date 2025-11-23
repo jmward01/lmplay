@@ -14,7 +14,7 @@ configuration options for controlling generation behavior.
 """
 
 from lmplay import MODEL_RUNNERS
-from lmplay.base.base_model import LMRunnerBase
+from lmplay.base.base_runner import LMRunnerBase
 import os
 
 
@@ -85,8 +85,10 @@ def main():
   if not os.path.exists(location):
     print(f"{location} not found.")
     exit(1)
-  mr.initialize(args.device,
-                locations=args.model,
+  mr.initialize(construction_args={},
+                state_args_overrides={},
+                device=args.device,
+                locations=[args.model],
                 amp=args.amp,
                 for_train=False)
   if args.max_len is None:

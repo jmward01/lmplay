@@ -159,7 +159,7 @@ class MyModel(LMBase):
 
 ```python
 # lmplay/exp/my_experiment/versions.py
-from lmplay.base.base_model import BasicModelRunner
+from lmplay.base.runners import BasicModelRunner
 from .model import MyModel
 from lmplay.base.runner_list import expose_runner
 
