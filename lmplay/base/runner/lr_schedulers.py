@@ -55,11 +55,11 @@ class LRSchedulersComponent(Component):
       state: Saved scheduler states (unused for now)
     """
     # Must have optimizers constructed
-    if not self.mr._optimizers:
-      raise RuntimeError("Optimizers must be constructed before LR schedulers")
     if not self.mr.for_train:
       #Nothing to construct if we aren't training
       return
+    if not self.mr._optimizers:
+      raise RuntimeError("Optimizers must be constructed before LR schedulers")
 
     # Extract warmup parameters from construction_args
     disable_optimizer_warmup = construction_args.get('disable_optimizer_warmup', True) if construction_args else True

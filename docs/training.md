@@ -372,15 +372,28 @@ import torch
 
 checkpoint = torch.load('model.lmp', weights_only=False)
 
-# Contents:
+# Checkpoint contents (organized by component):
 print(checkpoint.keys())
-# dict_keys(['model', 'model_args', 'optimizer', 'optimizer_args',
-#            'current_step', 'stats', 'step_stats'])
+# dict_keys(['curriculum', 'model', 'runner', 'optimizers', 'lr_schedulers'])
 
-# Check training progress
-stats = checkpoint['stats']
+# Each component has state_args and state:
+print(checkpoint['model'].keys())
+# dict_keys(['state_args', 'state'])
+
+# Access model weights and construction args
+model_weights = checkpoint['model']['state']  # Model state_dict
+model_args = checkpoint['model']['state_args']  # Model construction parameters
+
+# Access training statistics from runner component
+runner_state = checkpoint['runner']['state']
+stats = runner_state['stats']  # Overall training statistics
 print(f"Total samples trained: {stats['total_train_samples']}")
 print(f"Total loss: {stats['train_loss_total']}")
+
+# Access per-stage statistics
+step_stats = runner_state['step_stats']  # Dict of statistics per training stage
+for stage_name, stage_stat in step_stats.items():
+    print(f"{stage_name}: {stage_stat['total_train_samples']} samples")
 ```
 
 ### Resume Training
