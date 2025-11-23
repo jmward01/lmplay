@@ -55,25 +55,39 @@ nn.Module (PyTorch)
 - Forward signature: `forward(x: Tensor, cache: Optional[List]) -> Tensor`
 - Supports key-value caching for efficient generation
 
-### 2. Runner Hierarchy
+### 2. Runner Hierarchy and Component Architecture
 
 ```
-LMRunnerBase (ABC, lmplay/base/base_model.py)
-    └── BasicModelRunner (for standard models)
+LMRunnerBase (ABC, lmplay/base/base_runner.py)
+    └── BasicModelRunner (for standard models, lmplay/base/runners.py)
         └── Custom Runners (optional, for special cases)
 ```
 
-**LMRunnerBase** provides:
-- Model initialization and device management
-- Training loop with gradient accumulation
-- Optimizer and scheduler management
-- Checkpointing and statistics tracking
-- Validation and inference
+**LMRunnerBase** uses a **component system** that cleanly separates concerns. Five core components manage different aspects:
+
+**Five Core Components** (in `lmplay/base/runner/`):
+1. **CurriculumComponent** - Manages training plans and current training stage
+2. **ModelComponent** - Loads/saves model weights and construction parameters
+3. **OptimizersComponent** - Creates optimizers with intelligent weight decay handling
+4. **LRSchedulersComponent** - Manages learning rate schedules (warmup, etc.)
+5. **RunnerComponent** - Tracks batch size, validation intervals, statistics
+
+**Component Interface** (all components implement):
+- `archive()` - Save current state: `{'state_args': {...}, 'state': {...}}`
+- `advertise()` - Expose construction parameters for config files
+- `construct(construction_args, state_args, state)` - Build/rebuild from merged config
+
+**Construction Flow** in `runner.initialize()`:
+1. Receive construction_args (from config), state_args_overrides (from CLI), checkpoint_state
+2. Merge in order: construction_args → state_args_overrides → checkpoint_state
+3. Construct components in order: curriculum → model → runner → optimizers → lr_schedulers
+4. Components share access to the runner for coordination (e.g., model needed before optimizers)
 
 **BasicModelRunner** is a simple implementation that:
 - Takes a model class in `__init__`
 - Implements `_construct_model()` to instantiate it
 - Handles parameter overrides for different model versions
+- Inherits all component orchestration from `LMRunnerBase`
 
 ### 3. Training Infrastructure
 

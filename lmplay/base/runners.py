@@ -1,4 +1,5 @@
-from .base_runner import LMRunnerBase, LMBase
+from .base_model import LMBase
+from .base_runner import LMRunnerBase
 
 class BasicModelRunner(LMRunnerBase):
   """Simple model runner implementation for standard models.
@@ -8,12 +9,12 @@ class BasicModelRunner(LMRunnerBase):
 
   Args:
     model_class: The model class to instantiate
-    max_batch_size: Maximum batch size for gradient accumulation
+    mini_batch_size: Maximum batch size for gradient accumulation
     overrides: Parameter overrides to apply when loading models
   """
 
-  def __init__(self, model_class, max_batch_size=25, overrides: dict = None, **kwargs):
-    super().__init__(max_batch_size=max_batch_size, **kwargs)
+  def __init__(self, model_class, mini_batch_size=25, overrides: dict = None, **kwargs):
+    super().__init__(mini_batch_size=mini_batch_size, **kwargs)
     self.model_class = model_class
     self.overrides = overrides
 

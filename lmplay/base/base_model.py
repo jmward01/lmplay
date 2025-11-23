@@ -373,9 +373,12 @@ class MBase(nn.Module):
             Example: {'num_blocks': 8, 'embedding_dim': 512}
     """
     params = {}
-    if 'max_len' not in params:
-      params['max_len'] = 1024
-    return params
+    for param, default in (('max_len', 1024),
+                           ('batch_size', 50)):
+      if param not in params:
+        params[param] = default
+
+      return params
 
 
 class LMBase(MBase):

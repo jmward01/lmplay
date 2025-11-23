@@ -90,8 +90,8 @@ class GPT2(LMBase):
 
 
 class ModelRunner(LMRunnerBase):
-  def __init__(self, max_batch_size=25):
-    super().__init__(max_batch_size=max_batch_size)
+  def __init__(self, mini_batch_size=25):
+    super().__init__(mini_batch_size=mini_batch_size)
 
   def _construct_model(self,
                        device,

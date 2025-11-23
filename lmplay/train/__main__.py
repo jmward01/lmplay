@@ -115,7 +115,7 @@ def log_training_configuration(args, mr, mini_batch_size, device):
     num_optimizers = len(mr._optimizers) if isinstance(mr._optimizers, list) else 1
     optimizer_list = mr._optimizers if isinstance(mr._optimizers, list) else [mr._optimizers]
 
-    print(f"Optimizer: {num_optimizers} instance(s) of Adagrad")
+    print(f"Optimizer: {num_optimizers} instance(s)")
 
     for opt_idx, optimizer in enumerate(optimizer_list):
       opt_lr = optimizer.param_groups[0].get('lr') if optimizer.param_groups else 'N/A'
@@ -261,7 +261,7 @@ def main():
   #same with amp, compile_model, backend, etc. Those are 'command line' so would be available in the run_args/args
 
 
-  mr:LMRunnerBase = MODEL_RUNNERS[args.exp]['runner'](max_batch_size=args.mini_batch_size)
+  mr:LMRunnerBase = MODEL_RUNNERS[args.exp]['runner'](mini_batch_size=args.mini_batch_size)
   mr.initialize(
     construction_args=construction_args,
     state_args_overrides=state_args_overrides,
