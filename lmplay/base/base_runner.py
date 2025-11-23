@@ -429,11 +429,14 @@ class LMRunnerBase(ABC):
             continue
 
           # Update LR and weight decay in saved state to match current config
+          first_group = True
           for pg in weights['param_groups']:
             if 'lr' in pg:
               pg['lr'] = lr
-            if 'weight_decay' in pg:
+            #weight decay is always 0 for second group. This should be bias/other params that weight decay hurts.
+            if first_group and 'weight_decay' in pg:
               pg['weight_decay'] = weight_decay
+            first_group = False
 
           try:
             optimizer.load_state_dict(weights)
