@@ -1,4 +1,4 @@
-from lmplay.base.base_model import BasicModelRunner
+from lmplay.base.runners import BasicModelRunner
 from .model import GPT2
 from lmplay.base.runner_list import expose_runner
 
