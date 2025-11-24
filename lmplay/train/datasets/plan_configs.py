@@ -54,6 +54,12 @@ LARGE_WIKI_EN_ES_STEP = {'datasets': ['wiki_en', 'wiki_es'],
 PRETRAIN_STEP = {'datasets': ['tinystories'],
                  'epochs': 1.0,
                  'step_name': 'pretrain'}
+
+MEDIUM_MIX = {'datasets': ['tinystories', 'wiki_en', 'wiki_es', 'smoltalk_all'],
+                             'epochs': 1.0,
+                             'step_name': 'med_mix',
+                             'interleve_stopping_strategy': "all_exhausted"}
+
 BIG_PRETRAIN_STEP = {'datasets': ['tinystories', 'cosmopedia_v2'],
                      'epochs': 1.0,
                      'step_name': 'bigpretrain'}
@@ -83,7 +89,7 @@ ALL_STEP = {'datasets': list(ALL_DATASETS),
 
 DEFAULT_PLAN = {'datasets': ALL_DATASETS,
                 'seed': 0,
-                'steps': [WIKI_EN_ES_STEP, ]}
+                'steps': [MEDIUM_MIX, ]}
 
 WIKI_EN_ES = {'datasets': ALL_DATASETS,
               'seed': 0,
