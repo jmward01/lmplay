@@ -46,7 +46,7 @@ class GPT2(LMBase):
                ff_dropout: Optional[float] = 0.1,
                embed_dropout: Optional[float] = 0.1,
                version="gpt2ish",
-               **ignore):
+               **kwargs):
     super().__init__(to_name(version, num_blocks=num_blocks, max_len=max_len),
                      version=version,
                      max_len=max_len,
@@ -55,7 +55,8 @@ class GPT2(LMBase):
                      embed_dim=embed_dim,
                      attn_dropout=attn_dropout,
                      ff_dropout=ff_dropout,
-                     embed_dropout=embed_dropout)
+                     embed_dropout=embed_dropout,
+                     **kwargs)
     self.tokenizer = get_tokenizer("gpt2")
     vocab_size = self.tokenizer.n_vocab
 

@@ -114,10 +114,10 @@ class LMRunnerCommon(ABC):
       dict: component name -> state_args dict
     """
     state_args = {}
-    for component in self.components:
-      component = self.component(component)
+    for name in self.components:
+      component = self.component(name)
       archived = component.archive()
-      state_args[component] = archived.get('state_args', {})
+      state_args[name] = archived.get('state_args', {})
     return state_args
 
   def set_current_step(self, step_name: str):

@@ -3,7 +3,9 @@ from typing import Optional, Sequence, List
 import torch
 from torch import nn
 from torch.optim import Optimizer
-from lmplay.base.defaults import DEFAULT_LR, DEFAULT_ADAMW_WEIGHT_DECAY, DEFAULT_WEIGHT_DECAY
+from lmplay.base.defaults import DEFAULT_ADAMW_WEIGHT_DECAY, DEFAULT_WEIGHT_DECAY
+import logging
+logger = logging.getLogger(__name__)
 
 def categorize_parameters_by_weight_decay(
     model: nn.Module,
@@ -34,8 +36,8 @@ def categorize_parameters_by_weight_decay(
       self.register_parameter('custom_param', param)
   """
   if exclude_patterns is None:
-    exclude_patterns = get_weight_decay_exclusion_patterns()
-
+    exclude_patterns = model.weight_decay_exclusion_patterns
+  logger.info(f"Excluding these patterns from weight decay: {', '.join(exclude_patterns)}")
   decay_params = []
   no_decay_params = []
 
@@ -123,17 +125,3 @@ def detect_freeze(module: nn.Module):
     if hasattr(p, 'freeze') and p.freeze is not None:
       freeze = p.freeze
       p.requires_grad_(not freeze)
-
-
-def get_weight_decay_exclusion_patterns() -> Sequence[str]:
-  """Get default parameter name patterns to exclude from weight decay.
-
-  Returns standard patterns for parameters that should not have weight decay applied:
-  - "bias": All bias parameters
-  - "LayerNorm": All LayerNorm module parameters (weight and bias)
-  - "embed": All embedding layer parameters (token embeddings, positional embeddings, etc.)
-
-  Returns:
-    Sequence[str]: List of patterns to match against parameter names
-  """
-  return [".bias", "_bias", ".ln", "_ln", "ln.", "embed"]

@@ -214,7 +214,7 @@ def main():
 
   # Load config BEFORE runner initialization/any of the args are used
   try:
-    construction_args, state_args_overrides = config.load_config(args, args.use_config)
+    construction_args, state_args_overrides, run_args = config.load_config(args, args.use_config)
   except config.ConfigError as e:
     print(f"Error loading config: {e}")
     exit(1)
@@ -279,7 +279,7 @@ def main():
   if args.dump_config:
     construction_args_to_dump = mr.get_construction_args_for_config()
     state_args_to_dump = mr.get_state_args_for_config()
-    config.save_config(args.dump_config, construction_args_to_dump, state_args_to_dump, comment_state_args=True)
+    config.save_config(args.dump_config, run_args, construction_args_to_dump, state_args_to_dump, comment_state_args=True)
     print(f"Config file saved to: {args.dump_config}")
     exit(0)
 

@@ -30,13 +30,14 @@ class _DefaultValue:
     self.value = value
 
 
-def apply_config_defaults(args, run_args_from_config):
+def apply_config_defaults(args, run_args_from_config) -> dict:
   """Apply config run_args defaults only to args the user didn't explicitly set.
 
   Args:
     args: Parsed argparse Namespace object
     run_args_from_config: Dict of run_args from config file
   """
+  run_args = dict()
   for attr_name in vars(args):
     current_value = getattr(args, attr_name)
 
@@ -45,12 +46,14 @@ def apply_config_defaults(args, run_args_from_config):
       # Try to override from config, else use the wrapped default value
       if attr_name in run_args_from_config:
         setattr(args, attr_name, run_args_from_config[attr_name])
+        run_args[attr_name] = run_args_from_config[attr_name]
       else:
         # Keep the default value from the marker
         setattr(args, attr_name, current_value.value)
+        run_args[attr_name] = current_value.value
+  return run_args
 
-
-def load_config(args, location: str = None, default: str = 'lmpdefaults.yaml') -> Tuple[Dict[str, Any], Dict[str, Any]]:
+def load_config(args, location: str = None, default: str = 'lmpdefaults.yaml') -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
   """Load YAML config file with fallback to default, and apply run_args to args.
 
   If location is specified, it must exist (error if not).
@@ -77,15 +80,13 @@ def load_config(args, location: str = None, default: str = 'lmpdefaults.yaml') -
   else:
     # Try default, but don't error if it doesn't exist
     if os.path.exists(default):
-      try:
-        construction_args, state_args_overrides, run_args = _load_config_file(default)
-      except ConfigError:
-        pass
+      construction_args, state_args_overrides, run_args = _load_config_file(default)
+
 
   # Apply run_args to args object in place
-  apply_config_defaults(args, run_args)
+  run_args = apply_config_defaults(args, run_args)
 
-  return construction_args, state_args_overrides
+  return construction_args, state_args_overrides, run_args
 
 
 def _load_config_file(config_path: str) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
@@ -119,8 +120,11 @@ def _load_config_file(config_path: str) -> Tuple[Dict[str, Any], Dict[str, Any],
   return construction_args, state_args_overrides, run_args
 
 
-def save_config(config_path: str, construction_args: Dict[str, Any],
-                state_args: Dict[str, Any], comment_state_args: bool = True) -> None:
+def save_config(config_path: str,
+                run_args: dict[str, Any],
+                construction_args: dict[str, Any],
+                state_args: dict[str, Any],
+                comment_state_args: bool = True) -> None:
   """Save config to YAML file.
 
   Args:
@@ -133,8 +137,10 @@ def save_config(config_path: str, construction_args: Dict[str, Any],
 
   with open(config_path, 'w') as f:
     # Write construction_args section
-    yaml.dump({'construction_args': construction_args}, f,
-              default_flow_style=False, sort_keys=False)
+    yaml.dump({'run_args':run_args, 'construction_args': construction_args},
+              f,
+              default_flow_style=False,
+              sort_keys=False)
 
     # Write state_args section (commented or uncommented)
     if state_args:

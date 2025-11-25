@@ -27,6 +27,13 @@ from lmplay.utils import ignore_default
 
 logger = logging.getLogger(__name__)
 
+#Lot's here to think about. embed is hopefully obvious. low run tokens would slowly zero out
+#bias should be allowed to go wherever it needs to.
+#ln is a regularization mechanism in its own right
+#everything in attn is a question though.
+# From what I have read weight decay in attn leads to poor performance.
+# Gimme a bunch of GPUs and we can test that but for now just exclude it.
+DEFAULT_WEIGHT_DECAY_EXCLUSION_PATTERNS = (".bias", "_bias", ".ln", "_ln", "ln.", "embed", "attn")
 
 class MBase(nn.Module):
   """Base class for all models in the lmplay framework.
@@ -43,7 +50,8 @@ class MBase(nn.Module):
     flat_batch: Whether to flatten batches for processing
     tokenizer: Tokenizer instance for text processing
   """
-  
+
+
   @ignore_default
   def __init__(self,
                name: str,
@@ -51,12 +59,17 @@ class MBase(nn.Module):
                expect_extra_loss=False,
                pass_lengths=False,
                flat_batch=False,
+               weight_decay_exclusion_patterns = DEFAULT_WEIGHT_DECAY_EXCLUSION_PATTERNS,
+               max_len = 1024,
                **init_kwargs):
     super().__init__()
+    init_kwargs['max_len'] = max_len
+    init_kwargs['weight_decay_exclusion_patterns'] = weight_decay_exclusion_patterns
+    self.weight_decay_exclusion_patterns = weight_decay_exclusion_patterns
     self.name = name.replace('.', '_')
     self.init_args = init_args
     self.init_kwargs = init_kwargs
-    self.max_len = init_kwargs['max_len']
+    self.max_len = max_len
     self.expect_extra_loss = expect_extra_loss
     self.pass_lengths = pass_lengths
     self.flat_batch = flat_batch
