@@ -260,7 +260,7 @@ def main():
   #minibatch size though is not a hyperparameter. If it is implemented correctly then it is just a performance parameter that allows smaller GPUs to train like bigger ones.
   #same with amp, compile_model, backend, etc. Those are 'command line' so would be available in the run_args/args
 
-
+  construction_args['model']['version'] = args.exp
   mr:LMRunnerBase = MODEL_RUNNERS[args.exp]['runner'](mini_batch_size=args.mini_batch_size)
   mr.initialize(
     construction_args=construction_args,
