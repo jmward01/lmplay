@@ -30,6 +30,7 @@ import traceback
 from tqdm import tqdm
 from lmplay import MODEL_RUNNERS
 from lmplay.base.base_runner import LMRunnerBase
+from lmplay.base.exceptions import ModelCorrupted
 from lmplay.train.datasets.plan import steps
 from lmplay import config
 
@@ -340,6 +341,21 @@ def main():
             next_save = calc_next(save_interval, mr.get_step_stats().total_train_samples)
           pbar.set_description(render_pbar(args.exp, device, mr.model_stats, mr.get_step_stats(), mr.current_step))
           pbar.update(new_train_samples_read)
+      except ModelCorrupted as e:
+        print(f"\n{'='*70}")
+        print("MODEL CORRUPTION DETECTED - TRAINING HALTED")
+        print(f"{'='*70}")
+        print(f"Stack trace:\n{traceback.format_exc()}")
+        print(f"\nCorruption details:\n{e.format_details()}")
+        print(f"{'='*70}")
+        # Save corrupted state for analysis
+        if save_location.endswith('.lmp'):
+          corrupt_save_location = f"{save_location[:-4]}.corrupted.lmp"
+        else:
+          corrupt_save_location = f"{save_location}.corrupted"
+        print(f"Saving corrupted model state to: {corrupt_save_location}")
+        mr.save(corrupt_save_location)
+        early_exit = True
       except KeyboardInterrupt:
         print(f"User canceled training.")
         early_exit = True

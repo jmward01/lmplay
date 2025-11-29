@@ -11,6 +11,7 @@ from torch.optim.lr_scheduler import LRScheduler
 from lmplay.base.base_model import LMBase
 from lmplay.base.runner.common import Component, NOPComponent
 from lmplay.base.utils import NopWith
+from lmplay.base.exceptions import ModelCorrupted
 from lmplay.stats import modelstats, utils
 from lmplay.train.datasets.plan_configs import DEFAULT_PLANS
 logger = logging.getLogger(__name__)
@@ -351,6 +352,26 @@ class LMRunnerCommon(ABC):
       copyfile(location, f"{location}.bak")
     torch.save(checkpoint, location)
 
+  def _check_loss_for_corruption(self, loss_tensor: torch.Tensor, batch_index: int = None):
+    """Check if loss indicates model corruption (NaN or Inf).
+
+    Args:
+      loss_tensor: Loss tensor to check
+      batch_index: Optional batch index for error reporting
+
+    Raises:
+      ModelCorrupted: If loss is NaN or Inf/-Inf
+    """
+    if not torch.isfinite(loss_tensor):
+      if torch.isnan(loss_tensor):
+        msg = "NaN detected in loss computation"
+      else:
+        msg = "Inf/-Inf detected in loss computation"
+      raise ModelCorrupted(
+          message=msg,
+          batch_index=batch_index,
+          loss_value=loss_tensor.item())
+
   def _calculate_stats(self, prompts_data: Sequence[dict], results: Sequence[str]):
     """Calculate accuracy statistics for predictions.
 
@@ -416,6 +437,8 @@ class LMRunnerCommon(ABC):
         # Loss computation and backward outside autocast
         mini_batch_fraction = len(mini_batch) / len(prompts)
         mini_batch_loss = (mini_batch_loss * mini_batch_fraction) / mini_batch_token_count
+        # Check for model corruption before backward pass
+        self._check_loss_for_corruption(mini_batch_loss)
         if train:
           # accumulate the gradients - outside autocast for stability
           if self.scaler is not None:
@@ -435,6 +458,8 @@ class LMRunnerCommon(ABC):
       # Loss computation and backward outside autocast
       mini_batch_fraction = len(mini_batch) / len(prompts)
       mini_batch_loss = (mini_batch_loss * mini_batch_fraction) / mini_batch_token_count
+      # Check for model corruption before backward pass
+      self._check_loss_for_corruption(mini_batch_loss)
 
       if train:
         # accumulate the gradients - outside autocast for stability
